@@ -49,11 +49,15 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-let cachedToken: { value: string; expiresAt: number } | null = null;
+const tokenCache = new Map<string, { value: string; expiresAt: number }>();
 
-/** OAuth2 access token for the Firestore REST API, cached until near expiry. */
-export async function getAccessToken(): Promise<string> {
+const DEFAULT_SCOPES = ["https://www.googleapis.com/auth/datastore"];
+
+/** OAuth2 access token for the given Google API scopes, cached until near expiry. */
+export async function getAccessToken(scopes: string[] = DEFAULT_SCOPES): Promise<string> {
+  const scopeKey = scopes.slice().sort().join(" ");
   const now = Math.floor(Date.now() / 1000);
+  const cachedToken = tokenCache.get(scopeKey);
   if (cachedToken && cachedToken.expiresAt - 60 > now) return cachedToken.value;
 
   const account = getServiceAccount();
@@ -61,7 +65,7 @@ export async function getAccessToken(): Promise<string> {
   const claims = base64UrlEncode(
     JSON.stringify({
       iss: account.client_email,
-      scope: "https://www.googleapis.com/auth/datastore",
+      scope: scopeKey,
       aud: "https://oauth2.googleapis.com/token",
       iat: now,
       exp: now + 3600,
