@@ -15,16 +15,31 @@ const NAV = [
 ] as const satisfies readonly { to: string; label: string; exact?: boolean }[];
 
 function SignIn() {
-  const { signIn, error } = useAdminAuth();
+  const { signIn, resetPassword, error } = useAdminAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
+    setResetSent(false);
     try {
       await signIn(email, password);
+    } catch {
+      /* error surfaced through context */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReset() {
+    if (!email) return;
+    setBusy(true);
+    try {
+      await resetPassword(email);
+      setResetSent(true);
     } catch {
       /* error surfaced through context */
     } finally {
@@ -67,9 +82,23 @@ function SignIn() {
             />
           </div>
           {error ? <p className="admin-error">{error}</p> : null}
+          {resetSent ? (
+            <p style={{ color: "var(--color-primary)", fontSize: 13, margin: 0 }}>
+              Password reset email sent — check your inbox.
+            </p>
+          ) : null}
           <Button type="submit" disabled={busy}>
             {busy ? "Signing in…" : "Sign in"}
           </Button>
+          <button
+            type="button"
+            className="admin-reset-link"
+            disabled={busy || !email}
+            title={email ? undefined : "Enter your email above first"}
+            onClick={() => void handleReset()}
+          >
+            Forgot password?
+          </button>
         </form>
       </Card>
     </main>

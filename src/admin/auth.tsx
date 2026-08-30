@@ -15,6 +15,7 @@ interface AdminAuthState {
   ready: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   signOutAdmin: () => Promise<void>;
 }
 
@@ -61,6 +62,19 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const resetPassword = useCallback(async (email: string) => {
+    setError(null);
+    const { auth } = await getFirebaseClient();
+    const { sendPasswordResetEmail } = await import("firebase/auth");
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Password reset failed";
+      setError(message.replace("Firebase: ", ""));
+      throw cause;
+    }
+  }, []);
+
   const signOutAdmin = useCallback(async () => {
     const { auth } = await getFirebaseClient();
     const { signOut } = await import("firebase/auth");
@@ -68,8 +82,8 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AdminAuthState>(
-    () => ({ user, ready, error, signIn, signOutAdmin }),
-    [user, ready, error, signIn, signOutAdmin],
+    () => ({ user, ready, error, signIn, resetPassword, signOutAdmin }),
+    [user, ready, error, signIn, resetPassword, signOutAdmin],
   );
 
   return <AdminAuthContext.Provider value={value}>{children}</AdminAuthContext.Provider>;
