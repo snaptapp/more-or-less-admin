@@ -14,7 +14,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminTaxonomyRouteImport } from './routes/admin/taxonomy'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
+import { Route as AdminPlayersRouteImport } from './routes/admin/players'
 import { Route as AdminFactsRouteImport } from './routes/admin/facts'
+import { Route as AdminDailyRouteImport } from './routes/admin/daily'
 import { Route as Char91__mockupChar93PreviewSplatRouteImport } from './routes/[__mockup].preview.$'
 import { Route as Char91__componentChar93PreviewSplatRouteImport } from './routes/[__component].preview.$'
 
@@ -43,9 +45,19 @@ const AdminReportsRoute = AdminReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminPlayersRoute = AdminPlayersRouteImport.update({
+  id: '/players',
+  path: '/players',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminFactsRoute = AdminFactsRouteImport.update({
   id: '/facts',
   path: '/facts',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminDailyRoute = AdminDailyRouteImport.update({
+  id: '/daily',
+  path: '/daily',
   getParentRoute: () => AdminRoute,
 } as any)
 const Char91__mockupChar93PreviewSplatRoute =
@@ -64,7 +76,9 @@ const Char91__componentChar93PreviewSplatRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/admin/daily': typeof AdminDailyRoute
   '/admin/facts': typeof AdminFactsRoute
+  '/admin/players': typeof AdminPlayersRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin/': typeof AdminIndexRoute
@@ -73,7 +87,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin/daily': typeof AdminDailyRoute
   '/admin/facts': typeof AdminFactsRoute
+  '/admin/players': typeof AdminPlayersRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin': typeof AdminIndexRoute
@@ -84,7 +100,9 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/admin/daily': typeof AdminDailyRoute
   '/admin/facts': typeof AdminFactsRoute
+  '/admin/players': typeof AdminPlayersRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin/': typeof AdminIndexRoute
@@ -96,7 +114,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/admin/daily'
     | '/admin/facts'
+    | '/admin/players'
     | '/admin/reports'
     | '/admin/taxonomy'
     | '/admin/'
@@ -105,7 +125,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin/daily'
     | '/admin/facts'
+    | '/admin/players'
     | '/admin/reports'
     | '/admin/taxonomy'
     | '/admin'
@@ -115,7 +137,9 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/admin/daily'
     | '/admin/facts'
+    | '/admin/players'
     | '/admin/reports'
     | '/admin/taxonomy'
     | '/admin/'
@@ -167,11 +191,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminReportsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/players': {
+      id: '/admin/players'
+      path: '/players'
+      fullPath: '/admin/players'
+      preLoaderRoute: typeof AdminPlayersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/facts': {
       id: '/admin/facts'
       path: '/facts'
       fullPath: '/admin/facts'
       preLoaderRoute: typeof AdminFactsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/daily': {
+      id: '/admin/daily'
+      path: '/daily'
+      fullPath: '/admin/daily'
+      preLoaderRoute: typeof AdminDailyRouteImport
       parentRoute: typeof AdminRoute
     }
     '/__mockup/preview/$': {
@@ -192,14 +230,18 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminDailyRoute: typeof AdminDailyRoute
   AdminFactsRoute: typeof AdminFactsRoute
+  AdminPlayersRoute: typeof AdminPlayersRoute
   AdminReportsRoute: typeof AdminReportsRoute
   AdminTaxonomyRoute: typeof AdminTaxonomyRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminDailyRoute: AdminDailyRoute,
   AdminFactsRoute: AdminFactsRoute,
+  AdminPlayersRoute: AdminPlayersRoute,
   AdminReportsRoute: AdminReportsRoute,
   AdminTaxonomyRoute: AdminTaxonomyRoute,
   AdminIndexRoute: AdminIndexRoute,
