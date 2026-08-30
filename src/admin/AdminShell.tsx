@@ -12,6 +12,7 @@ const NAV = [
   { to: "/admin/players", label: "Players" },
   { to: "/admin/daily", label: "Daily challenge" },
   { to: "/admin/analytics", label: "Game analytics" },
+  { to: "/admin/roles", label: "Roles & access" },
 ] as const satisfies readonly { to: string; label: string; exact?: boolean }[];
 
 function SignIn() {
