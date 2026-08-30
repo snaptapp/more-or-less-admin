@@ -28,8 +28,6 @@ function SignIn() {
     setBusy(true);
     setResetSent(false);
     try {
-      // When MFA is required the auth context flips mfaPending and the
-      // shell swaps this form for the challenge step automatically.
       await signIn(email, password);
     } catch {
       /* error surfaced through context */
