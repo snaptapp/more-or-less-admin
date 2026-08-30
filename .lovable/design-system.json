@@ -1,0 +1,709 @@
+{
+  "meta": {
+    "name": "more or less admin site",
+    "package": "@ws-379cae16210c2fefdfa6/18942472-e8d0-4bea-a978-e99273b6602e",
+    "version": "1.0.0",
+    "framework": "react",
+    "css_framework": "css-variables",
+    "starter_template": "custom_design_system",
+    "theme_files": [
+      "src/design-system/theme/tokens.css"
+    ],
+    "source_type": "local",
+    "source_manifest": {
+      "#enrichment": "b38f0a8ad337825e479cc226e04fd1c63a9c45cdf427f6174d7459402bc9b9aa",
+      ".dsignore": "0d6545acd65562f25dab640e47d87d01",
+      ".gitignore": "6059213806e442947666752f3db6bfdc",
+      ".lovable/meta.yaml": "d1f4edf35a22268edbfbdaca9f21c0f1",
+      ".lovable/plan/more-or-less-admin-portal-2026-08-30.md": "c51b6168ae55258bfa5672f50fd69525",
+      ".lovable/sources.yaml": "eee7ec2ea9dfe2e19e1753f2612deaa6",
+      ".lovable/system.md": "fdfb81aadb74ee0de08e30a143d3d82a",
+      "README.md": "d19675c449605f23c7cfa133c69b398b",
+      "bunfig.toml": "25f4c8696b22b0943db7191e0cdf7942",
+      "eslint.config.js": "07a67437fb1a45ab36d6de0145ff09de",
+      "flutter/arena_kit/README.md": "ad816044790551d91790f13ceab6b504",
+      "flutter/arena_kit/arena_badge.dart": "dfb9b5a2195d125580ab2550dcf166d5",
+      "flutter/arena_kit/arena_breakpoints.dart": "a3440c3dd65e62405eebfbab8270f476",
+      "flutter/arena_kit/arena_button.dart": "d727f49dec8595b2002acb0604fc8677",
+      "flutter/arena_kit/arena_card.dart": "8771834d21cb6d0bff3b1dbadd135642",
+      "flutter/arena_kit/arena_choice_buttons.dart": "1f9afa322499bf4c47288a3367c8af78",
+      "flutter/arena_kit/arena_empty_state.dart": "316e7af3c6cdf612e55fe1f1f2678d88",
+      "flutter/arena_kit/arena_kit.dart": "d45b740883b209281fad763c90da15c0",
+      "flutter/arena_kit/arena_progress_bar.dart": "dc4b63f16051af590411ec552ced9309",
+      "flutter/arena_kit/arena_section_header.dart": "54304c4e66499689e45e5eb8f779e6a0",
+      "flutter/arena_kit/arena_shot_clock.dart": "5f0e0a1f7bec09ad5dfe12ee68c552f3",
+      "flutter/arena_kit/arena_stat_tile.dart": "d58267f8f16728f0c3475fb0eb59c7a4",
+      "flutter/arena_kit/arena_tone.dart": "8b3bc8184973179b5710bcec55149398",
+      "lovable.toml": "9636c1bf32f9901bfba4eabb92981217",
+      "mockupPreviewPlugin.ts": "08be2d15337c9b4145cc506cdf63a04e",
+      "package.json": "5aca4392bd86898ddb2555c3852af02f",
+      "public/favicon.ico": "9f504444f85a5af2eef9264b02ae40be",
+      "roadmap.md": "7a880b7f44ea9e93f7cdc01e46ca8a09",
+      "src/admin/AdminShell.tsx": "220ed2d1b82e6d513456e10673c32edb",
+      "src/admin/admin.css": "277f8ce5bb2e06247e1f5494200f355b",
+      "src/admin/auth.tsx": "d57a402c6c8a70d507d0e81ea3b1ebc1",
+      "src/design-system/components/AnswerButton.tsx": "8b99a549e40dee3055e32572ab0d63a6",
+      "src/design-system/components/Badge.tsx": "79094714fa58f28d5b2bc0b644994bd0",
+      "src/design-system/components/Button.tsx": "b1a88c16e9f64505d1faf9293a52335b",
+      "src/design-system/components/Card.tsx": "e33d4f2e1e5a0b463fae42d5d81a8d6f",
+      "src/design-system/components/CodeInput.tsx": "d760fb6ff10098a8eaf904e3e8fd6258",
+      "src/design-system/components/LeaderboardRow.tsx": "7c21d398bb0af1e3721e2ad0b445f80e",
+      "src/design-system/components/NavBar.tsx": "7145ddb8d7c1bdeef0c3d3c2a35d3a1a",
+      "src/design-system/components/ProgressBar.tsx": "2e51ac57b308b59f22d982d1f5680c7d",
+      "src/design-system/components/ResultBanner.tsx": "9545828b58f936b86c4052537ab3a01b",
+      "src/design-system/components/ShotClock.tsx": "f128af5d2726c0845f462b9a1d776686",
+      "src/design-system/components/StatValue.tsx": "2f40fab873abcf38b490a31be62fff44",
+      "src/design-system/components/TabBar.tsx": "0e3383dcbfc22384476d1e4e86cb2158",
+      "src/design-system/components/TierRow.tsx": "e025b4fadf1565ed019ba0b6cf2cab1d",
+      "src/design-system/components/TopicTile.tsx": "1cc7ef4da07b5bcaa7c8961985cf6f46",
+      "src/design-system/lib/cn.ts": "fc78b362de4bd6a608937c7f5dc4f505",
+      "src/design-system/theme/tokens.css": "75883e77e33139e642424c3115cbcad6",
+      "src/index.ts": "2e71f3a23b2e0af3e30d1cf6f3a397f8",
+      "src/lib/admin/content.functions.ts": "fc89f34d85c0b18a4eb212756cde0ee7",
+      "src/lib/admin/content.server.ts": "74256c7284da1866053eaeb7814f828c",
+      "src/lib/admin/ops.functions.ts": "9705ea788995d0ad571b565d37f8841b",
+      "src/lib/admin/ops.server.ts": "6abbb3f7e40ca6a815ac5cd3bb6e9236",
+      "src/lib/admin/roles.functions.ts": "89a62afd68a3b361b979d8bdeb57ae11",
+      "src/lib/admin/roles.server.ts": "b56c4adcd7b13b6c6e15650b07ed4f75",
+      "src/lib/firebase/client.ts": "8bfb9c3c4c9bfc8cf377043f19b87ab3",
+      "src/lib/firebase/firestore.server.ts": "8ee052a2201118c16edd3259113c5b1c",
+      "src/lib/firebase/verify.server.ts": "02825a5d9bb8835898af7c26e98b1961",
+      "src/mockup-preview.d.ts": "38969839f35ce2966e32a9f01a5c09ea",
+      "src/preview/Showcase.tsx": "7b6bb3050bbc6a5b1d4d7bc64cb53689",
+      "src/routeTree.gen.ts": "03d8f1727564583a08ae127e1fa9b554",
+      "src/router.tsx": "8f905e713b0eba7fa8148b7995a708c9",
+      "src/routes/[__component].preview.$.tsx": "3a40af1fe37daff2e891175a6e6d4f99",
+      "src/routes/[__mockup].preview.$.tsx": "5d9f42470848aa60148f20f9580e240e",
+      "src/routes/__root.tsx": "4779753e6d61cab74e02fa6b8bb85c31",
+      "src/routes/admin.tsx": "0d8537851797eaea660fc4b435a10043",
+      "src/routes/admin/analytics.tsx": "997fcf8a593fd8d0ffffed9639aa354b",
+      "src/routes/admin/daily.tsx": "8ee90e6a6c685acc6722e6b0f6f6095c",
+      "src/routes/admin/facts.tsx": "7159370530b7a12534f87d62d92d752d",
+      "src/routes/admin/index.tsx": "08e0fd2ad25b454e3ce6239e2511f28c",
+      "src/routes/admin/players.tsx": "0c2274e94c55997a8924937e81bd97b6",
+      "src/routes/admin/reports.tsx": "5e1791d583a83bb7697e7b66ac00c16d",
+      "src/routes/admin/roles.tsx": "dcb41ed45cbb4ce9408394bf91b77b98",
+      "src/routes/admin/taxonomy.tsx": "ce4c34fd49ea35ea7d02a8abc48c7225",
+      "src/routes/api/public/firebase-config.ts": "cf7d8363205b1706348691960f936b7b",
+      "src/routes/design-system.tsx": "6561f91477b1c60128a403eb232406a8",
+      "src/routes/index.tsx": "d6a4002bfd34954f31666dda0ef7c033",
+      "src/start.ts": "bd4dce12e6139228ae358329329d5763",
+      "src/styles.css": "68f3a2c579f3ef400a1bfcd2cbdf1942",
+      "tsconfig.json": "994abf64c2b9f78b568879f80ed0170e",
+      "vite.config.ts": "9f787596cc6f9a2aa3de5a021aed28f3",
+      "wrangler.jsonc": "680b897d48e44bcc65fe437c29b38f3b"
+    },
+    "pipeline_version": 8
+  },
+  "tokens": {
+    "color": [
+      {
+        "name": "--ds-arena-color-bg",
+        "raw": "#0a0b0d",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-surface",
+        "raw": "#14161c",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-surface-raised",
+        "raw": "#1b1e26",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-surface-sunken",
+        "raw": "#0f1116",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-border",
+        "raw": "#262a34",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-border-strong",
+        "raw": "#3a4050",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-lime",
+        "raw": "#d7f24a",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-lime-dim",
+        "raw": "#8ea22c",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-lime-soft",
+        "raw": "rgba(215, 242, 74, 0.12)",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-red",
+        "raw": "#f2495c",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-red-dim",
+        "raw": "#a3283a",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-red-soft",
+        "raw": "rgba(242, 73, 92, 0.12)",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-purple",
+        "raw": "#a76cff",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-purple-dim",
+        "raw": "#6b3fb5",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-purple-soft",
+        "raw": "rgba(167, 108, 255, 0.14)",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-amber",
+        "raw": "#f6c344",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-amber-dim",
+        "raw": "#a8842a",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-amber-soft",
+        "raw": "rgba(246, 195, 68, 0.12)",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-primary-foreground",
+        "raw": "#0a0b0d",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-danger-foreground",
+        "raw": "#ffffff",
+        "source": "src/design-system/theme/tokens.css"
+      }
+    ],
+    "spacing": [
+      {
+        "name": "--ds-arena-space-1",
+        "raw": "4px",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-space-2",
+        "raw": "8px",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-space-3",
+        "raw": "12px",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-space-4",
+        "raw": "16px",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-space-5",
+        "raw": "24px",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-space-6",
+        "raw": "32px",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-space-7",
+        "raw": "48px",
+        "source": "src/design-system/theme/tokens.css"
+      }
+    ],
+    "typography": [
+      {
+        "name": "--ds-arena-color-text",
+        "raw": "#f5f7fa",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-text-muted",
+        "raw": "#8d95a6",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-color-text-inverse",
+        "raw": "#0a0b0d",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-font-display",
+        "raw": "\"Anton\", \"Arial Narrow\", sans-serif",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-font-body",
+        "raw": "\"Inter\", system-ui, sans-serif",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-font-mono",
+        "raw": "\"JetBrains Mono\", ui-monospace, monospace",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-text-display",
+        "raw": "2.5rem",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-text-xl",
+        "raw": "1.5rem",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-text-lg",
+        "raw": "1.125rem",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-text-md",
+        "raw": "1rem",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-text-sm",
+        "raw": "0.875rem",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-text-xs",
+        "raw": "0.75rem",
+        "source": "src/design-system/theme/tokens.css"
+      }
+    ],
+    "radius": [
+      {
+        "name": "--ds-arena-radius-sm",
+        "raw": "6px",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-radius-md",
+        "raw": "10px",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-radius-lg",
+        "raw": "14px",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-radius-xl",
+        "raw": "20px",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-radius-pill",
+        "raw": "999px",
+        "source": "src/design-system/theme/tokens.css"
+      }
+    ],
+    "shadow": [
+      {
+        "name": "--ds-arena-shadow-press-lime",
+        "raw": "0 4px 0 var(--ds-arena-color-lime-dim)",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-shadow-press-red",
+        "raw": "0 4px 0 var(--ds-arena-color-red-dim)",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-shadow-press-purple",
+        "raw": "0 4px 0 var(--ds-arena-color-purple-dim)",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-shadow-press-amber",
+        "raw": "0 4px 0 var(--ds-arena-color-amber-dim)",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-shadow-glow-lime",
+        "raw": "0 0 24px rgba(215, 242, 74, 0.35)",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-shadow-glow-purple",
+        "raw": "0 0 28px rgba(167, 108, 255, 0.35)",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-shadow-card",
+        "raw": "0 2px 12px rgba(0, 0, 0, 0.5)",
+        "source": "src/design-system/theme/tokens.css"
+      }
+    ],
+    "other": [
+      {
+        "name": "--ds-arena-tracking-label",
+        "raw": "0.12em",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-duration-fast",
+        "raw": "90ms",
+        "source": "src/design-system/theme/tokens.css"
+      },
+      {
+        "name": "--ds-arena-ease-out",
+        "raw": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "source": "src/design-system/theme/tokens.css"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "file": "src/design-system/components/Button",
+      "import_path": "",
+      "props": [
+        {
+          "name": "variant",
+          "type": "enum",
+          "values": [
+            "primary",
+            "danger",
+            "daily",
+            "skip",
+            "ghost"
+          ],
+          "default": "primary"
+        },
+        {
+          "name": "size",
+          "type": "enum",
+          "values": [
+            "sm",
+            "md",
+            "lg"
+          ],
+          "default": "md"
+        }
+      ]
+    },
+    {
+      "name": "Badge",
+      "file": "src/design-system/components/Badge",
+      "import_path": "",
+      "props": [
+        {
+          "name": "tone",
+          "type": "enum",
+          "values": [
+            "neutral",
+            "lime",
+            "red",
+            "purple",
+            "amber"
+          ],
+          "default": "neutral"
+        }
+      ]
+    },
+    {
+      "name": "Card",
+      "file": "src/design-system/components/Card",
+      "import_path": "",
+      "props": [
+        {
+          "name": "variant",
+          "type": "enum",
+          "values": [
+            "default",
+            "featured",
+            "active",
+            "locked"
+          ],
+          "default": "default"
+        }
+      ]
+    },
+    {
+      "name": "CardTitle",
+      "file": "src/design-system/components/Card",
+      "import_path": ""
+    },
+    {
+      "name": "CardLabel",
+      "file": "src/design-system/components/Card",
+      "import_path": ""
+    },
+    {
+      "name": "CodeInput",
+      "file": "src/design-system/components/CodeInput",
+      "import_path": "",
+      "props": [
+        {
+          "name": "label",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "hideLabel",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "name": "error",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "ProgressBar",
+      "file": "src/design-system/components/ProgressBar",
+      "import_path": "",
+      "props": [
+        {
+          "name": "value",
+          "type": "number",
+          "required": true
+        },
+        {
+          "name": "max",
+          "type": "number",
+          "default": "100"
+        },
+        {
+          "name": "tone",
+          "type": "enum",
+          "values": [
+            "lime",
+            "red",
+            "purple"
+          ],
+          "default": "lime"
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "ShotClock",
+      "file": "src/design-system/components/ShotClock",
+      "import_path": "",
+      "props": [
+        {
+          "name": "remaining",
+          "type": "number",
+          "required": true
+        },
+        {
+          "name": "total",
+          "type": "number",
+          "required": true
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "default": "Shot clock"
+        }
+      ]
+    },
+    {
+      "name": "AnswerButton",
+      "file": "src/design-system/components/AnswerButton",
+      "import_path": "",
+      "props": [
+        {
+          "name": "choice",
+          "type": "enum",
+          "values": [
+            "more",
+            "less",
+            "skip"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "TopicTile",
+      "file": "src/design-system/components/TopicTile",
+      "import_path": "",
+      "props": [
+        {
+          "name": "selected",
+          "type": "boolean",
+          "default": "false"
+        }
+      ]
+    },
+    {
+      "name": "ResultBanner",
+      "file": "src/design-system/components/ResultBanner",
+      "import_path": "",
+      "props": [
+        {
+          "name": "outcome",
+          "type": "enum",
+          "values": [
+            "correct",
+            "wrong"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "StatValue",
+      "file": "src/design-system/components/StatValue",
+      "import_path": "",
+      "props": [
+        {
+          "name": "value",
+          "type": "any",
+          "required": true
+        },
+        {
+          "name": "unit",
+          "type": "string"
+        },
+        {
+          "name": "tone",
+          "type": "enum",
+          "values": [
+            "correct",
+            "wrong"
+          ],
+          "default": "correct"
+        }
+      ]
+    },
+    {
+      "name": "LeaderboardRow",
+      "file": "src/design-system/components/LeaderboardRow",
+      "import_path": "",
+      "props": [
+        {
+          "name": "rank",
+          "type": "number",
+          "required": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "score",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "NavBar",
+      "file": "src/design-system/components/NavBar",
+      "import_path": "",
+      "props": [
+        {
+          "name": "title",
+          "type": "any",
+          "required": true
+        },
+        {
+          "name": "leading",
+          "type": "any"
+        },
+        {
+          "name": "trailing",
+          "type": "any"
+        }
+      ]
+    },
+    {
+      "name": "TabBar",
+      "file": "src/design-system/components/TabBar",
+      "import_path": "",
+      "props": [
+        {
+          "name": "items",
+          "type": "any",
+          "required": true
+        },
+        {
+          "name": "activeId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "onSelect",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "name": "TierRow",
+      "file": "src/design-system/components/TierRow",
+      "import_path": "",
+      "props": [
+        {
+          "name": "eyebrow",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "state",
+          "type": "enum",
+          "values": [
+            "completed",
+            "active",
+            "locked"
+          ],
+          "required": true
+        },
+        {
+          "name": "value",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "name": "max",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "name": "action",
+          "type": "any"
+        }
+      ]
+    }
+  ]
+}
