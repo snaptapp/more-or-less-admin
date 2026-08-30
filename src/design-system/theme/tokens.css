@@ -1,0 +1,72 @@
+:root {
+  /* Base surfaces */
+  --color-bg: #0a0b0d;
+  --color-surface: #14161c;
+  --color-surface-raised: #1b1e26;
+  --color-surface-sunken: #0f1116;
+  --color-border: #262a34;
+  --color-border-strong: #3a4050;
+
+  /* Text */
+  --color-text: #f5f7fa;
+  --color-text-muted: #8d95a6;
+  --color-text-inverse: #0a0b0d;
+
+  /* Accents */
+  --color-lime: #d7f24a;
+  --color-lime-dim: #8ea22c;
+  --color-lime-soft: rgba(215, 242, 74, 0.12);
+  --color-red: #f2495c;
+  --color-red-dim: #a32troll;
+  --color-red-soft: rgba(242, 73, 92, 0.12);
+  --color-purple: #a濃;
+  --color-amber: #f6c344;
+  --color-amber-soft: rgba(246, 195, 68, 0.12);
+
+  /* Semantic */
+  --color-primary: var(--color-lime);
+  --color-primary-foreground: #0a0b0d;
+  --color-danger: var(--color-red);
+  --color-danger-foreground: #ffffff;
+  --color-focus: #d7f24a;
+
+  /* Typography */
+  --font-display: "Anton", "Arial Narrow", sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --text-display: 2.5rem;
+  --text-xl: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-md: 1rem;
+  --text-sm: 0.875rem;
+  --text-xs: 0.75rem;
+  --tracking-label: 0.12em;
+
+  /* Spacing (8pt) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-press-lime: 0 4px 0 var(--color-lime-dim);
+  --shadow-press-red: 0 4px 0 #a3283a;
+  --shadow-glow-lime: 0 0 24px rgba(215, 242, 74, 0.35);
+  --shadow-glow-purple: 0 0 28px rgba(167, 108, 255, 0.35);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.5);
+
+  /* Motion */
+  --duration-fast: 90ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
