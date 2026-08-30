@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Showcase } from "@/showcase/Showcase";
+import { Showcase } from "@/preview/Showcase";
 
 export const Route = createFileRoute("/")({
   head: () => ({
