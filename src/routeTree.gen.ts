@@ -17,6 +17,7 @@ import { Route as AdminReportsRouteImport } from './routes/admin/reports'
 import { Route as AdminPlayersRouteImport } from './routes/admin/players'
 import { Route as AdminFactsRouteImport } from './routes/admin/facts'
 import { Route as AdminDailyRouteImport } from './routes/admin/daily'
+import { Route as AdminAnalyticsRouteImport } from './routes/admin/analytics'
 import { Route as Char91__mockupChar93PreviewSplatRouteImport } from './routes/[__mockup].preview.$'
 import { Route as Char91__componentChar93PreviewSplatRouteImport } from './routes/[__component].preview.$'
 
@@ -60,6 +61,11 @@ const AdminDailyRoute = AdminDailyRouteImport.update({
   path: '/daily',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AdminRoute,
+} as any)
 const Char91__mockupChar93PreviewSplatRoute =
   Char91__mockupChar93PreviewSplatRouteImport.update({
     id: '/__mockup/preview/$',
@@ -76,6 +82,7 @@ const Char91__componentChar93PreviewSplatRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/daily': typeof AdminDailyRoute
   '/admin/facts': typeof AdminFactsRoute
   '/admin/players': typeof AdminPlayersRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/daily': typeof AdminDailyRoute
   '/admin/facts': typeof AdminFactsRoute
   '/admin/players': typeof AdminPlayersRoute
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/daily': typeof AdminDailyRoute
   '/admin/facts': typeof AdminFactsRoute
   '/admin/players': typeof AdminPlayersRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/admin/analytics'
     | '/admin/daily'
     | '/admin/facts'
     | '/admin/players'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin/analytics'
     | '/admin/daily'
     | '/admin/facts'
     | '/admin/players'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/admin/analytics'
     | '/admin/daily'
     | '/admin/facts'
     | '/admin/players'
@@ -212,6 +224,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDailyRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/analytics': {
+      id: '/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AdminAnalyticsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/__mockup/preview/$': {
       id: '/__mockup/preview/$'
       path: '/__mockup/preview/$'
@@ -230,6 +249,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminAnalyticsRoute: typeof AdminAnalyticsRoute
   AdminDailyRoute: typeof AdminDailyRoute
   AdminFactsRoute: typeof AdminFactsRoute
   AdminPlayersRoute: typeof AdminPlayersRoute
@@ -239,6 +259,7 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminAnalyticsRoute: AdminAnalyticsRoute,
   AdminDailyRoute: AdminDailyRoute,
   AdminFactsRoute: AdminFactsRoute,
   AdminPlayersRoute: AdminPlayersRoute,
