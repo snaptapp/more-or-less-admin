@@ -12,7 +12,7 @@ const NAV = [
   { to: "/admin/players", label: "Players" },
   { to: "/admin/daily", label: "Daily challenge" },
   { to: "/admin/analytics", label: "Game analytics" },
-] as const;
+] as const satisfies readonly { to: string; label: string; exact?: boolean }[];
 
 function SignIn() {
   const { signIn, error } = useAdminAuth();
@@ -100,7 +100,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <Link
               key={item.to}
               to={item.to}
-              activeOptions={{ exact: item.exact ?? false }}
+              activeOptions={{ exact: "exact" in item ? item.exact : false }}
               activeProps={{ className: "active" }}
             >
               {item.label}
