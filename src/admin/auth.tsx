@@ -22,8 +22,11 @@ interface AdminAuthState {
 const AdminAuthContext = createContext<AdminAuthState | null>(null);
 
 function messageOf(cause: unknown, fallback: string): string {
-  const message = cause instanceof Error ? cause.message : fallback;
-  return message.replace("Firebase: ", "");
+  const raw = cause instanceof Error ? cause.message : fallback;
+  if (raw.includes("app-check-token-is-invalid")) {
+    return "Firebase App Check is enforced on this project. Disable enforcement for Authentication in the Firebase Console (App Check → APIs → Authentication), or register this app's site key.";
+  }
+  return raw.replace("Firebase: ", "");
 }
 
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
