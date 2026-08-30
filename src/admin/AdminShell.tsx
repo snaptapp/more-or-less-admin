@@ -110,7 +110,7 @@ function SignIn() {
 }
 
 export function AdminShell({ children }: { children: ReactNode }) {
-  const { user, ready, mfaPending, mfaEnrolled, signOutAdmin } = useAdminAuth();
+  const { user, ready, signOutAdmin } = useAdminAuth();
 
   if (!ready) {
     return (
@@ -120,9 +120,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     );
   }
 
-  if (mfaPending) return <MfaChallenge />;
   if (!user) return <SignIn />;
-  if (!mfaEnrolled) return <MfaEnroll />;
 
   return (
     <div className="admin-shell">
