@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Badge, Button, Card, CardTitle } from "@/index";
 import { useAdminAuth } from "./auth";
@@ -18,6 +18,7 @@ const NAV = [
 
 function SignIn() {
   const { signIn, resetPassword, error } = useAdminAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -29,6 +30,7 @@ function SignIn() {
     setResetSent(false);
     try {
       await signIn(email, password);
+      await navigate({ to: "/admin", replace: true });
     } catch {
       /* error surfaced through context */
     } finally {
