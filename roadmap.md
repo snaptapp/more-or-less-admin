@@ -8,4 +8,4 @@
 ## In progress
 - [x] Design-system audit fixes (namespace CSS vars, .dsignore styles.css, dep placement)
 - [x] Role management screen (view users, grant/revoke admin custom claim)
-- [ ] MFA (TOTP) on the admin sign-in gate
+- [x] MFA (TOTP) on the admin sign-in gate
