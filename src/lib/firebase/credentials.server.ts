@@ -98,6 +98,6 @@ export async function getAccessToken(scopes: string[] = DEFAULT_SCOPES): Promise
     throw new Error(`Failed to mint Google access token (${response.status})`);
   }
   const payload = (await response.json()) as { access_token: string; expires_in: number };
-  cachedToken = { value: payload.access_token, expiresAt: now + payload.expires_in };
+  tokenCache.set(scopeKey, { value: payload.access_token, expiresAt: now + payload.expires_in });
   return payload.access_token;
 }
