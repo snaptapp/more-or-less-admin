@@ -7,7 +7,7 @@
 }
 
 body {
-  font-family: var(--font-body);
-  background: var(--color-bg);
-  color: var(--color-text);
+  font-family: var(--ds-arena-font-body);
+  background: var(--ds-arena-color-bg);
+  color: var(--ds-arena-color-text);
 }

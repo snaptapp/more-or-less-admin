@@ -53,7 +53,7 @@ function SignIn() {
         <form onSubmit={handleSubmit}>
           <div>
             <CardTitle>More or Less — Admin</CardTitle>
-            <p style={{ color: "var(--color-text-muted)", fontSize: 14, margin: "6px 0 0" }}>
+            <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 14, margin: "6px 0 0" }}>
               Sign in with an authorised admin account.
             </p>
           </div>
@@ -83,7 +83,7 @@ function SignIn() {
           </div>
           {error ? <p className="admin-error">{error}</p> : null}
           {resetSent ? (
-            <p style={{ color: "var(--color-primary)", fontSize: 13, margin: 0 }}>
+            <p style={{ color: "var(--ds-arena-color-primary)", fontSize: 13, margin: 0 }}>
               Password reset email sent — check your inbox.
             </p>
           ) : null}
@@ -111,7 +111,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   if (!ready) {
     return (
       <main className="admin-signin">
-        <p style={{ color: "var(--color-text-muted)" }}>Loading…</p>
+        <p style={{ color: "var(--ds-arena-color-text-muted)" }}>Loading…</p>
       </main>
     );
   }

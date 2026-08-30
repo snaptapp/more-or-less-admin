@@ -7,3 +7,4 @@ src/start.ts
 src/main.tsx
 src/.generated/**
 src/routeTree.gen.ts
+src/styles.css

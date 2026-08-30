@@ -65,7 +65,7 @@ function DailyPage() {
       {query.data && !pack ? (
         <Card>
           <CardLabel>No pack</CardLabel>
-          <p style={{ color: "var(--color-text-muted)" }}>
+          <p style={{ color: "var(--ds-arena-color-text-muted)" }}>
             No daily pack exists for {date} yet.
           </p>
         </Card>
@@ -85,7 +85,7 @@ function DailyPage() {
             <dt>Rounds</dt>
             <dd>{pack.rounds.length}</dd>
           </dl>
-          <div className="admin-table-wrap" style={{ marginTop: "var(--space-4)" }}>
+          <div className="admin-table-wrap" style={{ marginTop: "var(--ds-arena-space-4)" }}>
             <table className="admin-table">
               <thead>
                 <tr>
@@ -115,7 +115,7 @@ function DailyPage() {
       {leaderboard && leaderboard.entries.length > 0 ? (
         <Card>
           <CardTitle>Leaderboard</CardTitle>
-          <div className="admin-table-wrap" style={{ marginTop: "var(--space-3)" }}>
+          <div className="admin-table-wrap" style={{ marginTop: "var(--ds-arena-space-3)" }}>
             <table className="admin-table">
               <thead>
                 <tr>

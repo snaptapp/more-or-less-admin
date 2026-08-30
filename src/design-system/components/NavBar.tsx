@@ -16,7 +16,7 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>(
     <header ref={ref} className={cn("ds-navbar", className)} {...props}>
       <div>{leading}</div>
       <h1 className="ds-navbar__title">{title}</h1>
-      <div style={{ display: "flex", gap: "var(--space-2)" }}>{trailing}</div>
+      <div style={{ display: "flex", gap: "var(--ds-arena-space-2)" }}>{trailing}</div>
     </header>
   ),
 );

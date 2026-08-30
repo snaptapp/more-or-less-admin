@@ -38,9 +38,9 @@ function Breakdown({
   return (
     <Card>
       <CardTitle>{title}</CardTitle>
-      <div style={{ marginTop: "var(--space-3)" }}>
+      <div style={{ marginTop: "var(--ds-arena-space-3)" }}>
         {rows.length === 0 ? (
-          <p style={{ color: "var(--color-text-muted)" }}>No games in this window.</p>
+          <p style={{ color: "var(--ds-arena-color-text-muted)" }}>No games in this window.</p>
         ) : null}
         {rows.map((row) => (
           <div key={row.name} className="admin-bar-row">
@@ -50,7 +50,7 @@ function Breakdown({
                 display: "block",
                 height: 8,
                 borderRadius: 999,
-                background: "var(--color-surface)",
+                background: "var(--ds-arena-color-surface)",
                 overflow: "hidden",
               }}
             >
@@ -59,7 +59,7 @@ function Breakdown({
                   display: "block",
                   height: "100%",
                   width: `${total ? (row.count / total) * 100 : 0}%`,
-                  background: "var(--color-lime)",
+                  background: "var(--ds-arena-color-lime)",
                 }}
               />
             </span>
@@ -113,7 +113,7 @@ function AnalyticsPage() {
             <CardLabel>Games sampled</CardLabel>
             <p className="admin-stat">{data.total}</p>
             {data.windowed ? (
-              <p style={{ color: "var(--color-text-muted)", fontSize: 13, margin: 0 }}>
+              <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: 0 }}>
                 Capped at 500 documents — shorten the window for exact counts.
               </p>
             ) : null}
