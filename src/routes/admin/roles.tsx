@@ -134,16 +134,16 @@ function RolesPage() {
                       </td>
                       <td>
                         {record.disabled ? (
-                          <Badge variant="red">Disabled</Badge>
+                          <Badge tone="red">Disabled</Badge>
                         ) : record.emailVerified ? (
-                          <Badge variant="lime">Verified</Badge>
+                          <Badge tone="lime">Verified</Badge>
                         ) : (
-                          <Badge variant="amber">Unverified</Badge>
+                          <Badge tone="amber">Unverified</Badge>
                         )}
                       </td>
                       <td>
                         {record.mfaEnrolled ? (
-                          <Badge variant="lime">Enrolled</Badge>
+                          <Badge tone="lime">Enrolled</Badge>
                         ) : (
                           <Badge>None</Badge>
                         )}
@@ -151,11 +151,11 @@ function RolesPage() {
                       <td>{formatDate(record.createdAt)}</td>
                       <td>{formatDate(record.lastSignInAt)}</td>
                       <td>
-                        {record.isAdmin ? <Badge variant="purple">Admin</Badge> : <Badge>Player</Badge>}
+                        {record.isAdmin ? <Badge tone="purple">Admin</Badge> : <Badge>Player</Badge>}
                         {isSelf ? (
                           <>
                             {" "}
-                            <Badge variant="amber">You</Badge>
+                            <Badge tone="amber">You</Badge>
                           </>
                         ) : null}
                       </td>
