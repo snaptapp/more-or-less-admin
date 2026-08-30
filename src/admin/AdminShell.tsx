@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent, type ReactNode } from "react";
-import type {} from "react";
 import { Badge, Button, Card, CardTitle } from "@/index";
 import { useAdminAuth } from "./auth";
 import "./admin.css";
@@ -261,7 +260,7 @@ function SignIn() {
 }
 
 export function AdminShell({ children }: { children: ReactNode }) {
-  const { user, ready, signOutAdmin } = useAdminAuth();
+  const { user, ready, mfaPending, mfaEnrolled, signOutAdmin } = useAdminAuth();
 
   if (!ready) {
     return (
@@ -271,7 +270,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
     );
   }
 
+  if (mfaPending) return <MfaChallenge />;
   if (!user) return <SignIn />;
+  if (!mfaEnrolled) return <MfaEnroll />;
 
   return (
     <div className="admin-shell">
