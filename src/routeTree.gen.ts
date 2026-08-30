@@ -9,14 +9,68 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as DesignSystemRouteImport } from './routes/design-system'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as AdminTaxonomyRouteImport } from './routes/admin/taxonomy'
+import { Route as AdminReportsRouteImport } from './routes/admin/reports'
+import { Route as AdminPlayersRouteImport } from './routes/admin/players'
+import { Route as AdminFactsRouteImport } from './routes/admin/facts'
+import { Route as AdminDailyRouteImport } from './routes/admin/daily'
+import { Route as AdminAnalyticsRouteImport } from './routes/admin/analytics'
 import { Route as Char91__mockupChar93PreviewSplatRouteImport } from './routes/[__mockup].preview.$'
 import { Route as Char91__componentChar93PreviewSplatRouteImport } from './routes/[__component].preview.$'
 
+const DesignSystemRoute = DesignSystemRouteImport.update({
+  id: '/design-system',
+  path: '/design-system',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminTaxonomyRoute = AdminTaxonomyRouteImport.update({
+  id: '/taxonomy',
+  path: '/taxonomy',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminReportsRoute = AdminReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPlayersRoute = AdminPlayersRouteImport.update({
+  id: '/players',
+  path: '/players',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminFactsRoute = AdminFactsRouteImport.update({
+  id: '/facts',
+  path: '/facts',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminDailyRoute = AdminDailyRouteImport.update({
+  id: '/daily',
+  path: '/daily',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AdminRoute,
 } as any)
 const Char91__mockupChar93PreviewSplatRoute =
   Char91__mockupChar93PreviewSplatRouteImport.update({
@@ -33,42 +87,169 @@ const Char91__componentChar93PreviewSplatRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/design-system': typeof DesignSystemRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/daily': typeof AdminDailyRoute
+  '/admin/facts': typeof AdminFactsRoute
+  '/admin/players': typeof AdminPlayersRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/taxonomy': typeof AdminTaxonomyRoute
+  '/admin/': typeof AdminIndexRoute
   '/__component/preview/$': typeof Char91__componentChar93PreviewSplatRoute
   '/__mockup/preview/$': typeof Char91__mockupChar93PreviewSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/design-system': typeof DesignSystemRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/daily': typeof AdminDailyRoute
+  '/admin/facts': typeof AdminFactsRoute
+  '/admin/players': typeof AdminPlayersRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/taxonomy': typeof AdminTaxonomyRoute
+  '/admin': typeof AdminIndexRoute
   '/__component/preview/$': typeof Char91__componentChar93PreviewSplatRoute
   '/__mockup/preview/$': typeof Char91__mockupChar93PreviewSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/design-system': typeof DesignSystemRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/daily': typeof AdminDailyRoute
+  '/admin/facts': typeof AdminFactsRoute
+  '/admin/players': typeof AdminPlayersRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/taxonomy': typeof AdminTaxonomyRoute
+  '/admin/': typeof AdminIndexRoute
   '/__component/preview/$': typeof Char91__componentChar93PreviewSplatRoute
   '/__mockup/preview/$': typeof Char91__mockupChar93PreviewSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/__component/preview/$' | '/__mockup/preview/$'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/design-system'
+    | '/admin/analytics'
+    | '/admin/daily'
+    | '/admin/facts'
+    | '/admin/players'
+    | '/admin/reports'
+    | '/admin/taxonomy'
+    | '/admin/'
+    | '/__component/preview/$'
+    | '/__mockup/preview/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/__component/preview/$' | '/__mockup/preview/$'
-  id: '__root__' | '/' | '/__component/preview/$' | '/__mockup/preview/$'
+  to:
+    | '/'
+    | '/design-system'
+    | '/admin/analytics'
+    | '/admin/daily'
+    | '/admin/facts'
+    | '/admin/players'
+    | '/admin/reports'
+    | '/admin/taxonomy'
+    | '/admin'
+    | '/__component/preview/$'
+    | '/__mockup/preview/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/design-system'
+    | '/admin/analytics'
+    | '/admin/daily'
+    | '/admin/facts'
+    | '/admin/players'
+    | '/admin/reports'
+    | '/admin/taxonomy'
+    | '/admin/'
+    | '/__component/preview/$'
+    | '/__mockup/preview/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
+  DesignSystemRoute: typeof DesignSystemRoute
   Char91__componentChar93PreviewSplatRoute: typeof Char91__componentChar93PreviewSplatRoute
   Char91__mockupChar93PreviewSplatRoute: typeof Char91__mockupChar93PreviewSplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/design-system': {
+      id: '/design-system'
+      path: '/design-system'
+      fullPath: '/design-system'
+      preLoaderRoute: typeof DesignSystemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/taxonomy': {
+      id: '/admin/taxonomy'
+      path: '/taxonomy'
+      fullPath: '/admin/taxonomy'
+      preLoaderRoute: typeof AdminTaxonomyRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/reports': {
+      id: '/admin/reports'
+      path: '/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AdminReportsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/players': {
+      id: '/admin/players'
+      path: '/players'
+      fullPath: '/admin/players'
+      preLoaderRoute: typeof AdminPlayersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/facts': {
+      id: '/admin/facts'
+      path: '/facts'
+      fullPath: '/admin/facts'
+      preLoaderRoute: typeof AdminFactsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/daily': {
+      id: '/admin/daily'
+      path: '/daily'
+      fullPath: '/admin/daily'
+      preLoaderRoute: typeof AdminDailyRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/analytics': {
+      id: '/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AdminAnalyticsRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/__mockup/preview/$': {
       id: '/__mockup/preview/$'
@@ -87,8 +268,32 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminRouteChildren {
+  AdminAnalyticsRoute: typeof AdminAnalyticsRoute
+  AdminDailyRoute: typeof AdminDailyRoute
+  AdminFactsRoute: typeof AdminFactsRoute
+  AdminPlayersRoute: typeof AdminPlayersRoute
+  AdminReportsRoute: typeof AdminReportsRoute
+  AdminTaxonomyRoute: typeof AdminTaxonomyRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminAnalyticsRoute: AdminAnalyticsRoute,
+  AdminDailyRoute: AdminDailyRoute,
+  AdminFactsRoute: AdminFactsRoute,
+  AdminPlayersRoute: AdminPlayersRoute,
+  AdminReportsRoute: AdminReportsRoute,
+  AdminTaxonomyRoute: AdminTaxonomyRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
+  DesignSystemRoute: DesignSystemRoute,
   Char91__componentChar93PreviewSplatRoute:
     Char91__componentChar93PreviewSplatRoute,
   Char91__mockupChar93PreviewSplatRoute: Char91__mockupChar93PreviewSplatRoute,
