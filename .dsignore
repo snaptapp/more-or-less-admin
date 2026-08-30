@@ -1,1 +1,9 @@
 src/preview/**
+src/admin/**
+src/lib/**
+src/routes/**
+src/router.tsx
+src/start.ts
+src/main.tsx
+src/.generated/**
+src/routeTree.gen.ts
