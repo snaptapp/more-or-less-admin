@@ -35,7 +35,7 @@ export const CodeInput = forwardRef<HTMLInputElement, CodeInputProps>(
           {...props}
         />
         {error ? (
-          <p id={errorId} className="ds-label" style={{ color: "var(--color-red)" }}>
+          <p id={errorId} className="ds-label" style={{ color: "var(--ds-arena-color-red)" }}>
             {error}
           </p>
         ) : null}

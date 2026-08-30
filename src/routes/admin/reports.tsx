@@ -48,7 +48,7 @@ function ReportCard({ entry }: { entry: Entry }) {
         <CardTitle>{entry.report.topic || "Untitled topic"}</CardTitle>
         <Badge tone={statusTone(entry.report.status)}>{entry.report.status}</Badge>
       </div>
-      <p style={{ color: "var(--color-text)", margin: "8px 0" }}>{entry.report.claimStatement}</p>
+      <p style={{ color: "var(--ds-arena-color-text)", margin: "8px 0" }}>{entry.report.claimStatement}</p>
       <dl className="admin-kv">
         <dt>Presented</dt>
         <dd>
@@ -80,7 +80,7 @@ function ReportCard({ entry }: { entry: Entry }) {
 
       {pending ? (
         <>
-          <div className="admin-toolbar" style={{ marginTop: "var(--space-4)" }}>
+          <div className="admin-toolbar" style={{ marginTop: "var(--ds-arena-space-4)" }}>
             <label className="admin-field">
               <span>Corrected number</span>
               <input
@@ -101,7 +101,7 @@ function ReportCard({ entry }: { entry: Entry }) {
             </label>
           </div>
           <ErrorNote error={mutation.error} />
-          <div className="admin-row-actions" style={{ marginTop: "var(--space-3)" }}>
+          <div className="admin-row-actions" style={{ marginTop: "var(--ds-arena-space-3)" }}>
             <Button
               variant="danger"
               disabled={!entry.fact || mutation.isPending}
@@ -165,7 +165,7 @@ function ReportsPage() {
       {query.data?.length === 0 ? (
         <Card>
           <CardLabel>Inbox zero</CardLabel>
-          <p style={{ color: "var(--color-text-muted)" }}>Nothing to review here.</p>
+          <p style={{ color: "var(--ds-arena-color-text-muted)" }}>Nothing to review here.</p>
         </Card>
       ) : null}
       {query.data?.map((entry) => <ReportCard key={entry.report.id} entry={entry} />)}

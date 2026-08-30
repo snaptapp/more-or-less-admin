@@ -32,14 +32,14 @@ export const TierRow = forwardRef<HTMLDivElement, TierRowProps>(
       <CardLabel>{eyebrow}</CardLabel>
       <CardTitle>{title}</CardTitle>
       {state === "active" ? (
-        <div style={{ display: "grid", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
+        <div style={{ display: "grid", gap: "var(--ds-arena-space-2)", marginTop: "var(--ds-arena-space-2)" }}>
           <ProgressBar label={`${title} progress`} value={value} max={max} />
           <span className="ds-label">
             {value} / {max}
           </span>
         </div>
       ) : null}
-      {action ? <div style={{ marginTop: "var(--space-3)" }}>{action}</div> : null}
+      {action ? <div style={{ marginTop: "var(--ds-arena-space-3)" }}>{action}</div> : null}
     </Card>
   ),
 );

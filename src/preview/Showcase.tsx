@@ -19,37 +19,37 @@ import {
 } from "../index";
 
 const colorTokens = [
-  ["--color-bg", "App canvas"],
-  ["--color-surface", "Card surface"],
-  ["--color-surface-raised", "Raised row"],
-  ["--color-surface-sunken", "Chrome / inputs"],
-  ["--color-border", "Hairline"],
-  ["--color-border-strong", "Input border"],
-  ["--color-text", "Primary text"],
-  ["--color-text-muted", "Mono labels"],
-  ["--color-lime", "Primary / correct"],
-  ["--color-red", "Danger / wrong"],
-  ["--color-purple", "Daily / featured"],
-  ["--color-amber", "Skip / caution"],
+  ["--ds-arena-color-bg", "App canvas"],
+  ["--ds-arena-color-surface", "Card surface"],
+  ["--ds-arena-color-surface-raised", "Raised row"],
+  ["--ds-arena-color-surface-sunken", "Chrome / inputs"],
+  ["--ds-arena-color-border", "Hairline"],
+  ["--ds-arena-color-border-strong", "Input border"],
+  ["--ds-arena-color-text", "Primary text"],
+  ["--ds-arena-color-text-muted", "Mono labels"],
+  ["--ds-arena-color-lime", "Primary / correct"],
+  ["--ds-arena-color-red", "Danger / wrong"],
+  ["--ds-arena-color-purple", "Daily / featured"],
+  ["--ds-arena-color-amber", "Skip / caution"],
 ];
 
 const typeScale = [
-  ["Display", "var(--font-display)", "2.5rem", "Versus Arena"],
-  ["Heading", "var(--font-display)", "1.5rem", "Deep Sea Creatures"],
-  ["Body", "var(--font-body)", "1rem", "Weight of an adult giraffe's heart in pounds"],
-  ["Label", "var(--font-mono)", "0.75rem", "ROUND 3 OF 5"],
+  ["Display", "var(--ds-arena-font-display)", "2.5rem", "Versus Arena"],
+  ["Heading", "var(--ds-arena-font-display)", "1.5rem", "Deep Sea Creatures"],
+  ["Body", "var(--ds-arena-font-body)", "1rem", "Weight of an adult giraffe's heart in pounds"],
+  ["Label", "var(--ds-arena-font-mono)", "0.75rem", "ROUND 3 OF 5"],
 ];
 
 const section: React.CSSProperties = {
   display: "grid",
-  gap: "var(--space-4)",
-  padding: "var(--space-5) var(--space-4)",
-  borderBottom: "1px solid var(--color-border)",
+  gap: "var(--ds-arena-space-4)",
+  padding: "var(--ds-arena-space-5) var(--ds-arena-space-4)",
+  borderBottom: "1px solid var(--ds-arena-color-border)",
 };
 
 function SectionTitle({ children }: { children: string }) {
   return (
-    <h2 className="ds-display" style={{ fontSize: "var(--text-xl)" }}>
+    <h2 className="ds-display" style={{ fontSize: "var(--ds-arena-text-xl)" }}>
       {children}
     </h2>
   );
@@ -73,17 +73,17 @@ export function Showcase() {
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-            gap: "var(--space-3)",
+            gap: "var(--ds-arena-space-3)",
           }}
         >
           {colorTokens.map(([token, role]) => (
-            <div key={token} style={{ display: "grid", gap: "var(--space-2)" }}>
+            <div key={token} style={{ display: "grid", gap: "var(--ds-arena-space-2)" }}>
               <div
                 style={{
                   height: 56,
-                  borderRadius: "var(--radius-md)",
+                  borderRadius: "var(--ds-arena-radius-md)",
                   background: `var(${token})`,
-                  border: "1px solid var(--color-border)",
+                  border: "1px solid var(--ds-arena-color-border)",
                 }}
               />
               <code className="ds-label">{token}</code>
@@ -98,7 +98,7 @@ export function Showcase() {
       <section style={section}>
         <SectionTitle>Typography</SectionTitle>
         {typeScale.map(([name, family, size, sample]) => (
-          <div key={name} style={{ display: "grid", gap: "var(--space-1)" }}>
+          <div key={name} style={{ display: "grid", gap: "var(--ds-arena-space-1)" }}>
             <span className="ds-label">
               {name} · {family} · {size}
             </span>
@@ -117,7 +117,7 @@ export function Showcase() {
 
       <section style={section}>
         <SectionTitle>Buttons</SectionTitle>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--ds-arena-space-3)" }}>
           <Button variant="primary">Play today's pack</Button>
           <Button variant="danger">Create challenge</Button>
           <Button variant="daily">Daily drop</Button>
@@ -137,7 +137,7 @@ export function Showcase() {
 
       <section style={section}>
         <SectionTitle>Badges</SectionTitle>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--ds-arena-space-2)" }}>
           <Badge>5 rounds</Badge>
           <Badge tone="lime">+120 pts</Badge>
           <Badge tone="red">Endless</Badge>
@@ -151,7 +151,7 @@ export function Showcase() {
         <Card variant="featured">
           <CardLabel>Daily global drop</CardLabel>
           <CardTitle>Deep Sea Creatures</CardTitle>
-          <p style={{ color: "var(--color-text-muted)", marginBottom: "var(--space-3)" }}>
+          <p style={{ color: "var(--ds-arena-color-text-muted)", marginBottom: "var(--ds-arena-space-3)" }}>
             Global 5-round showdown · 12s shot clock · One pack per day
           </p>
           <Button variant="daily" size="lg">
@@ -161,7 +161,7 @@ export function Showcase() {
         <Card>
           <CardLabel>Solo · standard</CardLabel>
           <CardTitle>Mega Roller Coasters</CardTitle>
-          <p style={{ color: "var(--color-text-muted)" }}>
+          <p style={{ color: "var(--ds-arena-color-text-muted)" }}>
             Pick a topic. Play a fixed 5-round mixed pack.
           </p>
         </Card>
@@ -179,7 +179,7 @@ export function Showcase() {
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
-            gap: "var(--space-3)",
+            gap: "var(--ds-arena-space-3)",
           }}
         >
           {["Space Records", "Deadliest Animals", "Mega Roller Coasters", "Supercars & Speed"].map(
@@ -197,15 +197,15 @@ export function Showcase() {
         <ShotClock remaining={8.3} total={12} />
         <ShotClock remaining={2.1} total={12} label="Sudden death" />
         <Card>
-          <p style={{ fontSize: "var(--text-lg)", textAlign: "center" }}>
+          <p style={{ fontSize: "var(--ds-arena-text-lg)", textAlign: "center" }}>
             Weight of an adult giraffe's heart in pounds
           </p>
-          <p className="ds-label" style={{ textAlign: "center", marginTop: "var(--space-2)" }}>
+          <p className="ds-label" style={{ textAlign: "center", marginTop: "var(--ds-arena-space-2)" }}>
             Swipe up more · down less · right skip
           </p>
         </Card>
         <StatValue value={53} unit="pounds" />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-3)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--ds-arena-space-3)" }}>
           <AnswerButton choice="more">More</AnswerButton>
           <AnswerButton choice="less">Less</AnswerButton>
         </div>
@@ -218,7 +218,7 @@ export function Showcase() {
         <ResultBanner outcome="correct" />
         <Card>
           <StatValue value={20} unit="inches" tone="wrong" />
-          <p style={{ marginTop: "var(--space-3)", color: "var(--color-text-muted)" }}>
+          <p style={{ marginTop: "var(--ds-arena-space-3)", color: "var(--ds-arena-color-text-muted)" }}>
             A giraffe's dark prehensile tongue can extend up to 20 inches to strip leaves from
             thorny acacia trees.
           </p>
@@ -246,7 +246,7 @@ export function Showcase() {
 
       <section style={section}>
         <SectionTitle>Leaderboard</SectionTitle>
-        <ul style={{ listStyle: "none", display: "grid", gap: "var(--space-2)" }}>
+        <ul style={{ listStyle: "none", display: "grid", gap: "var(--ds-arena-space-2)" }}>
           <LeaderboardRow rank={1} name="SolarFlare" score="9.0k" />
           <LeaderboardRow rank={2} name="LightningZap" score="8.7k" />
           <LeaderboardRow rank={3} name="QuantumBrain" score="8.4k" />

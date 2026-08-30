@@ -68,7 +68,7 @@ function SubjectEditor({ subject, onDone }: { subject: Subject; onDone: () => vo
   return (
     <Card>
       <CardTitle>{subject.subject}</CardTitle>
-      <div className="admin-grid" style={{ marginTop: "var(--space-3)" }}>
+      <div className="admin-grid" style={{ marginTop: "var(--ds-arena-space-3)" }}>
         <label className="admin-field">
           <span>Category</span>
           <select
@@ -93,7 +93,7 @@ function SubjectEditor({ subject, onDone }: { subject: Subject; onDone: () => vo
           />
         </label>
       </div>
-      <label className="admin-field" style={{ marginTop: "var(--space-3)" }}>
+      <label className="admin-field" style={{ marginTop: "var(--ds-arena-space-3)" }}>
         <span>Aliases (comma separated)</span>
         <input
           className="admin-input"
@@ -101,7 +101,7 @@ function SubjectEditor({ subject, onDone }: { subject: Subject; onDone: () => vo
           onChange={(e) => setForm({ ...form, aliases: e.target.value })}
         />
       </label>
-      <label className="admin-field" style={{ marginTop: "var(--space-3)" }}>
+      <label className="admin-field" style={{ marginTop: "var(--ds-arena-space-3)" }}>
         <span>Crawl notes</span>
         <textarea
           className="admin-textarea"
@@ -110,7 +110,7 @@ function SubjectEditor({ subject, onDone }: { subject: Subject; onDone: () => vo
         />
       </label>
       <ErrorNote error={mutation.error} />
-      <div className="admin-row-actions" style={{ marginTop: "var(--space-3)" }}>
+      <div className="admin-row-actions" style={{ marginTop: "var(--ds-arena-space-3)" }}>
         <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
           Save subject
         </Button>
@@ -161,7 +161,7 @@ function CrawlQueue() {
   return (
     <Card>
       <CardTitle>Crawl queue</CardTitle>
-      <div className="admin-toolbar" style={{ marginTop: "var(--space-3)" }}>
+      <div className="admin-toolbar" style={{ marginTop: "var(--ds-arena-space-3)" }}>
         <label className="admin-field" style={{ flex: "1 1 200px" }}>
           <span>Topic to enqueue</span>
           <input
@@ -211,7 +211,7 @@ function CrawlQueue() {
         </label>
       </div>
       <ErrorNote error={query.error ?? enqueueMutation.error ?? priorityMutation.error} />
-      <div className="admin-table-wrap" style={{ marginTop: "var(--space-3)" }}>
+      <div className="admin-table-wrap" style={{ marginTop: "var(--ds-arena-space-3)" }}>
         <table className="admin-table">
           <thead>
             <tr>
@@ -301,7 +301,7 @@ function TaxonomyPage() {
           <Card key={entry.category}>
             <CardLabel>{entry.category}</CardLabel>
             <p className="admin-stat">{entry.facts}</p>
-            <p style={{ color: "var(--color-text-muted)", fontSize: 13, margin: 0 }}>
+            <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: 0 }}>
               {entry.subjects} subjects
             </p>
           </Card>

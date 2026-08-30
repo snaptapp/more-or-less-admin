@@ -106,12 +106,12 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
 
   return (
     <Card>
-      <form onSubmit={submit} style={{ display: "grid", gap: "var(--space-4)" }}>
+      <form onSubmit={submit} style={{ display: "grid", gap: "var(--ds-arena-space-4)" }}>
         <div className="admin-page-head">
           <CardTitle>Edit fact</CardTitle>
           <Badge tone={statusTone(fact.status)}>{fact.status}</Badge>
         </div>
-        <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--color-text-muted)" }}>
+        <p style={{ fontFamily: "var(--ds-arena-font-mono)", fontSize: 12, color: "var(--ds-arena-color-text-muted)" }}>
           {fact.id}
         </p>
 
@@ -194,7 +194,7 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
             onChange={(e) => setForm({ ...form, claim_template: e.target.value })}
           />
         </label>
-        <p style={{ color: "var(--color-lime)", fontSize: 14, margin: 0 }}>
+        <p style={{ color: "var(--ds-arena-color-lime)", fontSize: 14, margin: 0 }}>
           {preview(form.claim_template, form.true_number)}
         </p>
 
@@ -309,7 +309,7 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
   return (
     <Card>
       <form
-        style={{ display: "grid", gap: "var(--space-4)" }}
+        style={{ display: "grid", gap: "var(--ds-arena-space-4)" }}
         onSubmit={(event) => {
           event.preventDefault();
           mutation.mutate();
@@ -398,7 +398,7 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
             onChange={(e) => setForm({ ...form, claim_template: e.target.value })}
           />
         </label>
-        <p style={{ color: "var(--color-lime)", fontSize: 14, margin: 0 }}>
+        <p style={{ color: "var(--ds-arena-color-lime)", fontSize: 14, margin: 0 }}>
           {preview(form.claim_template, form.true_number)}
         </p>
         <label className="admin-field">
@@ -579,7 +579,7 @@ function FactsPage() {
                 <td>
                   {fact.true_number ?? "—"} {fact.unit}
                   {fact.previous_true_number !== null ? (
-                    <div style={{ fontSize: 12, color: "var(--color-amber)" }}>
+                    <div style={{ fontSize: 12, color: "var(--ds-arena-color-amber)" }}>
                       was {fact.previous_true_number}
                     </div>
                   ) : null}
@@ -629,7 +629,7 @@ function FactsPage() {
         </Button>
       </div>
       {query.data?.windowed ? (
-        <p style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
+        <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13 }}>
           Showing the first 500 matching documents — narrow the filters for full coverage.
         </p>
       ) : null}

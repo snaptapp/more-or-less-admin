@@ -67,7 +67,7 @@ function PlayerDetail({ id, onDone }: { id: string; onDone: () => void }) {
               {player.stats ? `${Math.round(player.stats.lifetimePercentCorrect)}%` : "—"}
             </dd>
           </dl>
-          <div className="admin-row-actions" style={{ marginTop: "var(--space-4)" }}>
+          <div className="admin-row-actions" style={{ marginTop: "var(--ds-arena-space-4)" }}>
             <Button
               variant={player.isPremium ? "skip" : "daily"}
               disabled={mutation.isPending}

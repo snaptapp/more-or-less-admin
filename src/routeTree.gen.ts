@@ -14,6 +14,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminTaxonomyRouteImport } from './routes/admin/taxonomy'
+import { Route as AdminRolesRouteImport } from './routes/admin/roles'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
 import { Route as AdminPlayersRouteImport } from './routes/admin/players'
 import { Route as AdminFactsRouteImport } from './routes/admin/facts'
@@ -46,6 +47,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const AdminTaxonomyRoute = AdminTaxonomyRouteImport.update({
   id: '/taxonomy',
   path: '/taxonomy',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminRolesRoute = AdminRolesRouteImport.update({
+  id: '/roles',
+  path: '/roles',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminReportsRoute = AdminReportsRouteImport.update({
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/admin/facts': typeof AdminFactsRoute
   '/admin/players': typeof AdminPlayersRoute
   '/admin/reports': typeof AdminReportsRoute
+  '/admin/roles': typeof AdminRolesRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin/': typeof AdminIndexRoute
   '/__component/preview/$': typeof Char91__componentChar93PreviewSplatRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByTo {
   '/admin/facts': typeof AdminFactsRoute
   '/admin/players': typeof AdminPlayersRoute
   '/admin/reports': typeof AdminReportsRoute
+  '/admin/roles': typeof AdminRolesRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin': typeof AdminIndexRoute
   '/__component/preview/$': typeof Char91__componentChar93PreviewSplatRoute
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/admin/facts': typeof AdminFactsRoute
   '/admin/players': typeof AdminPlayersRoute
   '/admin/reports': typeof AdminReportsRoute
+  '/admin/roles': typeof AdminRolesRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin/': typeof AdminIndexRoute
   '/__component/preview/$': typeof Char91__componentChar93PreviewSplatRoute
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/admin/facts'
     | '/admin/players'
     | '/admin/reports'
+    | '/admin/roles'
     | '/admin/taxonomy'
     | '/admin/'
     | '/__component/preview/$'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/admin/facts'
     | '/admin/players'
     | '/admin/reports'
+    | '/admin/roles'
     | '/admin/taxonomy'
     | '/admin'
     | '/__component/preview/$'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/admin/facts'
     | '/admin/players'
     | '/admin/reports'
+    | '/admin/roles'
     | '/admin/taxonomy'
     | '/admin/'
     | '/__component/preview/$'
@@ -227,6 +239,13 @@ declare module '@tanstack/react-router' {
       path: '/taxonomy'
       fullPath: '/admin/taxonomy'
       preLoaderRoute: typeof AdminTaxonomyRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/roles': {
+      id: '/admin/roles'
+      path: '/roles'
+      fullPath: '/admin/roles'
+      preLoaderRoute: typeof AdminRolesRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/reports': {
@@ -294,6 +313,7 @@ interface AdminRouteChildren {
   AdminFactsRoute: typeof AdminFactsRoute
   AdminPlayersRoute: typeof AdminPlayersRoute
   AdminReportsRoute: typeof AdminReportsRoute
+  AdminRolesRoute: typeof AdminRolesRoute
   AdminTaxonomyRoute: typeof AdminTaxonomyRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -304,6 +324,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminFactsRoute: AdminFactsRoute,
   AdminPlayersRoute: AdminPlayersRoute,
   AdminReportsRoute: AdminReportsRoute,
+  AdminRolesRoute: AdminRolesRoute,
   AdminTaxonomyRoute: AdminTaxonomyRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
