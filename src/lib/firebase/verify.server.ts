@@ -114,12 +114,19 @@ export async function requireAdmin(): Promise<AdminUser> {
 
   const email = claims.email?.toLowerCase() ?? null;
   const isClaimAdmin = claims.admin === true;
-  const isAllowlisted =
-    !!email && claims.email_verified === true && allowlist().includes(email);
+  const list = allowlist();
+  const isAllowlisted = !!email && list.includes(email);
 
   if (!isClaimAdmin && !isAllowlisted) {
-    throw new AuthError("This account is not an admin", 403);
+    throw new AuthError(
+      `This account is not an admin (${email ?? "no email on token"}). ` +
+        (list.length === 0
+          ? "The admin email allowlist is empty."
+          : "Add this exact email to the ADMIN_EMAIL_ALLOWLIST secret, then sign out and back in."),
+      403,
+    );
   }
+
 
   return {
     uid: claims.sub,
