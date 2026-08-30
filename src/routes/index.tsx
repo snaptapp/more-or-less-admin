@@ -1,21 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Showcase } from "@/preview/Showcase";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
+  beforeLoad: () => {
+    throw redirect({ to: "/admin" });
+  },
   head: () => ({
     meta: [
-      { title: "Arena DS — Tokens & Components" },
+      { title: "More or Less — Admin Portal" },
       {
         name: "description",
-        content:
-          "Showcase of the Arena design system: dark arcade tokens, buttons, cards, timers, and reward tracks.",
+        content: "Internal operations console for the More or Less trivia game.",
       },
-      { property: "og:title", content: "Arena DS — Tokens & Components" },
-      {
-        property: "og:description",
-        content: "Dark arcade game-show tokens and components, rendered live.",
-      },
+      { name: "robots", content: "noindex" },
     ],
   }),
-  component: Showcase,
+  component: () => null,
 });
