@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Badge, Card, CardLabel, StatValue } from "@/index";
+import { Badge, Card, CardLabel } from "@/index";
 import { ErrorNote, PageHead } from "@/admin/AdminShell";
 import { fetchOverview } from "@/lib/admin/content.functions";
 
@@ -37,19 +37,19 @@ function OverviewPage() {
           <div className="admin-grid">
             <Card>
               <CardLabel>Active facts</CardLabel>
-              <StatValue value={String(data.active)} tone="lime" />
+              <p className="admin-stat" data-tone="lime">{data.active}</p>
             </Card>
             <Card>
               <CardLabel>Disputed</CardLabel>
-              <StatValue value={String(data.disputed)} tone="amber" />
+              <p className="admin-stat" data-tone="amber">{data.disputed}</p>
             </Card>
             <Card>
               <CardLabel>Retired</CardLabel>
-              <StatValue value={String(data.retired)} tone="red" />
+              <p className="admin-stat" data-tone="red">{data.retired}</p>
             </Card>
             <Card>
               <CardLabel>Reports pending</CardLabel>
-              <StatValue value={String(data.pending)} tone="purple" />
+              <p className="admin-stat" data-tone="purple">{data.pending}</p>
             </Card>
           </div>
           <Card>
