@@ -1,3 +1,6 @@
+// Requires the "Anton", "Inter", and "JetBrains Mono" web fonts. Load them in
+// the document head (e.g. Google Fonts <link> tags) or headings/labels fall
+// back to system faces.
 import "./design-system/theme/tokens.css";
 
 export { cn } from "./design-system/lib/cn";

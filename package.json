@@ -1,7 +1,9 @@
 {
   "name": "custom_design_system_tanstack",
   "private": true,
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite dev",
