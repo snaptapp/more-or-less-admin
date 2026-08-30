@@ -1,7 +1,7 @@
 import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 
-export interface NavBarProps extends HTMLAttributes<HTMLElement> {
+export interface NavBarProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
   /** Screen title, rendered in the display face. */
   title: ReactNode;
   /** Leading control, usually a back or close button. */

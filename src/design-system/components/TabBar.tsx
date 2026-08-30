@@ -10,7 +10,7 @@ export interface TabBarItem {
   icon?: ReactNode;
 }
 
-export interface TabBarProps extends HTMLAttributes<HTMLElement> {
+export interface TabBarProps extends Omit<HTMLAttributes<HTMLElement>, "onSelect"> {
   /** Destinations, left to right. */
   items: TabBarItem[];
   /** Currently active item id. */
