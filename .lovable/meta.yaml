@@ -1,7 +1,4 @@
-framework: ""
-css_framework: ""
-component_library: ""
+framework: react
+css_framework: css-variables
 source_type: local
-upstream_package: ""
-starter_template: ""
-stack_packages: []
+starter_template: custom_design_system
