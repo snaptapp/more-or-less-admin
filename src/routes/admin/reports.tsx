@@ -69,7 +69,7 @@ function ReportCard({ entry }: { entry: Entry }) {
         <dd>{entry.report.createdAt ?? "—"}</dd>
         <dt>Matched fact</dt>
         <dd>
-          {entry.fact ? `${entry.fact.subject} — ${entry.fact.angle} (${entry.fact.id})` : "none found"}
+          {entry.fact ? `${entry.fact.subject} — ${entry.fact.angle} (${entry.fact.id})` : "none found (AI-generated claim)"}
         </dd>
         {entry.report.resolutionNote ? (
           <>

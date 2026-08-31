@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
-import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin/analytics'
 import { Route as AdminAuditRouteImport } from './routes/admin/audit'
@@ -21,8 +20,6 @@ import { Route as AdminPlayersRouteImport } from './routes/admin/players'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
 import { Route as AdminRolesRouteImport } from './routes/admin/roles'
 import { Route as AdminTaxonomyRouteImport } from './routes/admin/taxonomy'
-import { Route as Char91__componentChar93PreviewSplatRouteImport } from './routes/[__component].preview.$'
-import { Route as Char91__mockupChar93PreviewSplatRouteImport } from './routes/[__mockup].preview.$'
 import { Route as ApiPublicFirebaseConfigRouteImport } from './routes/api/public/firebase-config'
 
 const IndexRoute = IndexRouteImport.update({
@@ -33,11 +30,6 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DesignSystemRoute = DesignSystemRouteImport.update({
-  id: '/design-system',
-  path: '/design-system',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -85,18 +77,6 @@ const AdminTaxonomyRoute = AdminTaxonomyRouteImport.update({
   path: '/taxonomy',
   getParentRoute: () => AdminRoute,
 } as any)
-const Char91__componentChar93PreviewSplatRoute =
-  Char91__componentChar93PreviewSplatRouteImport.update({
-    id: '/__component/preview/$',
-    path: '/__component/preview/$',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const Char91__mockupChar93PreviewSplatRoute =
-  Char91__mockupChar93PreviewSplatRouteImport.update({
-    id: '/__mockup/preview/$',
-    path: '/__mockup/preview/$',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiPublicFirebaseConfigRoute = ApiPublicFirebaseConfigRouteImport.update({
   id: '/api/public/firebase-config',
   path: '/api/public/firebase-config',
@@ -106,7 +86,6 @@ const ApiPublicFirebaseConfigRoute = ApiPublicFirebaseConfigRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
-  '/design-system': typeof DesignSystemRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/daily': typeof AdminDailyRoute
@@ -116,13 +95,10 @@ export interface FileRoutesByFullPath {
   '/admin/roles': typeof AdminRolesRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin/': typeof AdminIndexRoute
-  '/__component/preview/$': typeof Char91__componentChar93PreviewSplatRoute
-  '/__mockup/preview/$': typeof Char91__mockupChar93PreviewSplatRoute
   '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/design-system': typeof DesignSystemRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/daily': typeof AdminDailyRoute
@@ -132,15 +108,12 @@ export interface FileRoutesByTo {
   '/admin/roles': typeof AdminRolesRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin': typeof AdminIndexRoute
-  '/__component/preview/$': typeof Char91__componentChar93PreviewSplatRoute
-  '/__mockup/preview/$': typeof Char91__mockupChar93PreviewSplatRoute
   '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
-  '/design-system': typeof DesignSystemRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/daily': typeof AdminDailyRoute
@@ -150,8 +123,6 @@ export interface FileRoutesById {
   '/admin/roles': typeof AdminRolesRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin/': typeof AdminIndexRoute
-  '/__component/preview/$': typeof Char91__componentChar93PreviewSplatRoute
-  '/__mockup/preview/$': typeof Char91__mockupChar93PreviewSplatRoute
   '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
 }
 export interface FileRouteTypes {
@@ -159,7 +130,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
-    | '/design-system'
     | '/admin/analytics'
     | '/admin/audit'
     | '/admin/daily'
@@ -169,13 +139,10 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/taxonomy'
     | '/admin/'
-    | '/__component/preview/$'
-    | '/__mockup/preview/$'
     | '/api/public/firebase-config'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/design-system'
     | '/admin/analytics'
     | '/admin/audit'
     | '/admin/daily'
@@ -185,14 +152,11 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/taxonomy'
     | '/admin'
-    | '/__component/preview/$'
-    | '/__mockup/preview/$'
     | '/api/public/firebase-config'
   id:
     | '__root__'
     | '/'
     | '/admin'
-    | '/design-system'
     | '/admin/analytics'
     | '/admin/audit'
     | '/admin/daily'
@@ -202,17 +166,12 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/taxonomy'
     | '/admin/'
-    | '/__component/preview/$'
-    | '/__mockup/preview/$'
     | '/api/public/firebase-config'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
-  DesignSystemRoute: typeof DesignSystemRoute
-  Char91__componentChar93PreviewSplatRoute: typeof Char91__componentChar93PreviewSplatRoute
-  Char91__mockupChar93PreviewSplatRoute: typeof Char91__mockupChar93PreviewSplatRoute
   ApiPublicFirebaseConfigRoute: typeof ApiPublicFirebaseConfigRoute
 }
 
@@ -230,13 +189,6 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/design-system': {
-      id: '/design-system'
-      path: '/design-system'
-      fullPath: '/design-system'
-      preLoaderRoute: typeof DesignSystemRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -302,20 +254,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminTaxonomyRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/__component/preview/$': {
-      id: '/__component/preview/$'
-      path: '/__component/preview/$'
-      fullPath: '/__component/preview/$'
-      preLoaderRoute: typeof Char91__componentChar93PreviewSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/__mockup/preview/$': {
-      id: '/__mockup/preview/$'
-      path: '/__mockup/preview/$'
-      fullPath: '/__mockup/preview/$'
-      preLoaderRoute: typeof Char91__mockupChar93PreviewSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/firebase-config': {
       id: '/api/public/firebase-config'
       path: '/api/public/firebase-config'
@@ -355,22 +293,8 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
-  DesignSystemRoute: DesignSystemRoute,
-  Char91__componentChar93PreviewSplatRoute:
-    Char91__componentChar93PreviewSplatRoute,
-  Char91__mockupChar93PreviewSplatRoute: Char91__mockupChar93PreviewSplatRoute,
   ApiPublicFirebaseConfigRoute: ApiPublicFirebaseConfigRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
