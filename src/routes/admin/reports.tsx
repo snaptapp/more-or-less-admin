@@ -35,6 +35,7 @@ function ReportCard({ entry }: { entry: Entry }) {
           factId: entry.fact?.id,
           correctedNumber: action === "fix_number" ? Number(corrected) : undefined,
           note: note || undefined,
+          claimStatement: entry.report.claimStatement,
         },
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["reports"] }),

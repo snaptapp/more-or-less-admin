@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Badge, Card, CardLabel, CardTitle } from "@/index";
+import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, PageHead } from "@/admin/AdminShell";
-import { fetchDaily } from "@/lib/admin/ops.functions";
+import { fetchDaily, moderateLeaderboardEntry } from "@/lib/admin/ops.functions";
 
 export const Route = createFileRoute("/admin/daily")({
   head: () => ({
@@ -31,12 +31,19 @@ function readField(round: unknown, key: string): string {
 
 function DailyPage() {
   const load = useServerFn(fetchDaily);
+  const removeEntry = useServerFn(moderateLeaderboardEntry);
+  const queryClient = useQueryClient();
   const [date, setDate] = useState(today);
 
   const query = useQuery({
     queryKey: ["daily", date],
     queryFn: () => load({ data: { date } }),
     retry: false,
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (uid: string) => removeEntry({ data: { date, uid, reason: "Cheating/Invalid score" } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["daily", date] }),
   });
 
   const pack = query.data?.pack;
@@ -122,22 +129,40 @@ function DailyPage() {
                   <th>#</th>
                   <th>Player</th>
                   <th>Score</th>
+                  <th aria-label="actions" />
                 </tr>
               </thead>
               <tbody>
-                {leaderboard.entries.map((entry, index) => (
-                  <tr key={index}>
-                    <td>{index + 1}</td>
-                    <td>
-                      <strong>
-                        {readField(entry, "displayName") !== "—"
-                          ? readField(entry, "displayName")
-                          : readField(entry, "uid")}
-                      </strong>
-                    </td>
-                    <td>{readField(entry, "score")}</td>
-                  </tr>
-                ))}
+                {leaderboard.entries.map((entry, index) => {
+                  const uid = readField(entry, "uid");
+                  return (
+                    <tr key={index}>
+                      <td>{index + 1}</td>
+                      <td>
+                        <strong>
+                          {readField(entry, "displayName") !== "—"
+                            ? readField(entry, "displayName")
+                            : uid}
+                        </strong>
+                      </td>
+                      <td>{readField(entry, "score")}</td>
+                      <td className="admin-row-actions">
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          disabled={removeMutation.isPending || uid === "—"}
+                          onClick={() => {
+                            if (window.confirm(`Remove score entry for ${uid} from ${date} leaderboard?`)) {
+                              removeMutation.mutate(uid);
+                            }
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

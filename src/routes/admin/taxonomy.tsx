@@ -9,6 +9,7 @@ import {
   fetchSubjects,
   queueCrawl,
   saveSubject,
+  triggerCrawlAction,
   updateCrawlPriority,
 } from "@/lib/admin/ops.functions";
 
@@ -126,9 +127,11 @@ function CrawlQueue() {
   const listQueue = useServerFn(fetchCrawlQueue);
   const enqueue = useServerFn(queueCrawl);
   const setPriority = useServerFn(updateCrawlPriority);
+  const runTrigger = useServerFn(triggerCrawlAction);
   const queryClient = useQueryClient();
   const [status, setStatus] = useState("");
   const [draft, setDraft] = useState({ subject: "", priority: "10", refresh: false });
+  const [dispatchMsg, setDispatchMsg] = useState<{ ok: boolean; message: string } | null>(null);
 
   const query = useQuery({
     queryKey: ["crawl", status],
@@ -137,6 +140,14 @@ function CrawlQueue() {
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["crawl"] });
+
+  const triggerMutation = useMutation({
+    mutationFn: () => runTrigger(),
+    onSuccess: (res) => {
+      setDispatchMsg(res);
+      void invalidate();
+    },
+  });
 
   const enqueueMutation = useMutation({
     mutationFn: () =>
@@ -160,7 +171,26 @@ function CrawlQueue() {
 
   return (
     <Card>
-      <CardTitle>Crawl queue</CardTitle>
+      <div className="admin-page-head">
+        <CardTitle>Crawl queue</CardTitle>
+        <Button
+          variant="daily"
+          size="sm"
+          disabled={triggerMutation.isPending}
+          onClick={() => {
+            if (window.confirm("Trigger Fact Foundry crawler workflow now?")) {
+              triggerMutation.mutate();
+            }
+          }}
+        >
+          {triggerMutation.isPending ? "Triggering…" : "Run Fact Foundry now"}
+        </Button>
+      </div>
+      {dispatchMsg ? (
+        <p style={{ color: dispatchMsg.ok ? "var(--ds-arena-color-lime)" : "var(--ds-arena-color-red)", fontSize: 13, margin: "6px 0" }}>
+          {dispatchMsg.message}
+        </p>
+      ) : null}
       <div className="admin-toolbar" style={{ marginTop: "var(--ds-arena-space-3)" }}>
         <label className="admin-field" style={{ flex: "1 1 200px" }}>
           <span>Topic to enqueue</span>

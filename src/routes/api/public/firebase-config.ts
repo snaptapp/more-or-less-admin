@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getAdminApp } from "@/lib/firebase/admin.server";
 
 /**
  * Publishable Firebase web config for the admin sign-in form.
@@ -18,8 +19,13 @@ export const Route = createFileRoute("/api/public/firebase-config")({
             headers: { "Content-Type": "application/json" },
           });
         }
-        const { getServiceAccount } = await import("@/lib/firebase/credentials.server");
-        const projectId = getServiceAccount().project_id;
+        const app = getAdminApp();
+        const projectId =
+          app.options.projectId ||
+          process.env["FIREBASE_PROJECT_ID"] ||
+          process.env["GOOGLE_CLOUD_PROJECT"] ||
+          "more-or-less-505908";
+
         return Response.json(
           {
             apiKey,

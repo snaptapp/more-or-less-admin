@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/firebase/verify.server";
 import { listAuthUsers, setAdminClaim } from "./roles.server";
+import { listAuditLogs } from "@/lib/firebase/audit.server";
 
 export const listAdminUsers = createServerFn({ method: "GET" }).handler(async () => {
   await requireAdmin();
@@ -15,5 +16,10 @@ export const setAdminRole = createServerFn({ method: "POST" })
     if (caller.uid === data.uid && !data.admin) {
       throw new Error("You cannot revoke your own admin access");
     }
-    return setAdminClaim(data.uid, data.admin);
+    return setAdminClaim(caller, data.uid, data.admin);
   });
+
+export const fetchAuditLogEntries = createServerFn({ method: "GET" }).handler(async () => {
+  await requireAdmin();
+  return listAuditLogs(100);
+});

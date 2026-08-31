@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireAdmin } from "@/lib/firebase/verify.server";
+import { adminDb } from "@/lib/firebase/admin.server";
 
 const listInput = z.object({
   search: z.string().optional(),
@@ -14,7 +16,6 @@ const listInput = z.object({
 export const fetchFacts = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => listInput.parse(data))
   .handler(async ({ data }) => {
-    const { requireAdmin } = await import("../firebase/verify.server");
     await requireAdmin();
     const { listFacts } = await import("./content.server");
     return listFacts(data);
@@ -23,7 +24,6 @@ export const fetchFacts = createServerFn({ method: "POST" })
 export const fetchFact = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => z.object({ id: z.string().min(1) }).parse(data))
   .handler(async ({ data }) => {
-    const { requireAdmin } = await import("../firebase/verify.server");
     await requireAdmin();
     const { getFact } = await import("./content.server");
     return getFact(data.id);
@@ -47,10 +47,9 @@ const editInput = z.object({
 export const saveFact = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => editInput.parse(data))
   .handler(async ({ data }) => {
-    const { requireAdmin } = await import("../firebase/verify.server");
-    await requireAdmin();
+    const caller = await requireAdmin();
     const { updateFact } = await import("./content.server");
-    return updateFact(data);
+    return updateFact(caller, data);
   });
 
 export const changeFactStatus = createServerFn({ method: "POST" })
@@ -64,10 +63,9 @@ export const changeFactStatus = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data }) => {
-    const { requireAdmin } = await import("../firebase/verify.server");
-    await requireAdmin();
+    const caller = await requireAdmin();
     const { setFactStatus } = await import("./content.server");
-    return setFactStatus(data);
+    return setFactStatus(caller, data);
   });
 
 export const addFact = createServerFn({ method: "POST" })
@@ -89,10 +87,9 @@ export const addFact = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data }) => {
-    const { requireAdmin } = await import("../firebase/verify.server");
-    await requireAdmin();
+    const caller = await requireAdmin();
     const { createFact } = await import("./content.server");
-    return createFact(data);
+    return createFact(caller, data);
   });
 
 export const fetchReports = createServerFn({ method: "POST" })
@@ -100,7 +97,6 @@ export const fetchReports = createServerFn({ method: "POST" })
     z.object({ status: z.string().optional(), limit: z.number().optional() }).parse(data),
   )
   .handler(async ({ data }) => {
-    const { requireAdmin } = await import("../firebase/verify.server");
     await requireAdmin();
     const { listReports, findFactForReport } = await import("./content.server");
     const reports = await listReports(data);
@@ -122,28 +118,32 @@ export const actOnReport = createServerFn({ method: "POST" })
         factId: z.string().optional(),
         correctedNumber: z.number().optional(),
         note: z.string().optional(),
+        claimStatement: z.string().optional(),
       })
       .parse(data),
   )
   .handler(async ({ data }) => {
-    const { requireAdmin } = await import("../firebase/verify.server");
-    await requireAdmin();
+    const caller = await requireAdmin();
     const { resolveReport } = await import("./content.server");
-    return resolveReport(data);
+    return resolveReport(caller, data);
   });
 
-/** Confirms the service-account connection and reports collection sizes. */
+/** Confirms the admin connection and returns live collection counters via native Firestore count() */
 export const fetchOverview = createServerFn({ method: "GET" }).handler(async () => {
-  const { requireAdmin } = await import("../firebase/verify.server");
   const user = await requireAdmin();
-  const { countCollection } = await import("../firebase/firestore.server");
-  const [active, disputed, retired, pending] = await Promise.all([
-    countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "active" }]),
-    countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "disputed" }]),
-    countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "retired" }]),
-    countCollection("trivia_reports", [
-      { field: "status", op: "EQUAL", value: "pending_review" },
-    ]),
+
+  const [activeSnap, disputedSnap, retiredSnap, pendingSnap] = await Promise.all([
+    adminDb.collection("fact_bank").where("status", "==", "active").count().get(),
+    adminDb.collection("fact_bank").where("status", "==", "disputed").count().get(),
+    adminDb.collection("fact_bank").where("status", "==", "retired").count().get(),
+    adminDb.collection("trivia_reports").where("status", "==", "pending_review").count().get(),
   ]);
-  return { user, active, disputed, retired, pending };
+
+  return {
+    user,
+    active: activeSnap.data().count,
+    disputed: disputedSnap.data().count,
+    retired: retiredSnap.data().count,
+    pending: pendingSnap.data().count,
+  };
 });
