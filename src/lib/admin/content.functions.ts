@@ -2,9 +2,25 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "./middleware";
 
+export const CANONICAL_CATEGORIES = [
+  "Animals & Nature",
+  "Science & Space",
+  "Sports",
+  "Music",
+  "Movies & TV",
+  "Pop Culture & Records",
+  "History & World",
+  "Food & Drink",
+  "Technology",
+  "Money & Business",
+  "General",
+] as const;
+
+export type CanonicalCategory = (typeof CANONICAL_CATEGORIES)[number];
+
 const listInput = z.object({
   search: z.string().optional(),
-  category: z.string().optional(),
+  category: z.union([z.enum(CANONICAL_CATEGORIES), z.literal(""), z.string()]).optional(),
   subject: z.string().optional(),
   angle: z.string().optional(),
   status: z.string().optional(),
@@ -41,7 +57,7 @@ export const fetchFact = createServerFn({ method: "POST" }).middleware([authMidd
 const editInput = z.object({
   id: z.string().min(1),
   subject: z.string().optional(),
-  category: z.string().optional(),
+  category: z.union([z.enum(CANONICAL_CATEGORIES), z.literal("")]).optional(),
   sub_category: z.string().optional(),
   angle: z.string().optional(),
   true_number: z.number().optional(),
@@ -118,7 +134,7 @@ export const addFact = createServerFn({ method: "POST" }).middleware([authMiddle
     z
       .object({
         subject: z.string().min(1),
-        category: z.string().optional(),
+        category: z.union([z.enum(CANONICAL_CATEGORIES), z.literal("")]).optional(),
         sub_category: z.string().optional(),
         angle: z.string().optional().default(""),
         true_number: z.number(),

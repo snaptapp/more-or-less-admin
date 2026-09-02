@@ -143,9 +143,14 @@ export async function listFacts(input: FactListInput) {
   let facts = window.map(toFact);
   if (input.category?.trim()) {
     const cat = input.category.trim().toLowerCase();
-    const { listSubjects } = await import("./ops.server");
-    const { subjects } = await listSubjects({ category: input.category });
-    const subjectMap = new Set(subjects.map((s) => s.subject.toLowerCase()));
+    const matchingSubjectDocs = await runQuery({
+      collection: "fact_subjects",
+      filters: [{ field: "category", op: "EQUAL", value: input.category.trim() }],
+      limit: 1000,
+    });
+    const subjectMap = new Set(
+      matchingSubjectDocs.map((d) => String(d.data.subject ?? d.id).toLowerCase())
+    );
     facts = facts.filter((f) =>
       (f.category && f.category.toLowerCase() === cat) ||
       subjectMap.has(f.subject.toLowerCase())
@@ -379,6 +384,12 @@ export async function updateFact(input: FactEditInput): Promise<FactRecord> {
     patch["true_number"] = input.true_number;
   }
 
+  let updatedFactDoc: FirestoreDoc | null = null;
+  if (Object.keys(patch).length > 0) {
+    patch["updated_at"] = new Date().toISOString();
+    updatedFactDoc = await patchDoc(`fact_bank/${input.id}`, patch);
+  }
+
   // Link/update taxonomy in fact_subjects when category is assigned
   if (input.category && (input.subject || existing.subject)) {
     const subj = (input.subject || existing.subject).trim();
@@ -402,9 +413,14 @@ export async function updateFact(input: FactEditInput): Promise<FactRecord> {
     }
   }
 
-  if (Object.keys(patch).length === 0) return existing;
-  patch["updated_at"] = new Date().toISOString();
-  return toFact(await patchDoc(`fact_bank/${input.id}`, patch));
+  if (updatedFactDoc) {
+    return toFact(updatedFactDoc);
+  }
+  return toFact((await getDoc(`fact_bank/${input.id}`)) ?? {
+    id: input.id,
+    path: `fact_bank/${input.id}`,
+    data: { ...existing, ...patch },
+  });
 }
 
 export async function setFactStatus(input: {
@@ -453,6 +469,25 @@ export async function createFact(input: {
   const claim = (input.claim_template ?? "").trim() || `${question}: {n}`;
   const claim_template = claim.includes("{n}") ? claim : `${claim} {n}`;
 
+  const doc = await createDoc("fact_bank", id, {
+    ...input,
+    category: input.category || null,
+    claim_template,
+    question,
+    context: input.context?.trim() || question,
+    subject_key,
+    angle_key,
+    status: "active",
+    previous_true_number: null,
+    retired_reason: null,
+    verifier_model: "admin_portal",
+    verified_at: new Date().toISOString(),
+    served_count: 0,
+    last_served_at: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
   if (input.category) {
     const existingSubject = await getDoc(`fact_subjects/${subject_key}`);
     if (existingSubject) {
@@ -473,22 +508,6 @@ export async function createFact(input: {
     }
   }
 
-  const doc = await createDoc("fact_bank", id, {
-    ...input,
-    category: input.category || null,
-    claim_template,
-    question,
-    context: input.context?.trim() || question,
-    subject_key,
-    angle_key,
-    status: "active",
-    previous_true_number: null,
-    retired_reason: null,
-    verifier_model: "admin_portal",
-    verified_at: new Date().toISOString(),
-    served_count: 0,
-    last_served_at: null,
-  });
   return toFact(doc);
 }
 

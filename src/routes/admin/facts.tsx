@@ -7,6 +7,7 @@ import { ErrorNote, InfoTip, PageHead, statusTone } from "@/admin/AdminShell";
 import {
   addFact,
   bulkImportFacts,
+  CANONICAL_CATEGORIES,
   changeFactStatus,
   exportFactsData,
   fetchFacts,
@@ -77,20 +78,6 @@ function parseCsv(text: string): string[][] {
 
   return rows;
 }
-
-const CANONICAL_CATEGORIES = [
-  "Animals & Nature",
-  "Science & Space",
-  "Sports",
-  "Music",
-  "Movies & TV",
-  "Pop Culture & Records",
-  "History & World",
-  "Food & Drink",
-  "Technology",
-  "Money & Business",
-  "General",
-] as const;
 
 const EMPTY_DRAFT = {
   subject: "",
