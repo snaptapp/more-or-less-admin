@@ -244,6 +244,12 @@ export async function createDoc(
   return toDoc(raw);
 }
 
+export async function deleteDoc(path: string): Promise<void> {
+  await request(`${baseUrl()}/${path.replace(/^\//, "")}`, {
+    method: "DELETE",
+  });
+}
+
 export async function countCollection(
   collection: string,
   filters: QueryFilter[] = [],

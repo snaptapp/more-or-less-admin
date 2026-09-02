@@ -119,6 +119,16 @@ export const togglePremium = createServerFn({ method: "POST" }).middleware([auth
     return setPremium(data, caller);
   });
 
+export const fetchDailySchedule = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) =>
+    z.object({ limit: z.number().optional() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { listDailyPacks } = await import("./ops.server");
+    const packs = await listDailyPacks(data?.limit ?? 100);
+    return { packs };
+  });
+
 export const fetchDaily = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(data),
@@ -130,6 +140,18 @@ export const fetchDaily = createServerFn({ method: "POST" }).middleware([authMid
       getDailyLeaderboard(data.date),
     ]);
     return { pack, leaderboard };
+  });
+
+export const generateDailyPack = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) =>
+    z.object({
+      category: z.string().optional(),
+      subject: z.string().optional(),
+    }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { generateDailyPackFromFactBank } = await import("./ops.server");
+    return generateDailyPackFromFactBank(data);
   });
 
 export const preScheduleDailyPack = createServerFn({ method: "POST" }).middleware([authMiddleware])
@@ -146,6 +168,20 @@ export const preScheduleDailyPack = createServerFn({ method: "POST" }).middlewar
     const caller = context.user;
     const { scheduleDailyPack } = await import("./ops.server");
     return scheduleDailyPack(data, caller);
+  });
+
+export const deleteDailyPackAction = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
+    const { deleteDailyPack } = await import("./ops.server");
+    return deleteDailyPack(data.date, caller);
   });
 
 export const moderateLeaderboardEntry = createServerFn({ method: "POST" }).middleware([authMiddleware])

@@ -278,12 +278,27 @@ export async function setPremium(input: { id: string; isPremium: boolean }, admi
 
 /* ------------------------------ daily challenge ---------------------------- */
 
-export interface DailyPack {
+export interface DailyPackSummary {
   date: string;
-  seed: string;
   category: string;
-  rounds: Json[];
+  seed: string;
+  total_rounds: number;
   createdAt: string | null;
+}
+
+export async function listDailyPacks(limit = 100): Promise<DailyPackSummary[]> {
+  const { docs } = await listDocs("daily_packs", { pageSize: limit });
+  const packs: DailyPackSummary[] = docs.map((doc) => ({
+    date: doc.id,
+    category: str(doc.data["category"]) || "mixed",
+    seed: str(doc.data["seed"]),
+    total_rounds: Array.isArray(doc.data["rounds"])
+      ? doc.data["rounds"].length
+      : (num(doc.data["total_rounds"]) ?? 0),
+    createdAt: typeof doc.data["createdAt"] === "string" ? doc.data["createdAt"] : null,
+  }));
+  packs.sort((a, b) => b.date.localeCompare(a.date));
+  return packs;
 }
 
 export async function getDailyPack(date: string): Promise<DailyPack | null> {
@@ -295,6 +310,79 @@ export async function getDailyPack(date: string): Promise<DailyPack | null> {
     category: str(doc.data["category"]),
     rounds: Array.isArray(doc.data["rounds"]) ? (doc.data["rounds"] as Json[]) : [],
     createdAt: typeof doc.data["createdAt"] === "string" ? doc.data["createdAt"] : null,
+  };
+}
+
+export async function deleteDailyPack(date: string, adminUser?: AdminUser): Promise<{ ok: boolean }> {
+  const { deleteDoc } = await import("../firebase/firestore.server");
+  await deleteDoc(`daily_packs/${date}`);
+  if (adminUser) {
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(adminUser, {
+      action: "daily.delete_pack",
+      targetType: "daily_pack",
+      targetId: date,
+      details: `Deleted daily pack for date ${date}`,
+    });
+  }
+  return { ok: true };
+}
+
+export async function generateDailyPackFromFactBank(input: {
+  category?: string;
+  subject?: string;
+}): Promise<{ category: string; rounds: any[] }> {
+  const { exportFacts } = await import("./content.server");
+  const allFacts = await exportFacts({
+    status: "active",
+    contentRating: "standard",
+  });
+
+  let candidates = allFacts;
+  if (input.subject?.trim()) {
+    const sub = input.subject.trim().toLowerCase();
+    candidates = candidates.filter((f) => f.subject.toLowerCase().includes(sub));
+  }
+
+  // Shuffle candidates
+  const shuffled = candidates.sort(() => Math.random() - 0.5);
+  const selected = shuffled.slice(0, 5);
+
+  const rounds = selected.map((f, index) => {
+    const trueNum = f.true_number;
+    const targetDirection = index % 2 === 0 ? "MORE" : "LESS";
+    const multiplier = 1.8 + Math.random() * 0.8;
+    let presentedNum: number;
+
+    if (targetDirection === "MORE") {
+      presentedNum = trueNum > 10 ? Math.round(trueNum / multiplier) : Number((trueNum / multiplier).toFixed(1));
+    } else {
+      presentedNum = trueNum > 10 ? Math.round(trueNum * multiplier) : Number((trueNum * multiplier).toFixed(1));
+    }
+
+    if (presentedNum === trueNum) {
+      presentedNum = targetDirection === "MORE" ? trueNum - 1 : trueNum + 1;
+    }
+
+    const actualDirection = trueNum > presentedNum ? "MORE" : "LESS";
+
+    return {
+      round_number: index + 1,
+      topic: f.subject,
+      claim_statement: f.question || `${f.subject} - ${f.angle}`,
+      presented_number: presentedNum,
+      true_number: trueNum,
+      unit: f.unit,
+      correct_direction: actualDirection,
+      explanation: f.context || `${f.subject}'s true value is ${trueNum} ${f.unit}.`,
+      difficulty: "casual",
+      surprise_factor: f.surprise_factor ?? 2,
+    };
+  });
+
+  return {
+    category: input.category || (selected[0]?.subject ?? "Curated Trivia"),
+    rounds,
   };
 }
 
