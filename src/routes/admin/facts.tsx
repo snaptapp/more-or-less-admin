@@ -12,6 +12,7 @@ import {
   fetchFacts,
   saveFact,
 } from "@/lib/admin/content.functions";
+import { fetchSubjects } from "@/lib/admin/ops.functions";
 
 export const Route = createFileRoute("/admin/facts")({
   head: () => ({
@@ -90,7 +91,15 @@ function parseCsv(text: string): string[][] {
 function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
   const save = useServerFn(saveFact);
   const status = useServerFn(changeFactStatus);
+  const getSubjects = useServerFn(fetchSubjects);
   const queryClient = useQueryClient();
+
+  const subjectsQuery = useQuery({
+    queryKey: ["taxonomy_subjects_datalist"],
+    queryFn: () => getSubjects({ data: {} }),
+    staleTime: 60_000,
+  });
+
   const rawSurprise = fact.surprise_factor;
   const normalizedSurprise =
     rawSurprise !== null && rawSurprise !== undefined
@@ -111,6 +120,18 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
     source_urls: (fact.source_urls || []).join("\n"),
   });
 
+  const matchedSubject = useMemo(() => {
+    if (!form.subject?.trim()) return null;
+    const sub = form.subject.trim().toLowerCase();
+    return (
+      subjectsQuery.data?.subjects.find(
+        (s) =>
+          s.subject.toLowerCase() === sub ||
+          s.aliases.some((a) => a.toLowerCase() === sub),
+      ) ?? null
+    );
+  }, [form.subject, subjectsQuery.data?.subjects]);
+
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["facts"] });
 
   const saveMutation = useMutation({
@@ -119,7 +140,7 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
         data: {
           id: fact.id,
           subject: form.subject,
-          angle: form.angle,
+          angle: form.angle.trim() || undefined,
           true_number: Number(form.true_number),
           unit: form.unit,
           claim_template: form.question ? `${form.question}: {n}` : `${form.subject}: {n}`,
@@ -156,6 +177,14 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
 
   return (
     <Card>
+      <datalist id="taxonomy-subjects-datalist">
+        {subjectsQuery.data?.subjects.map((s) => (
+          <option key={s.id} value={s.subject}>
+            {s.category} › {s.sub_category}
+          </option>
+        ))}
+      </datalist>
+
       <form onSubmit={submit} style={{ display: "grid", gap: "var(--ds-arena-space-4)" }}>
         <div className="admin-page-head">
           <CardTitle>Edit fact</CardTitle>
@@ -170,16 +199,28 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
             <span>Subject</span>
             <input
               className="admin-input"
+              list="taxonomy-subjects-datalist"
+              placeholder="e.g. Giraffe, Taylor Swift"
               value={form.subject}
               onChange={(e) => setForm({ ...form, subject: e.target.value })}
             />
+            {matchedSubject ? (
+              <span style={{ fontSize: 11, color: "var(--ds-arena-color-lime)", marginTop: 2 }}>
+                ✓ Linked to: <strong>{matchedSubject.category}</strong> › {matchedSubject.sub_category}
+              </span>
+            ) : form.subject ? (
+              <span style={{ fontSize: 11, color: "var(--ds-arena-color-text-muted)", marginTop: 2 }}>
+                ℹ️ Uncategorized (will default to 'General' unless created in Taxonomy)
+              </span>
+            ) : null}
           </label>
           <label className="admin-field">
             <span>
-              Angle <InfoTip text="The specific metric, dimension, or record being measured (e.g. 'Top Speed', 'Career Points', 'MVP Awards won'). Uniquely identifies the fact for this subject." />
+              Angle <InfoTip text="A concise 2–4 word title for this specific metric or record (e.g. 'Top Speed', 'Weeks at #1', 'Career MVP Awards'). Uniquely identifies the fact for this subject." />
             </span>
             <input
               className="admin-input"
+              placeholder="e.g. Top Speed, Weeks at #1"
               value={form.angle}
               onChange={(e) => setForm({ ...form, angle: e.target.value })}
             />
@@ -317,15 +358,34 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
 
 function NewFactForm({ onDone }: { onDone: () => void }) {
   const create = useServerFn(addFact);
+  const getSubjects = useServerFn(fetchSubjects);
   const queryClient = useQueryClient();
   const [form, setForm] = useState(EMPTY_DRAFT);
+
+  const subjectsQuery = useQuery({
+    queryKey: ["taxonomy_subjects_datalist"],
+    queryFn: () => getSubjects({ data: {} }),
+    staleTime: 60_000,
+  });
+
+  const matchedSubject = useMemo(() => {
+    if (!form.subject?.trim()) return null;
+    const sub = form.subject.trim().toLowerCase();
+    return (
+      subjectsQuery.data?.subjects.find(
+        (s) =>
+          s.subject.toLowerCase() === sub ||
+          s.aliases.some((a) => a.toLowerCase() === sub),
+      ) ?? null
+    );
+  }, [form.subject, subjectsQuery.data?.subjects]);
 
   const mutation = useMutation({
     mutationFn: () =>
       create({
         data: {
           subject: form.subject,
-          angle: form.angle,
+          angle: form.angle.trim() || undefined,
           true_number: Number(form.true_number),
           unit: form.unit,
           claim_template: form.question ? `${form.question}: {n}` : `${form.subject}: {n}`,
@@ -358,18 +418,29 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
             <span>Subject</span>
             <input
               className="admin-input"
+              list="taxonomy-subjects-datalist"
+              placeholder="e.g. Giraffe, Taylor Swift"
               required
               value={form.subject}
               onChange={(e) => setForm({ ...form, subject: e.target.value })}
             />
+            {matchedSubject ? (
+              <span style={{ fontSize: 11, color: "var(--ds-arena-color-lime)", marginTop: 2 }}>
+                ✓ Linked to: <strong>{matchedSubject.category}</strong> › {matchedSubject.sub_category}
+              </span>
+            ) : form.subject ? (
+              <span style={{ fontSize: 11, color: "var(--ds-arena-color-text-muted)", marginTop: 2 }}>
+                ℹ️ Uncategorized (will default to 'General' unless created in Taxonomy)
+              </span>
+            ) : null}
           </label>
           <label className="admin-field">
             <span>
-              Angle <InfoTip text="The specific metric, dimension, or record being measured (e.g. 'Top Speed', 'Career Points', 'MVP Awards won'). Uniquely identifies the fact for this subject." />
+              Angle <InfoTip text="A concise 2–4 word title for this specific metric or record (e.g. 'Top Speed', 'Weeks at #1', 'Career MVP Awards'). Uniquely identifies the fact for this subject." />
             </span>
             <input
               className="admin-input"
-              required
+              placeholder="e.g. Top Speed, Weeks at #1"
               value={form.angle}
               onChange={(e) => setForm({ ...form, angle: e.target.value })}
             />
