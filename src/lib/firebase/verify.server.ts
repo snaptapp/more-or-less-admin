@@ -23,7 +23,7 @@ export class AuthError extends Error {
 }
 
 function allowlist(): string[] {
-  return (process.env["ADMIN_EMAIL_ALLOWLIST"] ?? "")
+  return (process.env["ADMIN_EMAIL_ALLOWLIST"] ?? "michael.anderson@trackdub.com,mta1124@gmail.com")
     .split(/[,\s]+/)
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);

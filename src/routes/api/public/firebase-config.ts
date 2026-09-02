@@ -12,13 +12,9 @@ export const Route = createFileRoute("/api/public/firebase-config")({
   server: {
     handlers: {
       GET: async () => {
-        const apiKey = process.env["FIREBASE_WEB_API_KEY"];
-        if (!apiKey) {
-          return new Response(JSON.stringify({ error: "Firebase web API key is not configured" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+        const apiKey =
+          process.env["FIREBASE_WEB_API_KEY"] ||
+          "AIzaSyBLNZLQZkus4CutqPTS7LmfVDD0rao2qwo";
         const app = getAdminApp();
         const projectId =
           app.options.projectId ||
