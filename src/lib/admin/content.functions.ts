@@ -4,6 +4,7 @@ import { authMiddleware } from "./middleware";
 
 const listInput = z.object({
   search: z.string().optional(),
+  category: z.string().optional(),
   subject: z.string().optional(),
   angle: z.string().optional(),
   status: z.string().optional(),
@@ -40,6 +41,8 @@ export const fetchFact = createServerFn({ method: "POST" }).middleware([authMidd
 const editInput = z.object({
   id: z.string().min(1),
   subject: z.string().optional(),
+  category: z.string().optional(),
+  sub_category: z.string().optional(),
   angle: z.string().optional(),
   true_number: z.number().optional(),
   unit: z.string().optional(),
@@ -115,6 +118,8 @@ export const addFact = createServerFn({ method: "POST" }).middleware([authMiddle
     z
       .object({
         subject: z.string().min(1),
+        category: z.string().optional(),
+        sub_category: z.string().optional(),
         angle: z.string().optional().default(""),
         true_number: z.number(),
         unit: z.string().optional().default(""),
