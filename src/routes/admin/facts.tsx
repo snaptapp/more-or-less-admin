@@ -76,8 +76,24 @@ function parseCsv(text: string): string[][] {
   }
 
   return rows;
-}const EMPTY_DRAFT = {
+}const CANONICAL_CATEGORIES = [
+  "Animals & Nature",
+  "Science & Space",
+  "Sports",
+  "Music",
+  "Movies & TV",
+  "Pop Culture & Records",
+  "History & World",
+  "Food & Drink",
+  "Technology",
+  "Money & Business",
+  "General",
+] as const;
+
+const EMPTY_DRAFT = {
   subject: "",
+  category: "",
+  sub_category: "",
   angle: "",
   true_number: "",
   unit: "",
@@ -110,6 +126,8 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
 
   const [form, setForm] = useState({
     subject: fact.subject,
+    category: fact.category || "",
+    sub_category: "",
     angle: fact.angle ?? "",
     true_number: fact.true_number === null ? "" : String(fact.true_number),
     unit: fact.unit ?? "",
@@ -132,6 +150,8 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
     );
   }, [form.subject, subjectsQuery.data?.subjects]);
 
+  const effectiveCategory = form.category || matchedSubject?.category || "General";
+
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["facts"] });
 
   const saveMutation = useMutation({
@@ -140,6 +160,8 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
         data: {
           id: fact.id,
           subject: form.subject,
+          category: effectiveCategory,
+          sub_category: form.sub_category || matchedSubject?.sub_category || undefined,
           angle: form.angle.trim() || undefined,
           true_number: Number(form.true_number),
           unit: form.unit,
@@ -210,9 +232,25 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
               </span>
             ) : form.subject ? (
               <span style={{ fontSize: 11, color: "var(--ds-arena-color-text-muted)", marginTop: 2 }}>
-                ℹ️ Uncategorized (will default to 'General' unless created in Taxonomy)
+                ℹ️ Will be classified under <strong>{effectiveCategory}</strong>
               </span>
             ) : null}
+          </label>
+          <label className="admin-field">
+            <span>
+              Category <InfoTip text="Taxonomic category for this trivia question." />
+            </span>
+            <select
+              className="admin-select"
+              value={effectiveCategory}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+            >
+              {CANONICAL_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="admin-field">
             <span>
@@ -380,11 +418,15 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
     );
   }, [form.subject, subjectsQuery.data?.subjects]);
 
+  const effectiveCategory = form.category || matchedSubject?.category || "General";
+
   const mutation = useMutation({
     mutationFn: () =>
       create({
         data: {
           subject: form.subject,
+          category: effectiveCategory,
+          sub_category: form.sub_category || matchedSubject?.sub_category || undefined,
           angle: form.angle.trim() || undefined,
           true_number: Number(form.true_number),
           unit: form.unit,
@@ -430,9 +472,25 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
               </span>
             ) : form.subject ? (
               <span style={{ fontSize: 11, color: "var(--ds-arena-color-text-muted)", marginTop: 2 }}>
-                ℹ️ Uncategorized (will default to 'General' unless created in Taxonomy)
+                ℹ️ Will be classified under <strong>{effectiveCategory}</strong>
               </span>
             ) : null}
+          </label>
+          <label className="admin-field">
+            <span>
+              Category <InfoTip text="Taxonomic category for this trivia question." />
+            </span>
+            <select
+              className="admin-select"
+              value={effectiveCategory}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+            >
+              {CANONICAL_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="admin-field">
             <span>
@@ -541,6 +599,7 @@ function FactsPage() {
   const exportFn = useServerFn(exportFactsData);
   const [filters, setFilters] = useState({
     search: "",
+    category: "",
     subject: "",
     angle: "",
     status: "active",
@@ -567,6 +626,7 @@ function FactsPage() {
       list({
         data: {
           search: filters.search || undefined,
+          category: filters.category || undefined,
           subject: filters.subject || undefined,
           angle: filters.angle || undefined,
           status: filters.status || undefined,
@@ -601,6 +661,7 @@ function FactsPage() {
 
   const hasActiveFilters = Boolean(
     filters.search ||
+      filters.category ||
       filters.subject ||
       filters.angle ||
       filters.status !== "active" ||
@@ -612,6 +673,7 @@ function FactsPage() {
     setPage(1);
     setFilters({
       search: "",
+      category: "",
       subject: "",
       angle: "",
       status: "active",
@@ -626,6 +688,7 @@ function FactsPage() {
       const facts = await exportFn({
         data: {
           search: filters.search || undefined,
+          category: filters.category || undefined,
           subject: filters.subject || undefined,
           angle: filters.angle || undefined,
           status: filters.status || undefined,
@@ -719,7 +782,7 @@ function FactsPage() {
       />
 
       <div className="admin-toolbar">
-        <label className="admin-field" style={{ flex: "1 1 260px" }}>
+        <label className="admin-field" style={{ flex: "1 1 240px" }}>
           <span>Search all text (subject, angle, question, context)</span>
           <input
             className="admin-input"
@@ -730,6 +793,24 @@ function FactsPage() {
               setFilters({ ...filters, search: e.target.value });
             }}
           />
+        </label>
+        <label className="admin-field" style={{ flex: "0 1 200px" }}>
+          <span>Category</span>
+          <select
+            className="admin-select"
+            value={filters.category}
+            onChange={(e) => {
+              setPage(1);
+              setFilters({ ...filters, category: e.target.value });
+            }}
+          >
+            <option value="">All categories</option>
+            {CANONICAL_CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="admin-field">
           <span>Per page</span>
