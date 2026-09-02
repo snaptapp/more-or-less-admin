@@ -1,11 +1,41 @@
 /**
- * Firebase ID token verification + admin authorization using official Firebase Admin SDK.
+ * Firebase ID token verification + admin authorization.
  *
  * This is the security boundary for the portal: route guards only affect UI,
  * every server function that touches Firestore calls `requireAdmin()`.
  */
 import { getRequestHeader } from "@tanstack/react-start/server";
-import { adminAuth } from "./admin.server";
+import { getServiceAccount } from "./credentials.server";
+
+const JWKS_URL =
+  "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+
+interface Jwk {
+  kid: string;
+  n: string;
+  e: string;
+  alg?: string;
+  kty: string;
+}
+
+let jwksCache: { keys: Jwk[]; fetchedAt: number } | null = null;
+
+async function getJwks(): Promise<Jwk[]> {
+  if (jwksCache && Date.now() - jwksCache.fetchedAt < 60 * 60 * 1000) return jwksCache.keys;
+  const response = await fetch(JWKS_URL);
+  if (!response.ok) throw new Error("Unable to fetch Firebase signing keys");
+  const payload = (await response.json()) as { keys: Jwk[] };
+  jwksCache = { keys: payload.keys, fetchedAt: Date.now() };
+  return payload.keys;
+}
+
+function base64UrlDecode(input: string): Uint8Array<ArrayBuffer> {
+  const padded = input.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
+  const bytes = new Uint8Array(new ArrayBuffer(binary.length));
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
 
 export interface AdminUser {
   uid: string;
@@ -23,7 +53,7 @@ export class AuthError extends Error {
 }
 
 function allowlist(): string[] {
-  return (process.env["ADMIN_EMAIL_ALLOWLIST"] ?? "michael.anderson@trackdub.com,mta1124@gmail.com")
+  return (process.env["ADMIN_EMAIL_ALLOWLIST"] ?? "")
     .split(/[,\s]+/)
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);
@@ -33,39 +63,75 @@ function allowlist(): string[] {
 export async function requireAdmin(): Promise<AdminUser> {
   const header = getRequestHeader("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  if (!token) throw new AuthError("Not signed in", 401);
+  if (!token) throw new AuthError("Not signed in");
 
-  try {
-    // Check revocation (checkRevoked = true) for immediate session invalidation on role changes
-    const decoded = await adminAuth.verifyIdToken(token, true);
+  const [rawHeader, rawPayload, rawSignature] = token.split(".");
+  if (!rawHeader || !rawPayload || !rawSignature) throw new AuthError("Malformed token");
 
-    const email = decoded.email?.toLowerCase() ?? null;
-    const isClaimAdmin = decoded["admin"] === true;
-    const list = allowlist();
-    const isAllowlisted = !!email && list.includes(email);
+  const header64 = JSON.parse(new TextDecoder().decode(base64UrlDecode(rawHeader))) as {
+    kid?: string;
+    alg?: string;
+  };
+  if (header64.alg !== "RS256" || !header64.kid) throw new AuthError("Unsupported token");
 
-    if (!isClaimAdmin && !isAllowlisted) {
-      throw new AuthError(
-        `This account is not an admin (${email ?? "no email on token"}). ` +
-          (list.length === 0
-            ? "The admin email allowlist is empty."
-            : "Add this exact email to the ADMIN_EMAIL_ALLOWLIST secret or grant admin role."),
-        403
-      );
-    }
+  const jwk = (await getJwks()).find((entry) => entry.kid === header64.kid);
+  if (!jwk) throw new AuthError("Unknown signing key");
 
-    return {
-      uid: decoded.uid,
-      email: decoded.email ?? null,
-      name: decoded.name ?? null,
-      isClaimAdmin,
-    };
-  } catch (error) {
-    if (error instanceof AuthError) throw error;
-    const msg = error instanceof Error ? error.message : "Invalid or expired token";
-    if (msg.includes("revoked")) {
-      throw new AuthError("Your admin session has been revoked. Please sign in again.", 401);
-    }
-    throw new AuthError(`Authentication failed: ${msg}`, 401);
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    { kty: jwk.kty, n: jwk.n, e: jwk.e, alg: "RS256", ext: true },
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  const valid = await crypto.subtle.verify(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    base64UrlDecode(rawSignature),
+    new TextEncoder().encode(`${rawHeader}.${rawPayload}`),
+  );
+  if (!valid) throw new AuthError("Invalid token signature");
+
+  const claims = JSON.parse(new TextDecoder().decode(base64UrlDecode(rawPayload))) as {
+    aud?: string;
+    iss?: string;
+    sub?: string;
+    exp?: number;
+    email?: string;
+    email_verified?: boolean;
+    name?: string;
+    admin?: boolean;
+  };
+
+  const projectId = getServiceAccount().project_id;
+  const now = Math.floor(Date.now() / 1000);
+  if (claims.aud !== projectId) throw new AuthError("Token audience mismatch");
+  if (claims.iss !== `https://securetoken.google.com/${projectId}`) {
+    throw new AuthError("Token issuer mismatch");
   }
+  if (!claims.exp || claims.exp < now) throw new AuthError("Token expired");
+  if (!claims.sub) throw new AuthError("Token has no subject");
+
+  const email = claims.email?.toLowerCase() ?? null;
+  const isClaimAdmin = claims.admin === true;
+  const list = allowlist();
+  const isAllowlisted = !!email && list.includes(email);
+
+  if (!isClaimAdmin && !isAllowlisted) {
+    throw new AuthError(
+      `This account is not an admin (${email ?? "no email on token"}). ` +
+        (list.length === 0
+          ? "The admin email allowlist is empty."
+          : "Add this exact email to the ADMIN_EMAIL_ALLOWLIST secret, then sign out and back in."),
+      403,
+    );
+  }
+
+
+  return {
+    uid: claims.sub,
+    email: claims.email ?? null,
+    name: claims.name ?? null,
+    isClaimAdmin,
+  };
 }

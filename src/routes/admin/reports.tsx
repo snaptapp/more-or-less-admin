@@ -27,15 +27,17 @@ function ReportCard({ entry }: { entry: Entry }) {
   );
 
   const mutation = useMutation({
-    mutationFn: (action: "retire_fact" | "fix_number" | "reject") =>
+    mutationFn: (action: "retire_fact" | "fix_number" | "reject" | "resolve_only" | "add_to_bank") =>
       act({
         data: {
           reportId: entry.report.id,
           action,
           factId: entry.fact?.id,
-          correctedNumber: action === "fix_number" ? Number(corrected) : undefined,
+          correctedNumber: corrected ? Number(corrected) : undefined,
           note: note || undefined,
+          topic: entry.report.topic,
           claimStatement: entry.report.claimStatement,
+          unit: entry.report.unit,
         },
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["reports"] }),
@@ -103,23 +105,55 @@ function ReportCard({ entry }: { entry: Entry }) {
           </div>
           <ErrorNote error={mutation.error} />
           <div className="admin-row-actions" style={{ marginTop: "var(--ds-arena-space-3)" }}>
-            <Button
-              variant="danger"
-              disabled={!entry.fact || mutation.isPending}
-              onClick={() => {
-                if (window.confirm("Retire the matched fact and resolve this report?")) {
-                  mutation.mutate("retire_fact");
-                }
-              }}
-            >
-              Accept &amp; retire fact
-            </Button>
-            <Button
-              disabled={!entry.fact || !corrected || mutation.isPending}
-              onClick={() => mutation.mutate("fix_number")}
-            >
-              Accept &amp; fix number
-            </Button>
+            {entry.fact ? (
+              <>
+                <Button
+                  variant="danger"
+                  disabled={mutation.isPending}
+                  onClick={() => {
+                    if (window.confirm("Retire the matched fact and resolve this report?")) {
+                      mutation.mutate("retire_fact");
+                    }
+                  }}
+                >
+                  Accept &amp; retire fact
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={!corrected || mutation.isPending}
+                  onClick={() => mutation.mutate("fix_number")}
+                >
+                  Accept &amp; fix number
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="primary"
+                  disabled={mutation.isPending}
+                  onClick={() => {
+                    if (window.confirm("Accept and resolve this AI claim report?")) {
+                      mutation.mutate("resolve_only");
+                    }
+                  }}
+                >
+                  Accept &amp; resolve report
+                </Button>
+                {corrected ? (
+                  <Button
+                    variant="daily"
+                    disabled={mutation.isPending}
+                    onClick={() => {
+                      if (window.confirm("Add this corrected fact to the fact bank?")) {
+                        mutation.mutate("add_to_bank");
+                      }
+                    }}
+                  >
+                    Accept &amp; add to fact bank
+                  </Button>
+                ) : null}
+              </>
+            )}
             <Button variant="ghost" disabled={mutation.isPending} onClick={() => mutation.mutate("reject")}>
               Reject report
             </Button>

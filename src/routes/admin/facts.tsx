@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, Fragment, type FormEvent } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
-import { ErrorNote, PageHead, statusTone } from "@/admin/AdminShell";
+import { ErrorNote, InfoTip, PageHead, statusTone } from "@/admin/AdminShell";
 import {
   addFact,
+  bulkImportFacts,
   changeFactStatus,
+  exportFactsData,
   fetchFacts,
   saveFact,
 } from "@/lib/admin/content.functions";
@@ -23,41 +25,90 @@ export const Route = createFileRoute("/admin/facts")({
 
 type Fact = Awaited<ReturnType<typeof fetchFacts>>["facts"][number];
 
-const EMPTY_DRAFT = {
+function escapeCsv(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  const str = String(val);
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        field += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      row.push(field.trim());
+      field = "";
+    } else if ((char === "\r" || char === "\n") && !inQuotes) {
+      if (char === "\r" && nextChar === "\n") i++;
+      row.push(field.trim());
+      if (row.some((cell) => cell.length > 0)) {
+        rows.push(row);
+      }
+      row = [];
+      field = "";
+    } else {
+      field += char;
+    }
+  }
+
+  if (field || row.length > 0) {
+    row.push(field.trim());
+    if (row.some((cell) => cell.length > 0)) {
+      rows.push(row);
+    }
+  }
+
+  return rows;
+}const EMPTY_DRAFT = {
   subject: "",
   angle: "",
   true_number: "",
   unit: "",
-  claim_template: "",
   context: "",
   question: "",
-  surprise_factor: "6",
-  difficulty_hint: "medium",
+  surprise_factor: "2",
   content_rating: "standard",
   source_urls: "",
 };
-
-function preview(template: string, value: string): string {
-  if (!template) return "—";
-  return template.replace("{n}", value || "{n}");
-}
 
 function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
   const save = useServerFn(saveFact);
   const status = useServerFn(changeFactStatus);
   const queryClient = useQueryClient();
+  const rawSurprise = fact.surprise_factor;
+  const normalizedSurprise =
+    rawSurprise !== null && rawSurprise !== undefined
+      ? rawSurprise > 3
+        ? rawSurprise >= 8 ? 3 : rawSurprise >= 5 ? 2 : rawSurprise >= 3 ? 1 : 0
+        : Math.min(3, Math.max(0, Math.round(rawSurprise)))
+      : 2;
+
   const [form, setForm] = useState({
     subject: fact.subject,
-    angle: fact.angle,
+    angle: fact.angle ?? "",
     true_number: fact.true_number === null ? "" : String(fact.true_number),
-    unit: fact.unit,
-    claim_template: fact.claim_template,
-    context: fact.context,
-    question: fact.question,
-    surprise_factor: String(fact.surprise_factor ?? 5),
-    difficulty_hint: fact.difficulty_hint || "medium",
+    unit: fact.unit ?? "",
+    question: fact.question ?? "",
+    context: fact.context ?? "",
+    surprise_factor: String(normalizedSurprise),
     content_rating: fact.content_rating || "standard",
-    source_urls: fact.source_urls.join("\n"),
+    source_urls: (fact.source_urls || []).join("\n"),
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["facts"] });
@@ -71,11 +122,10 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
           angle: form.angle,
           true_number: Number(form.true_number),
           unit: form.unit,
-          claim_template: form.claim_template,
+          claim_template: form.question ? `${form.question}: {n}` : `${form.subject}: {n}`,
           context: form.context,
           question: form.question,
           surprise_factor: Number(form.surprise_factor),
-          difficulty_hint: form.difficulty_hint as "casual" | "medium" | "hard",
           content_rating: form.content_rating as "standard" | "after_dark",
           source_urls: form.source_urls.split("\n").map((v) => v.trim()).filter(Boolean),
         },
@@ -125,7 +175,9 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
             />
           </label>
           <label className="admin-field">
-            <span>Angle</span>
+            <span>
+              Angle <InfoTip text="The specific metric, dimension, or record being measured (e.g. 'Top Speed', 'Career Points', 'MVP Awards won'). Uniquely identifies the fact for this subject." />
+            </span>
             <input
               className="admin-input"
               value={form.angle}
@@ -151,26 +203,18 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
             />
           </label>
           <label className="admin-field">
-            <span>Surprise factor</span>
-            <input
-              className="admin-input"
-              type="number"
-              min={1}
-              max={10}
-              value={form.surprise_factor}
-              onChange={(e) => setForm({ ...form, surprise_factor: e.target.value })}
-            />
-          </label>
-          <label className="admin-field">
-            <span>Difficulty</span>
+            <span>
+              Surprise factor <InfoTip text="Scale of 0–3 gauging how shocking the number is (0: Obvious/common knowledge, 1: Mildly surprising, 2: Very surprising, 3: Mind-blowing intuition trap)." />
+            </span>
             <select
               className="admin-select"
-              value={form.difficulty_hint}
-              onChange={(e) => setForm({ ...form, difficulty_hint: e.target.value })}
+              value={form.surprise_factor}
+              onChange={(e) => setForm({ ...form, surprise_factor: e.target.value })}
             >
-              <option value="casual">casual</option>
-              <option value="medium">medium</option>
-              <option value="hard">hard</option>
+              <option value="0">0 · Obvious (Common knowledge)</option>
+              <option value="1">1 · Mildly surprising</option>
+              <option value="2">2 · Very surprising</option>
+              <option value="3">3 · Mind-blowing (Intuition trap)</option>
             </select>
           </label>
           <label className="admin-field">
@@ -187,19 +231,10 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
         </div>
 
         <label className="admin-field">
-          <span>Claim template</span>
-          <input
-            className="admin-input"
-            value={form.claim_template}
-            onChange={(e) => setForm({ ...form, claim_template: e.target.value })}
-          />
-        </label>
-        <p style={{ color: "var(--ds-arena-color-lime)", fontSize: 14, margin: 0 }}>
-          {preview(form.claim_template, form.true_number)}
-        </p>
-
-        <label className="admin-field">
-          <span>Question</span>
+          <span>
+            Question / Prompt{" "}
+            <InfoTip text="The numberless question or phrase shown on the game card (e.g. 'How many neck vertebrae does a giraffe have?' or 'Career touchdowns')." />
+          </span>
           <input
             className="admin-input"
             value={form.question}
@@ -207,7 +242,10 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
           />
         </label>
         <label className="admin-field">
-          <span>Reveal context</span>
+          <span>
+            Reveal explanation (Context){" "}
+            <InfoTip text="The engaging 1-2 sentence explanation revealed to players after they guess (e.g. 'Giraffes have 7 cervical vertebrae, the same as humans.')." />
+          </span>
           <textarea
             className="admin-textarea"
             value={form.context}
@@ -290,11 +328,10 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
           angle: form.angle,
           true_number: Number(form.true_number),
           unit: form.unit,
-          claim_template: form.claim_template,
+          claim_template: form.question ? `${form.question}: {n}` : `${form.subject}: {n}`,
           context: form.context,
           question: form.question,
           surprise_factor: Number(form.surprise_factor),
-          difficulty_hint: form.difficulty_hint as "casual" | "medium" | "hard",
           content_rating: form.content_rating as "standard" | "after_dark",
           source_urls: form.source_urls.split("\n").map((v) => v.trim()).filter(Boolean),
         },
@@ -327,7 +364,9 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
             />
           </label>
           <label className="admin-field">
-            <span>Angle</span>
+            <span>
+              Angle <InfoTip text="The specific metric, dimension, or record being measured (e.g. 'Top Speed', 'Career Points', 'MVP Awards won'). Uniquely identifies the fact for this subject." />
+            </span>
             <input
               className="admin-input"
               required
@@ -355,26 +394,18 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
             />
           </label>
           <label className="admin-field">
-            <span>Surprise factor</span>
-            <input
-              className="admin-input"
-              type="number"
-              min={1}
-              max={10}
-              value={form.surprise_factor}
-              onChange={(e) => setForm({ ...form, surprise_factor: e.target.value })}
-            />
-          </label>
-          <label className="admin-field">
-            <span>Difficulty</span>
+            <span>
+              Surprise factor <InfoTip text="Scale of 0–3 gauging how shocking the number is (0: Obvious/common knowledge, 1: Mildly surprising, 2: Very surprising, 3: Mind-blowing intuition trap)." />
+            </span>
             <select
               className="admin-select"
-              value={form.difficulty_hint}
-              onChange={(e) => setForm({ ...form, difficulty_hint: e.target.value })}
+              value={form.surprise_factor}
+              onChange={(e) => setForm({ ...form, surprise_factor: e.target.value })}
             >
-              <option value="casual">casual</option>
-              <option value="medium">medium</option>
-              <option value="hard">hard</option>
+              <option value="0">0 · Obvious (Common knowledge)</option>
+              <option value="1">1 · Mildly surprising</option>
+              <option value="2">2 · Very surprising</option>
+              <option value="3">3 · Mind-blowing (Intuition trap)</option>
             </select>
           </label>
           <label className="admin-field">
@@ -390,19 +421,10 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
           </label>
         </div>
         <label className="admin-field">
-          <span>Claim template (use {"{n}"})</span>
-          <input
-            className="admin-input"
-            required
-            value={form.claim_template}
-            onChange={(e) => setForm({ ...form, claim_template: e.target.value })}
-          />
-        </label>
-        <p style={{ color: "var(--ds-arena-color-lime)", fontSize: 14, margin: 0 }}>
-          {preview(form.claim_template, form.true_number)}
-        </p>
-        <label className="admin-field">
-          <span>Question</span>
+          <span>
+            Question / Prompt{" "}
+            <InfoTip text="The numberless question or phrase shown on the game card (e.g. 'How many neck vertebrae does a giraffe have?' or 'Career touchdowns')." />
+          </span>
           <input
             className="admin-input"
             required
@@ -411,7 +433,10 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
           />
         </label>
         <label className="admin-field">
-          <span>Reveal context</span>
+          <span>
+            Reveal explanation (Context){" "}
+            <InfoTip text="The engaging 1-2 sentence explanation revealed to players after they guess (e.g. 'Giraffes have 7 cervical vertebrae, the same as humans.')." />
+          </span>
           <textarea
             className="admin-textarea"
             value={form.context}
@@ -429,7 +454,7 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
         <ErrorNote error={mutation.error} />
         <div className="admin-row-actions">
           <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? "Creating…" : "Create fact"}
+            {mutation.isPending ? "Creating…" : "Save to bank"}
           </Button>
           <Button type="button" variant="ghost" onClick={onDone}>
             Cancel
@@ -442,31 +467,84 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
 
 function FactsPage() {
   const list = useServerFn(fetchFacts);
+  const exportFn = useServerFn(exportFactsData);
   const [filters, setFilters] = useState({
     search: "",
     status: "active",
     contentRating: "",
-    difficulty: "",
   });
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [selected, setSelected] = useState<Fact | null>(null);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const query = useQuery({
-    queryKey: ["facts", filters, page],
+    queryKey: ["facts", filters, page, pageSize],
     queryFn: () =>
       list({
         data: {
           search: filters.search || undefined,
           status: filters.status || undefined,
           contentRating: filters.contentRating || undefined,
-          difficulty: filters.difficulty || undefined,
           page,
-          pageSize: 25,
+          pageSize,
         },
       }),
     retry: false,
   });
+
+  const handleExportCsv = async () => {
+    try {
+      setExporting(true);
+      const facts = await exportFn({
+        data: {
+          search: filters.search || undefined,
+          status: filters.status || undefined,
+          contentRating: filters.contentRating || undefined,
+        },
+      });
+      const headers = [
+        "id",
+        "subject",
+        "angle",
+        "true_number",
+        "unit",
+        "question",
+        "context",
+        "surprise_factor",
+        "content_rating",
+        "status",
+        "source_urls",
+      ];
+      const rows = facts.map((f) => [
+        escapeCsv(f.id),
+        escapeCsv(f.subject),
+        escapeCsv(f.angle),
+        escapeCsv(f.true_number),
+        escapeCsv(f.unit),
+        escapeCsv(f.question || f.claim_template),
+        escapeCsv(f.context),
+        escapeCsv(f.surprise_factor),
+        escapeCsv(f.content_rating),
+        escapeCsv(f.status),
+        escapeCsv((f.source_urls || []).join(" ; ")),
+      ]);
+      const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `fact_bank_export_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const totalPages = useMemo(
     () => (query.data ? Math.max(1, Math.ceil(query.data.total / query.data.pageSize)) : 1),
@@ -479,14 +557,34 @@ function FactsPage() {
         title="Fact bank"
         description="The curated trivia master list in Cloud Firestore."
         actions={
-          <Button
-            onClick={() => {
-              setCreating((value) => !value);
-              setSelected(null);
-            }}
-          >
-            {creating ? "Close" : "New fact"}
-          </Button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <Button
+              variant="ghost"
+              disabled={exporting}
+              onClick={() => void handleExportCsv()}
+            >
+              {exporting ? "Exporting…" : "Export CSV"}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setImporting((v) => !v);
+                setCreating(false);
+                setSelected(null);
+              }}
+            >
+              {importing ? "Close Import" : "Import CSV"}
+            </Button>
+            <Button
+              onClick={() => {
+                setCreating((value) => !value);
+                setImporting(false);
+                setSelected(null);
+              }}
+            >
+              {creating ? "Close" : "New fact"}
+            </Button>
+          </div>
         }
       />
 
@@ -533,36 +631,45 @@ function FactsPage() {
             <option value="after_dark">after_dark</option>
           </select>
         </label>
+
         <label className="admin-field">
-          <span>Difficulty</span>
+          <span>Per page</span>
           <select
             className="admin-select"
-            value={filters.difficulty}
+            value={pageSize}
             onChange={(e) => {
               setPage(1);
-              setFilters({ ...filters, difficulty: e.target.value });
+              setPageSize(Number(e.target.value));
             }}
           >
-            <option value="">All</option>
-            <option value="casual">casual</option>
-            <option value="medium">medium</option>
-            <option value="hard">hard</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="250">250</option>
+            <option value="500">500</option>
+            <option value="1000">All (1,000)</option>
           </select>
         </label>
       </div>
 
       <ErrorNote error={query.error} />
+      {importing ? <ImportCsvModal onDone={() => setImporting(false)} /> : null}
       {creating ? <NewFactForm onDone={() => setCreating(false)} /> : null}
-      {selected ? <FactEditor fact={selected} onDone={() => setSelected(null)} /> : null}
 
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>
             <tr>
               <th>Subject</th>
-              <th>Angle</th>
+              <th>
+                Angle{" "}
+                <InfoTip position="bottom" text="The specific metric, dimension, or record being measured." />
+              </th>
               <th>Value</th>
-              <th>Surprise</th>
+              <th>
+                Surprise{" "}
+                <InfoTip position="bottom" text="Scale of 0 (obvious) to 3 (mind-blowing counterintuitive)." />
+              </th>
               <th>Rating</th>
               <th>Status</th>
               <th>Served</th>
@@ -570,40 +677,87 @@ function FactsPage() {
             </tr>
           </thead>
           <tbody>
-            {query.data?.facts.map((fact) => (
-              <tr key={fact.id}>
-                <td>
-                  <strong>{fact.subject}</strong>
-                </td>
-                <td>{fact.angle}</td>
-                <td>
-                  {fact.true_number ?? "—"} {fact.unit}
-                  {fact.previous_true_number !== null ? (
-                    <div style={{ fontSize: 12, color: "var(--ds-arena-color-amber)" }}>
-                      was {fact.previous_true_number}
-                    </div>
-                  ) : null}
-                </td>
-                <td>{fact.surprise_factor ?? "—"}</td>
-                <td>{fact.content_rating}</td>
-                <td>
-                  <Badge tone={statusTone(fact.status)}>{fact.status}</Badge>
-                </td>
-                <td>{fact.served_count}</td>
-                <td>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setCreating(false);
-                      setSelected(fact);
-                    }}
+            {query.data?.facts.map((fact) => {
+              const isEditing = selected?.id === fact.id;
+              return (
+                <Fragment key={fact.id}>
+                  <tr
+                    style={
+                      isEditing
+                        ? {
+                            backgroundColor: "var(--ds-arena-color-surface-hover)",
+                          }
+                        : undefined
+                    }
                   >
-                    Edit
-                  </Button>
-                </td>
-              </tr>
-            ))}
+                    <td>
+                      <strong>{fact.subject}</strong>
+                    </td>
+                    <td>{fact.angle}</td>
+                    <td>
+                      {fact.true_number ?? "—"} {fact.unit}
+                      {fact.previous_true_number !== null ? (
+                        <div style={{ fontSize: 12, color: "var(--ds-arena-color-amber)" }}>
+                          was {fact.previous_true_number}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td>
+                      {fact.surprise_factor !== null && fact.surprise_factor !== undefined ? (
+                        <span
+                          title={
+                            fact.surprise_factor >= 3
+                              ? "3 · Mind-blowing (Intuition trap)"
+                              : fact.surprise_factor === 2
+                                ? "2 · Very surprising"
+                                : fact.surprise_factor === 1
+                                  ? "1 · Mildly surprising"
+                                  : "0 · Obvious"
+                          }
+                        >
+                          {fact.surprise_factor}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td>{fact.content_rating}</td>
+                    <td>
+                      <Badge tone={statusTone(fact.status)}>{fact.status}</Badge>
+                    </td>
+                    <td>{fact.served_count}</td>
+                    <td>
+                      <Button
+                        size="sm"
+                        variant={isEditing ? "primary" : "ghost"}
+                        onClick={() => {
+                          setCreating(false);
+                          setImporting(false);
+                          setSelected(isEditing ? null : fact);
+                        }}
+                      >
+                        {isEditing ? "Close" : "Edit"}
+                      </Button>
+                    </td>
+                  </tr>
+                  {isEditing ? (
+                    <tr className="admin-inline-editor-row" key={`${fact.id}-editor`}>
+                      <td
+                        colSpan={8}
+                        style={{
+                          padding: "16px 20px",
+                          background: "var(--ds-arena-color-surface-sunken, rgba(0, 0, 0, 0.25))",
+                          borderLeft: "3px solid var(--ds-arena-color-lime, #84cc16)",
+                          borderBottom: "1px solid var(--ds-arena-color-border-subtle)",
+                        }}
+                      >
+                        <FactEditor fact={fact} onDone={() => setSelected(null)} />
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
         {query.isLoading ? <p className="admin-empty">Loading facts…</p> : null}
@@ -630,9 +784,264 @@ function FactsPage() {
       </div>
       {query.data?.windowed ? (
         <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13 }}>
-          Showing the first 500 matching documents — narrow the filters for full coverage.
+          Showing the first 1,000 matching documents — narrow the filters for full coverage.
         </p>
       ) : null}
     </>
+  );
+}
+
+function ImportCsvModal({ onDone }: { onDone: () => void }) {
+  const bulkImport = useServerFn(bulkImportFacts);
+  const queryClient = useQueryClient();
+  const [csvText, setCsvText] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+
+  const handleDownloadTemplate = () => {
+    const templateContent = [
+      "subject,angle,true_number,unit,question,context,surprise_factor,content_rating,source_urls",
+      'Giraffe,Neck vertebrae count,7,vertebrae,"How many neck vertebrae does a giraffe have?","Mammals usually have 7 cervical vertebrae.",3,standard,https://en.wikipedia.org/wiki/Giraffe',
+      'Mount Everest,Elevation in feet,29032,feet,"What is the elevation of Mount Everest in feet?","Official survey elevation.",1,standard,https://en.wikipedia.org/wiki/Mount_Everest',
+    ].join("\n");
+    const blob = new Blob([templateContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "fact_bank_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = String(evt.target?.result ?? "");
+      setCsvText(text);
+    };
+    reader.readAsText(file);
+  };
+
+  const parsedRows = useMemo(() => {
+    if (!csvText.trim()) return [];
+    const grid = parseCsv(csvText);
+    if (grid.length < 2) return [];
+
+    const headers = grid[0].map((h) => h.toLowerCase().trim().replace(/[^a-z0-9_]/g, "_"));
+    const colIdx = {
+      subject: headers.findIndex((h) => h.includes("subject")),
+      angle: headers.findIndex((h) => h.includes("angle")),
+      true_number: headers.findIndex((h) => h.includes("number") || h.includes("value") || h.includes("true")),
+      unit: headers.findIndex((h) => h.includes("unit")),
+      claim_template: headers.findIndex((h) => h.includes("template") || h.includes("claim")),
+      context: headers.findIndex((h) => h.includes("context")),
+      question: headers.findIndex((h) => h.includes("question") || h.includes("prompt")),
+      surprise_factor: headers.findIndex((h) => h.includes("surprise")),
+      content_rating: headers.findIndex((h) => h.includes("rating")),
+      source_urls: headers.findIndex((h) => h.includes("source") || h.includes("url")),
+    };
+
+    return grid.slice(1).map((row, idx) => {
+      const getVal = (col: number) => (col >= 0 && row[col] !== undefined ? row[col].trim() : "");
+      const subject = getVal(colIdx.subject);
+      const angle = getVal(colIdx.angle);
+      const rawNum = getVal(colIdx.true_number);
+      const true_number = Number(rawNum);
+      const unit = getVal(colIdx.unit);
+      const rawClaim = getVal(colIdx.claim_template);
+      const rawQuestion = getVal(colIdx.question);
+      const rawContext = getVal(colIdx.context);
+
+      const question = rawQuestion || (rawClaim ? rawClaim.replace(/\{n\}/g, "").trim() : `${subject} - ${angle}`);
+      const context = rawContext || rawClaim || question;
+      const claim_template = rawClaim || (question ? `${question}: {n}` : `${subject}: {n}`);
+
+      const rawSurprise = getVal(colIdx.surprise_factor);
+      let surprise_factor = 2;
+      if (rawSurprise) {
+        const numSurprise = Number(rawSurprise);
+        if (!isNaN(numSurprise)) {
+          if (numSurprise > 3) {
+            surprise_factor = numSurprise >= 8 ? 3 : numSurprise >= 5 ? 2 : numSurprise >= 3 ? 1 : 0;
+          } else {
+            surprise_factor = Math.min(3, Math.max(0, Math.round(numSurprise)));
+          }
+        }
+      }
+      const ratingRaw = getVal(colIdx.content_rating).toLowerCase();
+      const content_rating: "standard" | "after_dark" =
+        ratingRaw === "after_dark" ? "after_dark" : "standard";
+      const rawUrls = getVal(colIdx.source_urls);
+      const source_urls = rawUrls
+        ? rawUrls.split(/[;\n,]+/).map((u) => u.trim()).filter((u) => u.startsWith("http"))
+        : [];
+
+      const issues: string[] = [];
+      if (!subject) issues.push("Missing subject");
+      if (!angle) issues.push("Missing angle");
+      if (isNaN(true_number) || rawNum === "") issues.push("Invalid true_number");
+
+      return {
+        rowNumber: idx + 2,
+        isValid: issues.length === 0,
+        issues,
+        fact: {
+          subject,
+          angle,
+          true_number: isNaN(true_number) ? 0 : true_number,
+          unit,
+          claim_template,
+          context,
+          question,
+          surprise_factor,
+          content_rating,
+          source_urls,
+        },
+      };
+    });
+  }, [csvText]);
+
+  const validFacts = useMemo(() => parsedRows.filter((r) => r.isValid).map((r) => r.fact), [parsedRows]);
+
+  const mutation = useMutation({
+    mutationFn: () => bulkImport({ data: { facts: validFacts } }),
+    onSuccess: (res) => {
+      setImportResult(res);
+      queryClient.invalidateQueries({ queryKey: ["facts"] });
+    },
+  });
+
+  return (
+    <Card>
+      <div className="admin-page-head">
+        <div>
+          <CardTitle>Import facts from CSV</CardTitle>
+          <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: "4px 0 0" }}>
+            Upload or paste a CSV with trivia facts. Columns: <code>subject</code>, <code>angle</code>, <code>true_number</code>, <code>unit</code>, <code>question</code>, <code>context</code>, <code>surprise_factor</code> (0–3), <code>content_rating</code>, <code>source_urls</code>.
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <Button size="sm" variant="ghost" onClick={handleDownloadTemplate}>
+            Download Template (.csv)
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onDone}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+
+      {importResult ? (
+        <div style={{ padding: "16px 0" }}>
+          <Badge tone="lime">Import Complete</Badge>
+          <p style={{ color: "var(--ds-arena-color-text)", margin: "8px 0" }}>
+            Successfully imported <strong>{importResult.imported}</strong> facts (<strong>{importResult.skipped}</strong> skipped as duplicates).
+          </p>
+          {importResult.errors.length > 0 ? (
+            <div style={{ color: "var(--ds-arena-color-red)", fontSize: 13, marginTop: "8px" }}>
+              <p><strong>Errors ({importResult.errors.length}):</strong></p>
+              <ul>
+                {importResult.errors.map((e, idx) => (
+                  <li key={idx}>{e}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <Button size="sm" onClick={onDone} style={{ marginTop: "12px" }}>
+            Done
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="admin-toolbar" style={{ marginTop: "12px" }}>
+            <label className="admin-field" style={{ flex: "1 1 280px" }}>
+              <span>Upload CSV file</span>
+              <input className="admin-input" type="file" accept=".csv,text/csv" onChange={handleFileUpload} />
+            </label>
+            {fileName ? (
+              <div style={{ alignSelf: "flex-end", paddingBottom: "10px", color: "var(--ds-arena-color-lime)", fontSize: 13 }}>
+                Loaded: {fileName}
+              </div>
+            ) : null}
+          </div>
+
+          <label className="admin-field" style={{ marginTop: "12px" }}>
+            <span>Or paste raw CSV text</span>
+            <textarea
+              className="admin-textarea"
+              style={{ minHeight: "100px", fontFamily: "var(--ds-arena-font-mono)", fontSize: "12px" }}
+              placeholder={"subject,angle,true_number,unit,question,context,surprise_factor,content_rating,source_urls\nGiraffe,Neck vertebrae count,7,vertebrae,How many neck vertebrae does a giraffe have?,Mammals have 7 vertebrae.,3,standard,"}
+              value={csvText}
+              onChange={(e) => setCsvText(e.target.value)}
+            />
+          </label>
+
+          {parsedRows.length > 0 ? (
+            <div style={{ marginTop: "16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <span style={{ fontSize: 13, color: "var(--ds-arena-color-text-muted)" }}>
+                  Parsed <strong>{parsedRows.length}</strong> rows — <strong style={{ color: "var(--ds-arena-color-lime)" }}>{validFacts.length} valid</strong>
+                  {parsedRows.length - validFacts.length > 0 ? (
+                    <>
+                      , <strong style={{ color: "var(--ds-arena-color-red)" }}>{parsedRows.length - validFacts.length} invalid</strong>
+                    </>
+                  ) : null}
+                </span>
+                <Button
+                  size="sm"
+                  disabled={validFacts.length === 0 || mutation.isPending}
+                  onClick={() => mutation.mutate()}
+                >
+                  {mutation.isPending ? "Importing…" : `Import ${validFacts.length} Facts`}
+                </Button>
+              </div>
+
+              <div className="admin-table-wrap" style={{ maxHeight: "240px", overflowY: "auto" }}>
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th>Subject</th>
+                      <th>Angle</th>
+                      <th>Value</th>
+                      <th>Claim template</th>
+                      <th>Issues</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedRows.slice(0, 50).map((row, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          {row.isValid ? (
+                            <Badge tone="lime">Ready</Badge>
+                          ) : (
+                            <Badge tone="red">Error</Badge>
+                          )}
+                        </td>
+                        <td><strong>{row.fact.subject || "—"}</strong></td>
+                        <td>{row.fact.angle || "—"}</td>
+                        <td>{row.fact.true_number} {row.fact.unit}</td>
+                        <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {row.fact.claim_template}
+                        </td>
+                        <td style={{ color: row.isValid ? "var(--ds-arena-color-text-muted)" : "var(--ds-arena-color-red)", fontSize: 12 }}>
+                          {row.issues.length > 0 ? row.issues.join(", ") : "OK"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+
+          <ErrorNote error={mutation.error} />
+        </>
+      )}
+    </Card>
   );
 }

@@ -1,18 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/firebase/verify.server";
+import { authMiddleware } from "./middleware";
 
-export const fetchSubjects = createServerFn({ method: "POST" })
+export const fetchSubjects = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z.object({ search: z.string().optional(), category: z.string().optional() }).parse(data),
   )
   .handler(async ({ data }) => {
-    await requireAdmin();
     const { listSubjects } = await import("./ops.server");
     return listSubjects(data);
   });
 
-export const saveSubject = createServerFn({ method: "POST" })
+export const saveSubject = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z
       .object({
@@ -24,21 +23,29 @@ export const saveSubject = createServerFn({ method: "POST" })
       })
       .parse(data),
   )
-  .handler(async ({ data }) => {
-    const caller = await requireAdmin();
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
     const { updateSubject } = await import("./ops.server");
-    return updateSubject(caller, data);
+    const updated = await updateSubject(data);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: "subject.update",
+      targetType: "subject",
+      targetId: data.id,
+      details: `Updated subject ${data.id}`,
+      after: data as Record<string, unknown>,
+    });
+    return updated;
   });
 
-export const fetchCrawlQueue = createServerFn({ method: "POST" })
+export const fetchCrawlQueue = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) => z.object({ status: z.string().optional() }).parse(data))
   .handler(async ({ data }) => {
-    await requireAdmin();
     const { listCrawlQueue } = await import("./ops.server");
     return listCrawlQueue(data);
   });
 
-export const queueCrawl = createServerFn({ method: "POST" })
+export const queueCrawl = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z
       .object({
@@ -48,60 +55,75 @@ export const queueCrawl = createServerFn({ method: "POST" })
       })
       .parse(data),
   )
-  .handler(async ({ data }) => {
-    const caller = await requireAdmin();
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
     const { enqueueCrawl } = await import("./ops.server");
-    return enqueueCrawl(caller, data);
+    const enqueued = await enqueueCrawl(data);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: "crawl.enqueue",
+      targetType: "crawl_job",
+      targetId: enqueued.id,
+      details: `Enqueued crawl for ${data.subject} with priority ${data.priority}`,
+      after: data as Record<string, unknown>,
+    });
+    return enqueued;
   });
 
-export const updateCrawlPriority = createServerFn({ method: "POST" })
+export const updateCrawlPriority = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z.object({ id: z.string().min(1), priority: z.number().int().min(0).max(100) }).parse(data),
   )
-  .handler(async ({ data }) => {
-    const caller = await requireAdmin();
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
     const { setCrawlPriority } = await import("./ops.server");
-    return setCrawlPriority(caller, data);
+    const updated = await setCrawlPriority(data);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: "crawl.priority",
+      targetType: "crawl_job",
+      targetId: data.id,
+      details: `Set crawl priority for ${data.id} to ${data.priority}`,
+      after: { priority: data.priority },
+    });
+    return updated;
   });
 
-export const triggerCrawlAction = createServerFn({ method: "POST" }).handler(async () => {
-  const caller = await requireAdmin();
+export const triggerCrawlAction = createServerFn({ method: "POST" }).middleware([authMiddleware]).handler(async ({ context }) => {
+  const caller = context.user;
   const { triggerFoundryWorkflow } = await import("./ops.server");
   return triggerFoundryWorkflow(caller);
 });
 
-export const fetchPlayers = createServerFn({ method: "POST" })
+export const fetchPlayers = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) => z.object({ search: z.string().optional() }).parse(data))
   .handler(async ({ data }) => {
-    await requireAdmin();
     const { findPlayers } = await import("./ops.server");
     return findPlayers(data);
   });
 
-export const fetchPlayer = createServerFn({ method: "POST" })
+export const fetchPlayer = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) => z.object({ id: z.string().min(1) }).parse(data))
   .handler(async ({ data }) => {
-    await requireAdmin();
     const { getPlayer } = await import("./ops.server");
     return getPlayer(data.id);
   });
 
-export const togglePremium = createServerFn({ method: "POST" })
+export const togglePremium = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z.object({ id: z.string().min(1), isPremium: z.boolean() }).parse(data),
   )
-  .handler(async ({ data }) => {
-    const caller = await requireAdmin();
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
     const { setPremium } = await import("./ops.server");
-    return setPremium(caller, data);
+    return setPremium(data, caller);
   });
 
-export const fetchDaily = createServerFn({ method: "POST" })
+export const fetchDaily = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(data),
   )
   .handler(async ({ data }) => {
-    await requireAdmin();
     const { getDailyPack, getDailyLeaderboard } = await import("./ops.server");
     const [pack, leaderboard] = await Promise.all([
       getDailyPack(data.date),
@@ -110,7 +132,7 @@ export const fetchDaily = createServerFn({ method: "POST" })
     return { pack, leaderboard };
   });
 
-export const preScheduleDailyPack = createServerFn({ method: "POST" })
+export const preScheduleDailyPack = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z
       .object({
@@ -120,13 +142,13 @@ export const preScheduleDailyPack = createServerFn({ method: "POST" })
       })
       .parse(data),
   )
-  .handler(async ({ data }) => {
-    const caller = await requireAdmin();
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
     const { scheduleDailyPack } = await import("./ops.server");
-    return scheduleDailyPack(caller, data);
+    return scheduleDailyPack(data, caller);
   });
 
-export const moderateLeaderboardEntry = createServerFn({ method: "POST" })
+export const moderateLeaderboardEntry = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z
       .object({
@@ -136,16 +158,15 @@ export const moderateLeaderboardEntry = createServerFn({ method: "POST" })
       })
       .parse(data),
   )
-  .handler(async ({ data }) => {
-    const caller = await requireAdmin();
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
     const { removeDailyLeaderboardEntry } = await import("./ops.server");
-    return removeDailyLeaderboardEntry(caller, data);
+    return removeDailyLeaderboardEntry(data, caller);
   });
 
-export const fetchGameAnalytics = createServerFn({ method: "POST" })
+export const fetchGameAnalytics = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) => z.object({ since: z.string().optional() }).parse(data))
   .handler(async ({ data }) => {
-    await requireAdmin();
     const { getGameAnalytics } = await import("./ops.server");
     return getGameAnalytics(data);
   });

@@ -1,5 +1,4 @@
-import { FieldValue } from "firebase-admin/firestore";
-import { adminDb } from "./admin.server";
+import { createDoc, runQuery, type FirestoreDoc } from "./firestore.server";
 import type { AdminUser } from "./verify.server";
 
 export type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
@@ -12,18 +11,15 @@ export interface AuditLogEntry {
   targetType: "fact" | "report" | "user" | "subject" | "crawl_job" | "daily_pack" | "leaderboard" | "system";
   targetId: string;
   details?: string;
-  before?: Record<string, any> | null;
-  after?: Record<string, any> | null;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
   createdAt?: string | null;
 }
 
 export async function logAdminAction(
   adminUser: AdminUser,
   entry: Omit<AuditLogEntry, "adminUid" | "adminEmail" | "createdAt">,
-  transaction?: FirebaseFirestore.Transaction
 ): Promise<void> {
-  const collectionRef = adminDb.collection("admin_audit_logs");
-  const docRef = collectionRef.doc();
   const payload = {
     adminUid: adminUser.uid,
     adminEmail: adminUser.email,
@@ -33,38 +29,33 @@ export async function logAdminAction(
     details: entry.details ?? null,
     before: entry.before ?? null,
     after: entry.after ?? null,
-    createdAt: FieldValue.serverTimestamp(),
+    createdAt: new Date().toISOString(),
   };
 
-  if (transaction) {
-    transaction.set(docRef, payload);
-  } else {
-    await docRef.set(payload);
-  }
+  const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  await createDoc("admin_audit_logs", id, payload);
 }
 
 export async function listAuditLogs(limitCount = 100): Promise<AuditLogEntry[]> {
-  const snapshot = await adminDb
-    .collection("admin_audit_logs")
-    .orderBy("createdAt", "desc")
-    .limit(limitCount)
-    .get();
+  const docs = await runQuery({
+    collection: "admin_audit_logs",
+    orderBy: { field: "createdAt", direction: "DESCENDING" },
+    limit: limitCount,
+  });
 
-  return snapshot.docs.map((doc) => {
-    const data = doc.data();
+  return docs.map((doc: FirestoreDoc) => {
+    const data = doc.data;
     return {
       id: doc.id,
-      adminUid: data["adminUid"] as string,
-      adminEmail: (data["adminEmail"] as string) || null,
-      action: data["action"] as string,
-      targetType: data["targetType"] as AuditLogEntry["targetType"],
-      targetId: data["targetId"] as string,
-      details: (data["details"] as string) || undefined,
-      before: (data["before"] as Record<string, any>) || null,
-      after: (data["after"] as Record<string, any>) || null,
-      createdAt: data["createdAt"]?.toDate
-        ? data["createdAt"].toDate().toISOString()
-        : null,
+      adminUid: String(data["adminUid"] ?? ""),
+      adminEmail: data["adminEmail"] ? String(data["adminEmail"]) : null,
+      action: String(data["action"] ?? ""),
+      targetType: (data["targetType"] as AuditLogEntry["targetType"]) ?? "system",
+      targetId: String(data["targetId"] ?? ""),
+      details: data["details"] ? String(data["details"]) : undefined,
+      before: (data["before"] as Record<string, unknown>) || null,
+      after: (data["after"] as Record<string, unknown>) || null,
+      createdAt: typeof data["createdAt"] === "string" ? data["createdAt"] : null,
     };
   });
 }

@@ -1,16 +1,21 @@
 /**
- * Fact bank + moderation logic using official Firebase Admin SDK.
- * Server-only: callers authorize with `requireAdmin()`.
+ * Fact bank + moderation logic. Server-only: every export assumes the caller
+ * has already been authorized with `requireAdmin()`.
  */
-import { FieldValue } from "firebase-admin/firestore";
-import * as crypto from "crypto";
-import { adminDb } from "../firebase/admin.server";
-import { logAdminAction } from "../firebase/audit.server";
-import type { AdminUser } from "../firebase/verify.server";
+import {
+  createDoc,
+  factId,
+  getDoc,
+  normalizeKey,
+  patchDoc,
+  runQuery,
+  type FirestoreDoc,
+  type Json,
+  type QueryFilter,
+} from "../firebase/firestore.server";
 
 export const FACT_STATUSES = ["active", "disputed", "retired"] as const;
 export const CONTENT_RATINGS = ["standard", "after_dark"] as const;
-export const DIFFICULTY_HINTS = ["casual", "medium", "hard"] as const;
 export const REPORT_STATUSES = ["pending_review", "resolved", "rejected"] as const;
 
 export const CATEGORIES = [
@@ -39,7 +44,6 @@ export interface FactRecord {
   context: string;
   question: string;
   surprise_factor: number | null;
-  difficulty_hint: string;
   content_rating: string;
   status: string;
   previous_true_number: number | null;
@@ -53,49 +57,47 @@ export interface FactRecord {
   updateTime?: string;
 }
 
-export function normalizeKey(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+function str(value: Json | undefined): string {
+  return typeof value === "string" ? value : "";
+}
+function num(value: Json | undefined): number | null {
+  return typeof value === "number" ? value : null;
 }
 
-export function factId(subjectKey: string, angleKey: string): string {
-  return crypto
-    .createHash("sha1")
-    .update(`${subjectKey}|${angleKey}`)
-    .digest("hex")
-    .slice(0, 16);
-}
-
-function toFact(id: string, d: Record<string, any>, updateTime?: string): FactRecord {
+export function toFact(doc: FirestoreDoc): FactRecord {
+  const d = doc.data;
   return {
-    id,
-    subject: String(d["subject"] || ""),
-    subject_key: String(d["subject_key"] || ""),
-    angle: String(d["angle"] || ""),
-    angle_key: String(d["angle_key"] || ""),
-    true_number: typeof d["true_number"] === "number" ? d["true_number"] : null,
-    unit: String(d["unit"] || ""),
-    claim_template: String(d["claim_template"] || ""),
-    context: String(d["context"] || ""),
-    question: String(d["question"] || ""),
-    surprise_factor: typeof d["surprise_factor"] === "number" ? d["surprise_factor"] : null,
-    difficulty_hint: String(d["difficulty_hint"] || "medium"),
-    content_rating: String(d["content_rating"] || "standard"),
-    status: String(d["status"] || "active"),
-    previous_true_number: typeof d["previous_true_number"] === "number" ? d["previous_true_number"] : null,
+    id: doc.id,
+    subject: str(d["subject"]),
+    subject_key: str(d["subject_key"]),
+    angle: str(d["angle"]),
+    angle_key: str(d["angle_key"]),
+    true_number: num(d["true_number"]),
+    unit: str(d["unit"]),
+    claim_template: str(d["claim_template"]),
+    context: str(d["context"]),
+    question: str(d["question"]),
+    surprise_factor: (() => {
+      const raw = num(d["surprise_factor"]);
+      if (raw === null || raw === undefined) return null;
+      if (raw > 3) {
+        return raw >= 8 ? 3 : raw >= 5 ? 2 : raw >= 3 ? 1 : 0;
+      }
+      return Math.min(3, Math.max(0, Math.round(raw)));
+    })(),
+    content_rating: str(d["content_rating"]) || "standard",
+    status: str(d["status"]) || "active",
+    previous_true_number: num(d["previous_true_number"]),
     retired_reason: typeof d["retired_reason"] === "string" ? d["retired_reason"] : null,
     source_urls: Array.isArray(d["source_urls"])
-      ? d["source_urls"].filter((v: unknown): v is string => typeof v === "string")
+      ? (d["source_urls"] as Json[]).filter((v): v is string => typeof v === "string")
       : [],
-    verifier_model: String(d["verifier_model"] || ""),
-    verified_at: d["verified_at"]?.toDate ? d["verified_at"].toDate().toISOString() : d["verified_at"] || null,
-    served_count: Number(d["served_count"] || 0),
-    last_served_at: d["last_served_at"]?.toDate ? d["last_served_at"].toDate().toISOString() : d["last_served_at"] || null,
+    verifier_model: str(d["verifier_model"]),
+    verified_at: typeof d["verified_at"] === "string" ? d["verified_at"] : null,
+    served_count: num(d["served_count"]) ?? 0,
+    last_served_at: typeof d["last_served_at"] === "string" ? d["last_served_at"] : null,
     category: typeof d["category"] === "string" ? d["category"] : null,
-    updateTime,
+    updateTime: doc.updateTime,
   };
 }
 
@@ -109,63 +111,153 @@ export interface FactListInput {
   pageSize?: number;
 }
 
+/**
+ * Firestore has no substring index, so filters that map to indexed equality
+ * run server-side and the free-text search is applied to that result window.
+ */
 export async function listFacts(input: FactListInput) {
-  const pageSize = Math.min(input.pageSize ?? 25, 100);
+  const pageSize = Math.min(input.pageSize ?? 25, 1000);
   const page = Math.max(input.page ?? 1, 1);
 
-  let query: FirebaseFirestore.Query = adminDb.collection("fact_bank");
-
-  if (input.status) {
-    query = query.where("status", "==", input.status);
-  }
+  const filters: QueryFilter[] = [];
+  if (input.status) filters.push({ field: "status", op: "EQUAL", value: input.status });
   if (input.contentRating) {
-    query = query.where("content_rating", "==", input.contentRating);
+    filters.push({ field: "content_rating", op: "EQUAL", value: input.contentRating });
   }
   if (input.difficulty) {
-    query = query.where("difficulty_hint", "==", input.difficulty);
+    filters.push({ field: "difficulty_hint", op: "EQUAL", value: input.difficulty });
   }
 
-  // Count total matches natively using Firestore count() aggregation
-  const countSnapshot = await query.count().get();
-  const totalCount = countSnapshot.data().count;
+  const window = await runQuery({
+    collection: "fact_bank",
+    filters,
+    limit: 1000,
+  });
 
-  // Retrieve window for pagination/sorting
-  const snapshot = await query.limit(500).get();
-
-  let facts = snapshot.docs.map((doc) =>
-    toFact(doc.id, doc.data(), doc.updateTime?.toDate().toISOString())
-  );
-
+  let facts = window.map(toFact);
   if (input.minSurprise) {
     facts = facts.filter((fact) => (fact.surprise_factor ?? 0) >= input.minSurprise!);
   }
   const term = input.search?.trim().toLowerCase();
   if (term) {
     facts = facts.filter((fact) =>
-      [fact.subject, fact.angle, fact.question, fact.claim_template]
+      [fact.subject, fact.angle, fact.question, fact.claim_template, fact.context]
         .join(" ")
         .toLowerCase()
-        .includes(term)
+        .includes(term),
     );
   }
   facts.sort((a, b) => a.subject.localeCompare(b.subject) || a.angle.localeCompare(b.angle));
 
-  const total = term || input.minSurprise ? facts.length : totalCount;
+  const total = facts.length;
   const start = (page - 1) * pageSize;
-
   return {
     facts: facts.slice(start, start + pageSize),
     total,
     page,
     pageSize,
-    windowed: snapshot.docs.length >= 500,
+    windowed: window.length >= 1000,
   };
 }
 
+export async function exportFacts(input: FactListInput): Promise<FactRecord[]> {
+  const filters: QueryFilter[] = [];
+  if (input.status) filters.push({ field: "status", op: "EQUAL", value: input.status });
+  if (input.contentRating) {
+    filters.push({ field: "content_rating", op: "EQUAL", value: input.contentRating });
+  }
+  if (input.difficulty) {
+    filters.push({ field: "difficulty_hint", op: "EQUAL", value: input.difficulty });
+  }
+
+  const window = await runQuery({
+    collection: "fact_bank",
+    filters,
+    limit: 1000,
+  });
+
+  let facts = window.map(toFact);
+  if (input.minSurprise) {
+    facts = facts.filter((fact) => (fact.surprise_factor ?? 0) >= input.minSurprise!);
+  }
+  const term = input.search?.trim().toLowerCase();
+  if (term) {
+    facts = facts.filter((fact) =>
+      [fact.subject, fact.angle, fact.question, fact.claim_template, fact.context]
+        .join(" ")
+        .toLowerCase()
+        .includes(term),
+    );
+  }
+  facts.sort((a, b) => a.subject.localeCompare(b.subject) || a.angle.localeCompare(b.angle));
+  return facts;
+}
+
+export async function importFactsBatch(
+  facts: Array<{
+    subject: string;
+    angle: string;
+    true_number: number;
+    unit?: string;
+    claim_template: string;
+    context?: string;
+    question?: string;
+    surprise_factor?: number;
+    difficulty_hint?: "casual" | "medium" | "hard";
+    content_rating?: "standard" | "after_dark";
+    source_urls?: string[];
+  }>,
+): Promise<{ imported: number; skipped: number; errors: string[] }> {
+  let imported = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const item of facts) {
+    try {
+      const subject_key = normalizeKey(item.subject);
+      const angle_key = normalizeKey(item.angle);
+      const id = await factId(subject_key, angle_key);
+      const existing = await getDoc(`fact_bank/${id}`);
+      if (existing) {
+        skipped++;
+        continue;
+      }
+      const question = (item.question ?? "").trim() || `${item.subject} - ${item.angle}`.trim();
+      const claim = (item.claim_template ?? "").trim() || `${question}: {n}`;
+      const claim_template = claim.includes("{n}") ? claim : `${claim} {n}`;
+      await createDoc("fact_bank", id, {
+        subject: item.subject.trim(),
+        angle: item.angle.trim(),
+        true_number: item.true_number,
+        unit: (item.unit ?? "").trim(),
+        claim_template,
+        context: (item.context ?? "").trim() || question,
+        question,
+        surprise_factor: item.surprise_factor ?? 2,
+        content_rating: item.content_rating ?? "standard",
+        source_urls: item.source_urls ?? [],
+        subject_key,
+        angle_key,
+        status: "active",
+        previous_true_number: null,
+        retired_reason: null,
+        verifier_model: "csv_import",
+        verified_at: new Date().toISOString(),
+        served_count: 0,
+        last_served_at: null,
+      });
+      imported++;
+    } catch (err) {
+      errors.push(`${item.subject} / ${item.angle}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  return { imported, skipped, errors };
+}
+
 export async function getFact(id: string): Promise<FactRecord | null> {
-  const doc = await adminDb.collection("fact_bank").doc(id).get();
-  if (!doc.exists) return null;
-  return toFact(doc.id, doc.data()!, doc.updateTime?.toDate().toISOString());
+  const doc = await getDoc(`fact_bank/${id}`);
+  return doc ? toFact(doc) : null;
 }
 
 export interface FactEditInput {
@@ -183,14 +275,11 @@ export interface FactEditInput {
   source_urls?: string[];
 }
 
-export async function updateFact(adminUser: AdminUser, input: FactEditInput): Promise<FactRecord> {
-  const ref = adminDb.collection("fact_bank").doc(input.id);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error(`Fact ${input.id} not found`);
+export async function updateFact(input: FactEditInput): Promise<FactRecord> {
+  const existing = await getFact(input.id);
+  if (!existing) throw new Error(`Fact ${input.id} not found`);
 
-  const existing = toFact(snap.id, snap.data()!);
-  const patch: Record<string, any> = {};
-
+  const patch: Record<string, unknown> = {};
   const assignable: (keyof FactEditInput)[] = [
     "subject",
     "angle",
@@ -209,124 +298,76 @@ export async function updateFact(adminUser: AdminUser, input: FactEditInput): Pr
   if (input.subject !== undefined) patch["subject_key"] = normalizeKey(input.subject);
   if (input.angle !== undefined) patch["angle_key"] = normalizeKey(input.angle);
 
+  // Changing the value preserves the old one for the reveal-diff history.
   if (input.true_number !== undefined && input.true_number !== existing.true_number) {
     patch["previous_true_number"] = existing.true_number;
     patch["true_number"] = input.true_number;
   }
 
-  if (Object.keys(patch).length > 0) {
-    patch["updated_at"] = FieldValue.serverTimestamp();
-    await ref.update(patch);
-
-    await logAdminAction(adminUser, {
-      action: "fact.update",
-      targetType: "fact",
-      targetId: input.id,
-      details: `Updated fact ${existing.subject} - ${existing.angle}`,
-      before: { true_number: existing.true_number, question: existing.question },
-      after: patch,
-    });
-  }
-
-  const updated = await ref.get();
-  return toFact(updated.id, updated.data()!, updated.updateTime?.toDate().toISOString());
+  if (Object.keys(patch).length === 0) return existing;
+  patch["updated_at"] = new Date().toISOString();
+  return toFact(await patchDoc(`fact_bank/${input.id}`, patch));
 }
 
-export async function setFactStatus(
-  adminUser: AdminUser,
-  input: {
-    id: string;
-    status: (typeof FACT_STATUSES)[number];
-    reason?: string;
-    verifierModel?: string;
-  }
-): Promise<FactRecord> {
-  const ref = adminDb.collection("fact_bank").doc(input.id);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error(`Fact ${input.id} not found`);
-
-  const existing = toFact(snap.id, snap.data()!);
-  const patch: Record<string, any> = {
+export async function setFactStatus(input: {
+  id: string;
+  status: (typeof FACT_STATUSES)[number];
+  reason?: string;
+  verifierModel?: string;
+}): Promise<FactRecord> {
+  const patch: Record<string, unknown> = {
     status: input.status,
-    updated_at: FieldValue.serverTimestamp(),
+    updated_at: new Date().toISOString(),
   };
-
   if (input.status === "retired") {
     patch["retired_reason"] = input.reason ?? "Retired from admin portal";
   }
   if (input.status === "active") {
-    patch["verified_at"] = FieldValue.serverTimestamp();
+    patch["verified_at"] = new Date().toISOString();
     patch["verifier_model"] = input.verifierModel ?? "admin_portal";
     patch["retired_reason"] = null;
   }
-
-  await ref.update(patch);
-
-  await logAdminAction(adminUser, {
-    action: `fact.status_${input.status}`,
-    targetType: "fact",
-    targetId: input.id,
-    details: `Changed status from ${existing.status} to ${input.status}`,
-    before: { status: existing.status, retired_reason: existing.retired_reason },
-    after: patch,
-  });
-
-  const updated = await ref.get();
-  return toFact(updated.id, updated.data()!, updated.updateTime?.toDate().toISOString());
+  return toFact(await patchDoc(`fact_bank/${input.id}`, patch));
 }
 
-export async function createFact(
-  adminUser: AdminUser,
-  input: {
-    subject: string;
-    angle: string;
-    true_number: number;
-    unit: string;
-    claim_template: string;
-    context: string;
-    question: string;
-    surprise_factor: number;
-    difficulty_hint: string;
-    content_rating: string;
-    source_urls: string[];
-  }
-): Promise<FactRecord> {
+export async function createFact(input: {
+  subject: string;
+  angle: string;
+  true_number: number;
+  unit: string;
+  claim_template?: string;
+  context: string;
+  question: string;
+  surprise_factor: number;
+  difficulty_hint?: string;
+  content_rating: string;
+  source_urls: string[];
+}): Promise<FactRecord> {
   const subject_key = normalizeKey(input.subject);
   const angle_key = normalizeKey(input.angle);
-  const id = factId(subject_key, angle_key);
-
-  const ref = adminDb.collection("fact_bank").doc(id);
-  const existing = await ref.get();
-  if (existing.exists) {
+  const id = await factId(subject_key, angle_key);
+  if (await getDoc(`fact_bank/${id}`)) {
     throw new Error("A fact with this subject and angle already exists");
   }
-
-  const payload = {
+  const question = input.question?.trim() || `${input.subject} - ${input.angle}`.trim();
+  const claim = (input.claim_template ?? "").trim() || `${question}: {n}`;
+  const claim_template = claim.includes("{n}") ? claim : `${claim} {n}`;
+  const doc = await createDoc("fact_bank", id, {
     ...input,
+    claim_template,
+    question,
+    context: input.context?.trim() || question,
     subject_key,
     angle_key,
     status: "active",
     previous_true_number: null,
     retired_reason: null,
     verifier_model: "admin_portal",
-    verified_at: FieldValue.serverTimestamp(),
+    verified_at: new Date().toISOString(),
     served_count: 0,
     last_served_at: null,
-    createdAt: FieldValue.serverTimestamp(),
-  };
-
-  await ref.set(payload);
-
-  await logAdminAction(adminUser, {
-    action: "fact.create",
-    targetType: "fact",
-    targetId: id,
-    details: `Created new fact ${input.subject} - ${input.angle} (${id})`,
-    after: payload,
   });
-
-  const created = await ref.get();
-  return toFact(created.id, created.data()!, created.updateTime?.toDate().toISOString());
+  return toFact(doc);
 }
 
 /* ---------------------------------- reports --------------------------------- */
@@ -346,175 +387,151 @@ export interface ReportRecord {
   resolutionNote: string | null;
 }
 
-function toReport(id: string, d: Record<string, any>): ReportRecord {
+function toReport(doc: FirestoreDoc): ReportRecord {
+  const d = doc.data;
   return {
-    id,
-    topic: String(d["topic"] || ""),
-    claimStatement: String(d["claimStatement"] || ""),
-    presentedNumber: typeof d["presentedNumber"] === "number" ? d["presentedNumber"] : null,
-    trueNumber: typeof d["trueNumber"] === "number" ? d["trueNumber"] : null,
-    unit: String(d["unit"] || ""),
-    reason: String(d["reason"] || ""),
-    feedbackText: String(d["feedbackText"] || ""),
-    reporterUid: String(d["reporterUid"] || ""),
-    status: String(d["status"] || "pending_review"),
-    createdAt: d["createdAt"]?.toDate ? d["createdAt"].toDate().toISOString() : d["createdAt"] || null,
+    id: doc.id,
+    topic: str(d["topic"]),
+    claimStatement: str(d["claimStatement"]),
+    presentedNumber: num(d["presentedNumber"]),
+    trueNumber: num(d["trueNumber"]),
+    unit: str(d["unit"]),
+    reason: str(d["reason"]),
+    feedbackText: str(d["feedbackText"]),
+    reporterUid: str(d["reporterUid"]),
+    status: str(d["status"]) || "pending_review",
+    createdAt: typeof d["createdAt"] === "string" ? d["createdAt"] : null,
     resolutionNote: typeof d["resolutionNote"] === "string" ? d["resolutionNote"] : null,
   };
 }
 
 export async function listReports(input: { status?: string; limit?: number }) {
-  let query: FirebaseFirestore.Query = adminDb.collection("trivia_reports");
-  if (input.status) {
-    query = query.where("status", "==", input.status);
-  }
-
-  const snapshot = await query.orderBy("createdAt", "desc").limit(input.limit ?? 100).get();
-  return snapshot.docs.map((doc) => toReport(doc.id, doc.data()));
+  const docs = await runQuery({
+    collection: "trivia_reports",
+    filters: input.status ? [{ field: "status", op: "EQUAL", value: input.status }] : [],
+    limit: input.limit ?? 100,
+  });
+  const reports = docs.map(toReport);
+  reports.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  return reports;
 }
 
+/** Best-effort match from a report back to its fact-bank record. */
 export async function findFactForReport(report: ReportRecord): Promise<FactRecord | null> {
   const topicKey = normalizeKey(report.topic);
   if (!topicKey) return null;
 
-  const snapshot = await adminDb
-    .collection("fact_bank")
-    .where("subject_key", "==", topicKey)
-    .limit(20)
-    .get();
-
-  const facts = snapshot.docs.map((doc) => toFact(doc.id, doc.data()));
-  if (facts.length === 0) return null;
-
-  const exact = facts.find((fact) => fact.true_number === report.trueNumber);
-  return exact ?? facts[0];
-}
-
-async function notifyEdgeDisputeBlocklist(claimStatement: string): Promise<void> {
-  const edgeUrl = process.env["EDGE_WORKER_URL"];
-  if (!edgeUrl || !claimStatement) return;
-
-  try {
-    const internalSecret = process.env["EDGE_INTERNAL_SECRET"] || "";
-    await fetch(`${edgeUrl.replace(/\/+$/, "")}/api/dispute`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Secret": internalSecret,
-      },
-      body: JSON.stringify({ claimStatement }),
-    });
-  } catch (err) {
-    console.warn("[Edge Dispute Sync] Failed to notify edge worker:", err);
-  }
-}
-
-export async function resolveReport(
-  adminUser: AdminUser,
-  input: {
-    reportId: string;
-    action: "retire_fact" | "fix_number" | "reject";
-    factId?: string;
-    correctedNumber?: number;
-    note?: string;
-    claimStatement?: string;
-  }
-): Promise<{ ok: true }> {
-  const reportRef = adminDb.collection("trivia_reports").doc(input.reportId);
-
-  await adminDb.runTransaction(async (transaction) => {
-    const reportSnap = await transaction.get(reportRef);
-    if (!reportSnap.exists) throw new Error("Report not found");
-
-    if (input.action === "retire_fact") {
-      if (!input.factId) throw new Error("A fact must be selected to retire");
-      const factRef = adminDb.collection("fact_bank").doc(input.factId);
-      const factSnap = await transaction.get(factRef);
-      if (factSnap.exists) {
-        transaction.update(factRef, {
-          status: "retired",
-          retired_reason: input.note ?? "Retired via player report",
-          updated_at: FieldValue.serverTimestamp(),
-        });
-      }
-
-      transaction.update(reportRef, {
-        status: "resolved",
-        resolutionNote: input.note ?? "Fact retired",
-        resolved_at: FieldValue.serverTimestamp(),
-      });
-
-      await logAdminAction(
-        adminUser,
-        {
-          action: "report.resolve_retire_fact",
-          targetType: "report",
-          targetId: input.reportId,
-          details: `Resolved report ${input.reportId} and retired fact ${input.factId}`,
-        },
-        transaction
-      );
-      return;
-    }
-
-    if (input.action === "fix_number") {
-      if (!input.factId || input.correctedNumber === undefined) {
-        throw new Error("A fact and a corrected number are required");
-      }
-      const factRef = adminDb.collection("fact_bank").doc(input.factId);
-      const factSnap = await transaction.get(factRef);
-      if (factSnap.exists) {
-        const factData = factSnap.data()!;
-        transaction.update(factRef, {
-          previous_true_number: factData["true_number"] ?? null,
-          true_number: input.correctedNumber,
-          status: "active",
-          updated_at: FieldValue.serverTimestamp(),
-        });
-      }
-
-      transaction.update(reportRef, {
-        status: "resolved",
-        resolutionNote: input.note ?? `Corrected to ${input.correctedNumber}`,
-        resolved_at: FieldValue.serverTimestamp(),
-      });
-
-      await logAdminAction(
-        adminUser,
-        {
-          action: "report.resolve_fix_number",
-          targetType: "report",
-          targetId: input.reportId,
-          details: `Resolved report ${input.reportId} and updated fact ${input.factId} to ${input.correctedNumber}`,
-        },
-        transaction
-      );
-      return;
-    }
-
-    // Reject report
-    transaction.update(reportRef, {
-      status: "rejected",
-      resolutionNote: input.note ?? "Report rejected",
-      resolved_at: FieldValue.serverTimestamp(),
-    });
-
-    await logAdminAction(
-      adminUser,
-      {
-        action: "report.reject",
-        targetType: "report",
-        targetId: input.reportId,
-        details: `Rejected report ${input.reportId}`,
-      },
-      transaction
-    );
+  // 1. Try matching by subject_key
+  const subjectDocs = await runQuery({
+    collection: "fact_bank",
+    filters: [{ field: "subject_key", op: "EQUAL", value: topicKey }],
+    limit: 20,
   });
-
-  // Edge Dispute Blocklist synchronization
-  if (input.claimStatement && (input.action === "retire_fact" || input.action === "fix_number")) {
-    void notifyEdgeDisputeBlocklist(input.claimStatement);
+  if (subjectDocs.length > 0) {
+    const facts = subjectDocs.map(toFact);
+    const exact = facts.find((fact) => fact.true_number === report.trueNumber);
+    return exact ?? facts[0];
   }
 
+  // 2. Try matching by angle_key
+  const angleDocs = await runQuery({
+    collection: "fact_bank",
+    filters: [{ field: "angle_key", op: "EQUAL", value: topicKey }],
+    limit: 20,
+  });
+  if (angleDocs.length > 0) {
+    const facts = angleDocs.map(toFact);
+    const exact = facts.find((fact) => fact.true_number === report.trueNumber);
+    return exact ?? facts[0];
+  }
+
+  return null;
+}
+
+export async function resolveReport(input: {
+  reportId: string;
+  action: "retire_fact" | "fix_number" | "reject" | "resolve_only" | "add_to_bank";
+  factId?: string;
+  correctedNumber?: number;
+  note?: string;
+  topic?: string;
+  claimStatement?: string;
+  unit?: string;
+}): Promise<{ ok: true }> {
+  const now = new Date().toISOString();
+
+  if (input.action === "retire_fact") {
+    if (input.factId) {
+      await setFactStatus({
+        id: input.factId,
+        status: "retired",
+        reason: input.note ?? "Retired via player report",
+      });
+    }
+    await patchDoc(`trivia_reports/${input.reportId}`, {
+      status: "resolved",
+      resolutionNote: input.note ?? (input.factId ? "Fact retired" : "Report accepted"),
+      resolved_at: now,
+    });
+    return { ok: true };
+  }
+
+  if (input.action === "fix_number") {
+    if (input.factId && input.correctedNumber !== undefined) {
+      await updateFact({ id: input.factId, true_number: input.correctedNumber });
+      await setFactStatus({ id: input.factId, status: "active" });
+    }
+    await patchDoc(`trivia_reports/${input.reportId}`, {
+      status: "resolved",
+      resolutionNote: input.note ?? (input.correctedNumber !== undefined ? `Corrected to ${input.correctedNumber}` : "Report accepted"),
+      resolved_at: now,
+    });
+    return { ok: true };
+  }
+
+  if (input.action === "add_to_bank") {
+    const subject = input.topic || "General";
+    const angle = input.claimStatement || subject;
+    const true_number = input.correctedNumber ?? 0;
+    const unit = input.unit || "";
+    const claim_template = input.claimStatement
+      ? input.claimStatement.replace(new RegExp(String(true_number), "g"), "{n}")
+      : `${subject}: {n} ${unit}`;
+    
+    await createFact({
+      subject,
+      angle,
+      true_number,
+      unit,
+      claim_template: claim_template.includes("{n}") ? claim_template : `${claim_template} {n}`,
+      context: input.note || input.claimStatement || "",
+      question: input.claimStatement || subject,
+      surprise_factor: 2,
+      content_rating: "standard",
+      source_urls: [],
+    });
+
+    await patchDoc(`trivia_reports/${input.reportId}`, {
+      status: "resolved",
+      resolutionNote: input.note ?? `Added to fact bank with value ${true_number}`,
+      resolved_at: now,
+    });
+    return { ok: true };
+  }
+
+  if (input.action === "resolve_only") {
+    await patchDoc(`trivia_reports/${input.reportId}`, {
+      status: "resolved",
+      resolutionNote: input.note ?? "Report accepted",
+      resolved_at: now,
+    });
+    return { ok: true };
+  }
+
+  await patchDoc(`trivia_reports/${input.reportId}`, {
+    status: "rejected",
+    resolutionNote: input.note ?? "Report rejected",
+    resolved_at: now,
+  });
   return { ok: true };
 }

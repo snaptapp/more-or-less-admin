@@ -3,5 +3,11 @@
   "name": "tanstack-start-app",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry"
+  "main": "@tanstack/react-start/server-entry",
+  "vars": {
+    "FIREBASE_PROJECT_ID": "more-or-less-505908",
+    "GOOGLE_CLOUD_PROJECT": "more-or-less-505908",
+    "FIREBASE_WEB_API_KEY": "AIzaSyBLNZLQZkus4CutqPTS7LmfVDD0rao2qwo",
+    "ADMIN_EMAIL_ALLOWLIST": "michael.anderson@trackdub.com,mta1124@gmail.com"
+  }
 }

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Snaptapp">
+  <title>Snaptapp</title>
+  <defs>
+    <linearGradient id="stGrad" x1="2" y1="30" x2="30" y2="2" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="0.52" stop-color="#7be0a4"/>
+      <stop offset="1" stop-color="#ccff00"/>
+    </linearGradient>
+  </defs>
+  <rect x="1.25" y="1.25" width="29.5" height="29.5" rx="8.5" fill="url(#stGrad)"/>
+  <g fill="none" stroke="#07080b">
+    <circle cx="16" cy="16" r="12.4" stroke-width="1.4" opacity="0.4"/>
+    <circle cx="16" cy="16" r="8.3" stroke-width="2.3"/>
+  </g>
+  <circle cx="16" cy="16" r="4" fill="#07080b"/>
+</svg>

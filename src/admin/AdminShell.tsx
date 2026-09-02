@@ -56,11 +56,18 @@ function SignIn() {
     <main className="admin-signin">
       <Card>
         <form onSubmit={handleSubmit}>
-          <div>
-            <CardTitle>More or Less — Admin</CardTitle>
-            <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 14, margin: "6px 0 0" }}>
-              Sign in with an authorised admin account.
-            </p>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+            <img
+              src="/more-or-less-icon.png"
+              alt="More or Less"
+              style={{ width: "40px", height: "40px", borderRadius: "8px", objectFit: "contain" }}
+            />
+            <div>
+              <CardTitle>More or Less — Admin</CardTitle>
+              <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 14, margin: "2px 0 0" }}>
+                Sign in with an authorised admin account.
+              </p>
+            </div>
           </div>
           <div className="admin-field">
             <label htmlFor="admin-email">Email</label>
@@ -126,8 +133,15 @@ export function AdminShell({ children }: { children: ReactNode }) {
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
-        <div className="admin-brand">
-          More or <span>Less</span>
+        <div className="admin-brand" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <img
+            src="/more-or-less-icon.png"
+            alt="More or Less"
+            style={{ width: "30px", height: "30px", borderRadius: "6px", objectFit: "contain" }}
+          />
+          <div>
+            More or <span>Less</span>
+          </div>
         </div>
         <nav className="admin-nav">
           {NAV.map((item) => (
@@ -187,4 +201,27 @@ export function statusTone(status: string): "lime" | "red" | "amber" | "purple" 
   if (status === "disputed" || status === "pending_review") return "amber";
   if (status === "processing") return "purple";
   return "neutral";
+}
+
+export function InfoTip({
+  text,
+  title,
+  position = "top",
+}: {
+  text: string;
+  title?: string;
+  position?: "top" | "bottom";
+}) {
+  return (
+    <span
+      className={`admin-infotip ${position === "bottom" ? "admin-infotip--bottom" : ""}`}
+      tabIndex={0}
+      role="tooltip"
+      aria-label={text}
+      title={title ?? text}
+    >
+      ?
+      <span className="admin-infotip-content">{text}</span>
+    </span>
+  );
 }

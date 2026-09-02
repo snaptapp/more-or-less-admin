@@ -1,58 +1,86 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/firebase/verify.server";
-import { adminDb } from "@/lib/firebase/admin.server";
+import { authMiddleware } from "./middleware";
 
 const listInput = z.object({
   search: z.string().optional(),
   status: z.string().optional(),
   contentRating: z.string().optional(),
-  difficulty: z.string().optional(),
-  minSurprise: z.number().int().min(1).max(10).optional(),
+  minSurprise: z.number().int().min(0).max(3).optional(),
   page: z.number().int().min(1).optional(),
-  pageSize: z.number().int().min(1).max(100).optional(),
+  pageSize: z.number().int().min(1).max(1000).optional(),
 });
 
-export const fetchFacts = createServerFn({ method: "POST" })
+export const fetchFacts = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) => listInput.parse(data))
   .handler(async ({ data }) => {
-    await requireAdmin();
     const { listFacts } = await import("./content.server");
     return listFacts(data);
   });
 
-export const fetchFact = createServerFn({ method: "POST" })
+export const exportFactsData = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) => listInput.parse(data))
+  .handler(async ({ data }) => {
+    const { exportFacts } = await import("./content.server");
+    return exportFacts(data);
+  });
+
+export const fetchFact = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) => z.object({ id: z.string().min(1) }).parse(data))
   .handler(async ({ data }) => {
-    await requireAdmin();
     const { getFact } = await import("./content.server");
     return getFact(data.id);
   });
 
 const editInput = z.object({
   id: z.string().min(1),
-  subject: z.string().min(1).optional(),
-  angle: z.string().min(1).optional(),
+  subject: z.string().optional(),
+  angle: z.string().optional(),
   true_number: z.number().optional(),
   unit: z.string().optional(),
   claim_template: z.string().optional(),
   context: z.string().optional(),
   question: z.string().optional(),
-  surprise_factor: z.number().int().min(1).max(10).optional(),
-  difficulty_hint: z.enum(["casual", "medium", "hard"]).optional(),
+  surprise_factor: z.number().int().min(0).max(3).optional(),
   content_rating: z.enum(["standard", "after_dark"]).optional(),
   source_urls: z.array(z.string()).optional(),
 });
 
-export const saveFact = createServerFn({ method: "POST" })
+export const saveFact = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) => editInput.parse(data))
-  .handler(async ({ data }) => {
-    const caller = await requireAdmin();
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
     const { updateFact } = await import("./content.server");
-    return updateFact(caller, data);
+    const updated = await updateFact(data);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: "fact.update",
+      targetType: "fact",
+      targetId: data.id,
+      details: `Updated fact ${data.id}`,
+      after: data as Record<string, unknown>,
+    });
+    return updated;
   });
 
-export const changeFactStatus = createServerFn({ method: "POST" })
+export const bulkUpdateFacts = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) =>
+    z.object({ updates: z.array(editInput).min(1).max(200) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
+    const { bulkUpdateFacts } = await import("./content.server");
+    const count = await bulkUpdateFacts(data.updates);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: "fact.bulk_update",
+      targetType: "fact",
+      details: `Bulk updated ${count} facts`,
+    });
+    return { count };
+  });
+
+export const changeFactStatus = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z
       .object({
@@ -62,42 +90,89 @@ export const changeFactStatus = createServerFn({ method: "POST" })
       })
       .parse(data),
   )
-  .handler(async ({ data }) => {
-    const caller = await requireAdmin();
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
     const { setFactStatus } = await import("./content.server");
-    return setFactStatus(caller, data);
+    const updated = await setFactStatus(data);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: `fact.status_${data.status}`,
+      targetType: "fact",
+      targetId: data.id,
+      details: `Status changed to ${data.status}${data.reason ? ` (${data.reason})` : ""}`,
+      after: { status: data.status, reason: data.reason },
+    });
+    return updated;
   });
 
-export const addFact = createServerFn({ method: "POST" })
+export const addFact = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z
       .object({
         subject: z.string().min(1),
-        angle: z.string().min(1),
+        angle: z.string().optional().default(""),
         true_number: z.number(),
-        unit: z.string(),
-        claim_template: z.string().min(1),
-        context: z.string(),
-        question: z.string().min(1),
-        surprise_factor: z.number().int().min(1).max(10),
-        difficulty_hint: z.enum(["casual", "medium", "hard"]),
-        content_rating: z.enum(["standard", "after_dark"]),
-        source_urls: z.array(z.string()),
+        unit: z.string().optional().default(""),
+        claim_template: z.string().optional().default(""),
+        context: z.string().optional().default(""),
+        question: z.string().optional().default(""),
+        surprise_factor: z.number().int().min(0).max(3).default(2),
+        content_rating: z.enum(["standard", "after_dark"]).default("standard"),
+        source_urls: z.array(z.string()).default([]),
       })
       .parse(data),
   )
-  .handler(async ({ data }) => {
-    const caller = await requireAdmin();
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
     const { createFact } = await import("./content.server");
-    return createFact(caller, data);
+    const created = await createFact(data);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: "fact.create",
+      targetType: "fact",
+      targetId: created.id,
+      details: `Created fact for ${data.subject} / ${data.angle}`,
+      after: data as Record<string, unknown>,
+    });
+    return created;
   });
 
-export const fetchReports = createServerFn({ method: "POST" })
+const bulkFactSchema = z.object({
+  subject: z.string().min(1),
+  angle: z.string().min(1),
+  true_number: z.number(),
+  unit: z.string().optional().default(""),
+  claim_template: z.string().optional().default(""),
+  context: z.string().optional().default(""),
+  question: z.string().optional().default(""),
+  surprise_factor: z.number().int().min(0).max(3).optional().default(2),
+  content_rating: z.enum(["standard", "after_dark"]).optional().default("standard"),
+  source_urls: z.array(z.string()).optional().default([]),
+});
+
+export const bulkImportFacts = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) =>
+    z.object({ facts: z.array(bulkFactSchema).min(1).max(500) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
+    const { importFactsBatch } = await import("./content.server");
+    const result = await importFactsBatch(data.facts);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: "fact.bulk_import",
+      targetType: "fact_bank",
+      details: `Bulk imported ${result.imported} facts (${result.skipped} skipped)`,
+      after: { importedCount: result.imported, skippedCount: result.skipped, errors: result.errors },
+    });
+    return result;
+  });
+
+export const fetchReports = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z.object({ status: z.string().optional(), limit: z.number().optional() }).parse(data),
   )
   .handler(async ({ data }) => {
-    await requireAdmin();
     const { listReports, findFactForReport } = await import("./content.server");
     const reports = await listReports(data);
     const withFacts = await Promise.all(
@@ -109,41 +184,55 @@ export const fetchReports = createServerFn({ method: "POST" })
     return withFacts;
   });
 
-export const actOnReport = createServerFn({ method: "POST" })
+export const actOnReport = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z
       .object({
         reportId: z.string().min(1),
-        action: z.enum(["retire_fact", "fix_number", "reject"]),
+        action: z.enum(["retire_fact", "fix_number", "reject", "resolve_only", "add_to_bank"]),
         factId: z.string().optional(),
         correctedNumber: z.number().optional(),
         note: z.string().optional(),
+        topic: z.string().optional(),
         claimStatement: z.string().optional(),
+        unit: z.string().optional(),
       })
       .parse(data),
   )
-  .handler(async ({ data }) => {
-    const caller = await requireAdmin();
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
     const { resolveReport } = await import("./content.server");
-    return resolveReport(caller, data);
+    const result = await resolveReport(data);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: `report.${data.action}`,
+      targetType: "report",
+      targetId: data.reportId,
+      details: `Report action: ${data.action}${data.note ? ` - ${data.note}` : ""}`,
+      after: data as Record<string, unknown>,
+    });
+    return result;
   });
 
 /** Confirms the admin connection and returns live collection counters via native Firestore count() */
-export const fetchOverview = createServerFn({ method: "GET" }).handler(async () => {
-  const user = await requireAdmin();
+export const fetchOverview = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const user = context.user;
+    const { countCollection } = await import("@/lib/firebase/firestore.server");
 
-  const [activeSnap, disputedSnap, retiredSnap, pendingSnap] = await Promise.all([
-    adminDb.collection("fact_bank").where("status", "==", "active").count().get(),
-    adminDb.collection("fact_bank").where("status", "==", "disputed").count().get(),
-    adminDb.collection("fact_bank").where("status", "==", "retired").count().get(),
-    adminDb.collection("trivia_reports").where("status", "==", "pending_review").count().get(),
-  ]);
+    const [active, disputed, retired, pending] = await Promise.all([
+      countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "active" }]),
+      countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "disputed" }]),
+      countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "retired" }]),
+      countCollection("trivia_reports", [{ field: "status", op: "EQUAL", value: "pending_review" }]),
+    ]);
 
-  return {
-    user,
-    active: activeSnap.data().count,
-    disputed: disputedSnap.data().count,
-    retired: retiredSnap.data().count,
-    pending: pendingSnap.data().count,
-  };
-});
+    return {
+      user,
+      active,
+      disputed,
+      retired,
+      pending,
+    };
+  });

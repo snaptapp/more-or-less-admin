@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Badge, Card, CardLabel } from "@/index";
+import { Badge, Button, Card, CardLabel } from "@/index";
 import { ErrorNote, PageHead } from "@/admin/AdminShell";
+import { useAdminAuth } from "@/admin/auth";
 import { fetchOverview } from "@/lib/admin/content.functions";
 
 export const Route = createFileRoute("/admin/")({
@@ -16,11 +17,13 @@ export const Route = createFileRoute("/admin/")({
 });
 
 function OverviewPage() {
+  const { user, ready } = useAdminAuth();
   const overview = useServerFn(fetchOverview);
   const { data, isLoading, error } = useQuery({
-    queryKey: ["overview"],
+    queryKey: ["overview", user?.uid],
     queryFn: () => overview(),
-    retry: false,
+    enabled: ready && !!user,
+    retry: 1,
   });
 
   return (
@@ -54,12 +57,16 @@ function OverviewPage() {
           </div>
           <Card>
             <CardLabel>Jump in</CardLabel>
-            <div className="admin-toolbar">
-              <Link className="admin-nav" to="/admin/facts">
-                Curate the fact bank
+            <div className="admin-toolbar" style={{ marginTop: "var(--ds-arena-space-3)" }}>
+              <Link to="/admin/facts" style={{ textDecoration: "none" }}>
+                <Button size="sm" variant="primary">
+                  Curate the fact bank →
+                </Button>
               </Link>
-              <Link className="admin-nav" to="/admin/reports">
-                Clear the moderation queue
+              <Link to="/admin/reports" style={{ textDecoration: "none" }}>
+                <Button size="sm" variant="primary">
+                  Clear moderation queue ({data.pending}) →
+                </Button>
               </Link>
             </div>
           </Card>

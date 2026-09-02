@@ -1,20 +1,26 @@
 /**
- * Taxonomy, crawl queue, players, daily challenge and game analytics
- * using official Firebase Admin SDK. Server-only; callers authorize with `requireAdmin()`.
+ * Taxonomy, crawl queue, players, daily challenge and game analytics.
+ * Server-only; callers authorize with `requireAdmin()` first.
  */
-import { FieldValue } from "firebase-admin/firestore";
-import { adminDb } from "../firebase/admin.server";
-import { logAdminAction } from "../firebase/audit.server";
-import { normalizeKey } from "./content.server";
+import {
+  createDoc,
+  getDoc,
+  listDocs,
+  normalizeKey,
+  patchDoc,
+  runQuery,
+  type FirestoreDoc,
+  type Json,
+} from "../firebase/firestore.server";
 import type { AdminUser } from "../firebase/verify.server";
 
-function str(value: unknown): string {
+function str(value: Json | undefined): string {
   return typeof value === "string" ? value : "";
 }
-function num(value: unknown): number | null {
+function num(value: Json | undefined): number | null {
   return typeof value === "number" ? value : null;
 }
-function strArray(value: unknown): string[] {
+function strArray(value: Json | undefined): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 }
 
@@ -31,78 +37,58 @@ export interface SubjectRecord {
   crawl_notes: string;
 }
 
-function toSubject(id: string, d: Record<string, any>): SubjectRecord {
+function toSubject(doc: FirestoreDoc): SubjectRecord {
+  const d = doc.data;
   return {
-    id,
+    id: doc.id,
     subject: str(d["subject"]),
     category: str(d["category"]),
     sub_category: str(d["sub_category"]),
     aliases: strArray(d["aliases"]),
     fact_count: num(d["fact_count"]) ?? 0,
-    last_crawled_at: d["last_crawled_at"]?.toDate ? d["last_crawled_at"].toDate().toISOString() : d["last_crawled_at"] || null,
+    last_crawled_at: typeof d["last_crawled_at"] === "string" ? d["last_crawled_at"] : null,
     crawl_notes: str(d["crawl_notes"]),
   };
 }
 
 export async function listSubjects(input: { search?: string; category?: string }) {
-  const snapshot = await adminDb.collection("fact_subjects").limit(500).get();
-  let subjects = snapshot.docs.map((doc) => toSubject(doc.id, doc.data()));
-
+  const { docs } = await listDocs("fact_subjects", { pageSize: 300 });
+  let subjects = docs.map(toSubject);
   if (input.category) subjects = subjects.filter((s) => s.category === input.category);
   const term = input.search?.trim().toLowerCase();
   if (term) {
     subjects = subjects.filter((s) =>
-      [s.subject, s.sub_category, ...s.aliases].join(" ").toLowerCase().includes(term)
+      [s.subject, s.sub_category, ...s.aliases].join(" ").toLowerCase().includes(term),
     );
   }
   subjects.sort((a, b) => a.subject.localeCompare(b.subject));
 
   const coverage = new Map<string, { facts: number; subjects: number }>();
-  for (const subject of subjects) {
+  for (const subject of docs.map(toSubject)) {
     const entry = coverage.get(subject.category || "Uncategorised") ?? { facts: 0, subjects: 0 };
     entry.facts += subject.fact_count;
     entry.subjects += 1;
     coverage.set(subject.category || "Uncategorised", entry);
   }
-
   return {
     subjects,
     coverage: [...coverage.entries()].map(([category, stats]) => ({ category, ...stats })),
   };
 }
 
-export async function updateSubject(
-  adminUser: AdminUser,
-  input: {
-    id: string;
-    category?: string;
-    sub_category?: string;
-    aliases?: string[];
-    crawl_notes?: string;
-  }
-): Promise<SubjectRecord> {
-  const ref = adminDb.collection("fact_subjects").doc(input.id);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error("Subject not found");
-
-  const patch: Record<string, any> = { updated_at: FieldValue.serverTimestamp() };
+export async function updateSubject(input: {
+  id: string;
+  category?: string;
+  sub_category?: string;
+  aliases?: string[];
+  crawl_notes?: string;
+}): Promise<SubjectRecord> {
+  const patch: Record<string, unknown> = {};
   if (input.category !== undefined) patch["category"] = input.category;
   if (input.sub_category !== undefined) patch["sub_category"] = input.sub_category;
   if (input.aliases !== undefined) patch["aliases"] = input.aliases;
   if (input.crawl_notes !== undefined) patch["crawl_notes"] = input.crawl_notes;
-
-  await ref.update(patch);
-
-  await logAdminAction(adminUser, {
-    action: "subject.update",
-    targetType: "subject",
-    targetId: input.id,
-    details: `Updated taxonomy subject ${input.id}`,
-    after: patch,
-  });
-
-  const updated = await ref.get();
-  return toSubject(updated.id, updated.data()!);
+  return toSubject(await patchDoc(`fact_subjects/${input.id}`, patch));
 }
 
 /* ------------------------------- crawl queue ------------------------------- */
@@ -118,99 +104,70 @@ export interface CrawlRecord {
   completed_at: string | null;
 }
 
-function toCrawl(id: string, d: Record<string, any>): CrawlRecord {
+function toCrawl(doc: FirestoreDoc): CrawlRecord {
+  const d = doc.data;
   return {
-    id,
+    id: doc.id,
     subject: str(d["subject"]),
     priority: num(d["priority"]) ?? 0,
     status: str(d["status"]) || "queued",
     requested_by: str(d["requested_by"]),
     refresh: d["refresh"] === true,
-    enqueued_at: d["enqueued_at"]?.toDate ? d["enqueued_at"].toDate().toISOString() : d["enqueued_at"] || null,
-    completed_at: d["completed_at"]?.toDate ? d["completed_at"].toDate().toISOString() : d["completed_at"] || null,
+    enqueued_at: typeof d["enqueued_at"] === "string" ? d["enqueued_at"] : null,
+    completed_at: typeof d["completed_at"] === "string" ? d["completed_at"] : null,
   };
 }
 
 export async function listCrawlQueue(input: { status?: string }) {
-  let query: FirebaseFirestore.Query = adminDb.collection("crawl_queue");
-  if (input.status) {
-    query = query.where("status", "==", input.status);
-  }
-
-  const snapshot = await query.limit(200).get();
-  const items = snapshot.docs.map((doc) => toCrawl(doc.id, doc.data()));
+  const docs = input.status
+    ? await runQuery({
+        collection: "crawl_queue",
+        filters: [{ field: "status", op: "EQUAL", value: input.status }],
+        limit: 200,
+      })
+    : (await listDocs("crawl_queue", { pageSize: 200 })).docs;
+  const items = docs.map(toCrawl);
   items.sort(
-    (a, b) => b.priority - a.priority || (b.enqueued_at ?? "").localeCompare(a.enqueued_at ?? "")
+    (a, b) => b.priority - a.priority || (b.enqueued_at ?? "").localeCompare(a.enqueued_at ?? ""),
   );
   return items;
 }
 
-export async function enqueueCrawl(
-  adminUser: AdminUser,
-  input: {
-    subject: string;
-    priority: number;
-    refresh: boolean;
-  }
-): Promise<CrawlRecord> {
+export async function enqueueCrawl(input: {
+  subject: string;
+  priority: number;
+  refresh: boolean;
+}): Promise<CrawlRecord> {
   const subjectKey = normalizeKey(input.subject);
-  const ref = adminDb.collection("crawl_queue").doc(subjectKey);
-
   const payload = {
     subject: input.subject,
     priority: input.priority,
     status: "queued",
-    requested_by: adminUser.email || "admin_portal",
+    requested_by: "manual",
     refresh: input.refresh,
-    enqueued_at: FieldValue.serverTimestamp(),
+    enqueued_at: new Date().toISOString(),
     completed_at: null,
   };
-
-  await ref.set(payload, { merge: true });
-
-  await logAdminAction(adminUser, {
-    action: "crawl.enqueue",
-    targetType: "crawl_job",
-    targetId: subjectKey,
-    details: `Enqueued crawl topic "${input.subject}" with priority ${input.priority}`,
-    after: payload,
-  });
-
-  const updated = await ref.get();
-  return toCrawl(updated.id, updated.data()!);
+  const existing = await getDoc(`crawl_queue/${subjectKey}`);
+  if (existing) return toCrawl(await patchDoc(`crawl_queue/${subjectKey}`, payload));
+  return toCrawl(await createDoc("crawl_queue", subjectKey, payload));
 }
 
-export async function setCrawlPriority(
-  adminUser: AdminUser,
-  input: {
-    id: string;
-    priority: number;
-  }
-): Promise<CrawlRecord> {
-  const ref = adminDb.collection("crawl_queue").doc(input.id);
-  await ref.update({ priority: input.priority, updated_at: FieldValue.serverTimestamp() });
-
-  await logAdminAction(adminUser, {
-    action: "crawl.set_priority",
-    targetType: "crawl_job",
-    targetId: input.id,
-    details: `Set crawl priority to ${input.priority} for ${input.id}`,
-    after: { priority: input.priority },
-  });
-
-  const updated = await ref.get();
-  return toCrawl(updated.id, updated.data()!);
+export async function setCrawlPriority(input: {
+  id: string;
+  priority: number;
+}): Promise<CrawlRecord> {
+  return toCrawl(await patchDoc(`crawl_queue/${input.id}`, { priority: input.priority }));
 }
 
-/** Dispatches the GitHub Actions Fact Foundry crawler workflow on demand */
-export async function triggerFoundryWorkflow(adminUser: AdminUser): Promise<{ ok: boolean; message: string }> {
+export async function triggerFoundryWorkflow(adminUser?: AdminUser): Promise<{ ok: boolean; message: string }> {
   const token = process.env["GITHUB_TOKEN"] || process.env["GH_TOKEN"];
   const repo = process.env["GITHUB_REPOSITORY"] || "the-og-more-or-less/more-or-less";
 
   if (!token) {
     return {
       ok: false,
-      message: "GITHUB_TOKEN is not configured on the server. Topic is saved in queue for the nightly 02:00 UTC run.",
+      message: "GITHUB_TOKEN is not configured on the server. Topic is saved in queue for the nightly run.",
     };
   }
 
@@ -230,16 +187,19 @@ export async function triggerFoundryWorkflow(adminUser: AdminUser): Promise<{ ok
       return { ok: false, message: `GitHub Action dispatch failed (${res.status}): ${errText.slice(0, 200)}` };
     }
 
-    await logAdminAction(adminUser, {
-      action: "crawl.dispatch_foundry",
-      targetType: "crawl_job",
-      targetId: "fact-foundry-workflow",
-      details: "Dispatched manual Fact Foundry GitHub Action workflow",
-    });
+    if (adminUser) {
+      const { logAdminAction } = await import("@/lib/firebase/audit.server");
+      await logAdminAction(adminUser, {
+        action: "crawl.dispatch_foundry",
+        targetType: "crawl_job",
+        targetId: "fact-foundry-workflow",
+        details: "Dispatched manual Fact Foundry GitHub Action workflow",
+      });
+    }
 
     return { ok: true, message: "Fact Foundry workflow triggered successfully on GitHub Actions." };
-  } catch (err: any) {
-    return { ok: false, message: err?.message || "Failed to trigger GitHub Action" };
+  } catch (err: unknown) {
+    return { ok: false, message: err instanceof Error ? err.message : "Failed to trigger GitHub Action" };
   }
 }
 
@@ -261,67 +221,58 @@ export interface PlayerRecord {
 }
 
 export async function findPlayers(input: { search?: string }): Promise<PlayerRecord[]> {
-  const snapshot = await adminDb.collection("users").limit(200).get();
+  const { docs } = await listDocs("users", { pageSize: 200 });
   const term = input.search?.trim().toLowerCase();
-
-  const players = snapshot.docs
-    .map((doc) => {
-      const d = doc.data();
-      return {
-        id: doc.id,
-        displayName: str(d["displayName"]),
-        email: str(d["email"]),
-        isPremium: d["isPremium"] === true,
-        createdAt: d["createdAt"]?.toDate ? d["createdAt"].toDate().toISOString() : d["createdAt"] || null,
-        stats: null,
-      };
-    })
+  const players = docs
+    .map((doc) => ({
+      id: doc.id,
+      displayName: str(doc.data["displayName"]),
+      email: str(doc.data["email"]),
+      isPremium: doc.data["isPremium"] === true,
+      createdAt: typeof doc.data["createdAt"] === "string" ? doc.data["createdAt"] : null,
+      stats: null as PlayerRecord["stats"],
+    }))
     .filter((player) =>
-      term ? `${player.displayName} ${player.email} ${player.id}`.toLowerCase().includes(term) : true
+      term ? `${player.displayName} ${player.email} ${player.id}`.toLowerCase().includes(term) : true,
     )
     .slice(0, 50);
-
   return players;
 }
 
 export async function getPlayer(id: string): Promise<PlayerRecord | null> {
-  const doc = await adminDb.collection("users").doc(id).get();
-  if (!doc.exists) return null;
-  const d = doc.data()!;
-
-  const summaryDoc = await adminDb.collection("users").doc(id).collection("stats").doc("summary").get();
-  const sumData = summaryDoc.exists ? summaryDoc.data()! : null;
-
+  const doc = await getDoc(`users/${id}`);
+  if (!doc) return null;
+  const summary = await getDoc(`users/${id}/stats/summary`);
   return {
     id: doc.id,
-    displayName: str(d["displayName"]),
-    email: str(d["email"]),
-    isPremium: d["isPremium"] === true,
-    createdAt: d["createdAt"]?.toDate ? d["createdAt"].toDate().toISOString() : d["createdAt"] || null,
-    stats: sumData
+    displayName: str(doc.data["displayName"]),
+    email: str(doc.data["email"]),
+    isPremium: doc.data["isPremium"] === true,
+    createdAt: typeof doc.data["createdAt"] === "string" ? doc.data["createdAt"] : null,
+    stats: summary
       ? {
-          totalGamesPlayed: num(sumData["totalGamesPlayed"]) ?? 0,
-          totalCorrect: num(sumData["totalCorrect"]) ?? 0,
-          totalWrong: num(sumData["totalWrong"]) ?? 0,
-          bestScore: num(sumData["bestScore"]) ?? 0,
-          lifetimePercentCorrect: num(sumData["lifetimePercentCorrect"]) ?? 0,
+          totalGamesPlayed: num(summary.data["totalGamesPlayed"]) ?? 0,
+          totalCorrect: num(summary.data["totalCorrect"]) ?? 0,
+          totalWrong: num(summary.data["totalWrong"]) ?? 0,
+          bestScore: num(summary.data["bestScore"]) ?? 0,
+          lifetimePercentCorrect: num(summary.data["lifetimePercentCorrect"]) ?? 0,
         }
       : null,
   };
 }
 
-export async function setPremium(adminUser: AdminUser, input: { id: string; isPremium: boolean }) {
-  const ref = adminDb.collection("users").doc(input.id);
-  await ref.update({ isPremium: input.isPremium, updatedAt: FieldValue.serverTimestamp() });
-
-  await logAdminAction(adminUser, {
-    action: input.isPremium ? "player.grant_premium" : "player.revoke_premium",
-    targetType: "user",
-    targetId: input.id,
-    details: `${input.isPremium ? "Granted" : "Revoked"} premium entitlement for user ${input.id}`,
-    after: { isPremium: input.isPremium },
-  });
-
+export async function setPremium(input: { id: string; isPremium: boolean }, adminUser?: AdminUser) {
+  await patchDoc(`users/${input.id}`, { isPremium: input.isPremium, updatedAt: new Date().toISOString() });
+  if (adminUser) {
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(adminUser, {
+      action: input.isPremium ? "player.grant_premium" : "player.revoke_premium",
+      targetType: "user",
+      targetId: input.id,
+      details: `${input.isPremium ? "Granted" : "Revoked"} premium entitlement for user ${input.id}`,
+      after: { isPremium: input.isPremium },
+    });
+  }
   return { ok: true as const };
 }
 
@@ -331,32 +282,30 @@ export interface DailyPack {
   date: string;
   seed: string;
   category: string;
-  rounds: any[];
+  rounds: Json[];
   createdAt: string | null;
 }
 
 export async function getDailyPack(date: string): Promise<DailyPack | null> {
-  const doc = await adminDb.collection("daily_packs").doc(date).get();
-  if (!doc.exists) return null;
-  const d = doc.data()!;
+  const doc = await getDoc(`daily_packs/${date}`);
+  if (!doc) return null;
   return {
     date,
-    seed: str(d["seed"]),
-    category: str(d["category"]),
-    rounds: Array.isArray(d["rounds"]) ? d["rounds"] : [],
-    createdAt: d["createdAt"]?.toDate ? d["createdAt"].toDate().toISOString() : d["createdAt"] || null,
+    seed: str(doc.data["seed"]),
+    category: str(doc.data["category"]),
+    rounds: Array.isArray(doc.data["rounds"]) ? (doc.data["rounds"] as Json[]) : [],
+    createdAt: typeof doc.data["createdAt"] === "string" ? doc.data["createdAt"] : null,
   };
 }
 
 export async function scheduleDailyPack(
-  adminUser: AdminUser,
   input: {
     date: string;
     category: string;
-    rounds: any[];
-  }
+    rounds: unknown[];
+  },
+  adminUser?: AdminUser,
 ): Promise<DailyPack> {
-  const ref = adminDb.collection("daily_packs").doc(input.date);
   const payload = {
     date: input.date,
     seed: `admin_scheduled_${input.date}`,
@@ -365,69 +314,69 @@ export async function scheduleDailyPack(
     is_valid: true,
     total_rounds: input.rounds.length,
     status_message: "Admin pre-scheduled daily pack",
-    createdAt: FieldValue.serverTimestamp(),
+    createdAt: new Date().toISOString(),
   };
 
-  await ref.set(payload);
+  const existing = await getDoc(`daily_packs/${input.date}`);
+  if (existing) {
+    await patchDoc(`daily_packs/${input.date}`, payload);
+  } else {
+    await createDoc("daily_packs", input.date, payload);
+  }
 
-  await logAdminAction(adminUser, {
-    action: "daily.schedule_pack",
-    targetType: "daily_pack",
-    targetId: input.date,
-    details: `Pre-scheduled daily pack for date ${input.date} with category "${input.category}" (${input.rounds.length} rounds)`,
-    after: payload,
-  });
+  if (adminUser) {
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(adminUser, {
+      action: "daily.schedule_pack",
+      targetType: "daily_pack",
+      targetId: input.date,
+      details: `Pre-scheduled daily pack for date ${input.date} with category "${input.category}" (${input.rounds.length} rounds)`,
+    });
+  }
 
   return {
     date: input.date,
     seed: payload.seed,
     category: payload.category,
-    rounds: payload.rounds,
-    createdAt: new Date().toISOString(),
+    rounds: payload.rounds as Json[],
+    createdAt: payload.createdAt,
   };
 }
 
 export async function getDailyLeaderboard(date: string) {
-  const doc = await adminDb.collection("daily_leaderboards").doc(date).get();
-  if (!doc.exists) return { date, entries: [] as any[], raw: null };
-  const d = doc.data()!;
-  const entries = Array.isArray(d["entries"]) ? d["entries"] : [];
-  return { date, entries, raw: d };
+  const doc = await getDoc(`daily_leaderboards/${date}`);
+  if (!doc) return { date, entries: [] as Json[], raw: null as Json };
+  const entries = Array.isArray(doc.data["entries"]) ? (doc.data["entries"] as Json[]) : [];
+  return { date, entries, raw: doc.data as unknown as Json };
 }
 
 export async function removeDailyLeaderboardEntry(
-  adminUser: AdminUser,
   input: {
     date: string;
     uid: string;
     reason?: string;
-  }
+  },
+  adminUser?: AdminUser,
 ): Promise<{ ok: boolean }> {
-  const ref = adminDb.collection("daily_leaderboards").doc(input.date);
+  const doc = await getDoc(`daily_leaderboards/${input.date}`);
+  if (!doc) return { ok: true };
+  const rawEntries = Array.isArray(doc.data["entries"]) ? (doc.data["entries"] as Record<string, unknown>[]) : [];
+  const filtered = rawEntries.filter((e) => e["uid"] !== input.uid);
 
-  await adminDb.runTransaction(async (transaction) => {
-    const snap = await transaction.get(ref);
-    if (!snap.exists) return;
-    const data = snap.data()!;
-    const entries = Array.isArray(data["entries"]) ? data["entries"] : [];
-    const filtered = entries.filter((e: any) => e.uid !== input.uid);
-
-    transaction.update(ref, {
-      entries: filtered,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    await logAdminAction(
-      adminUser,
-      {
-        action: "daily.moderate_leaderboard_entry",
-        targetType: "leaderboard",
-        targetId: `${input.date}:${input.uid}`,
-        details: `Removed user ${input.uid} from daily leaderboard for ${input.date}. Reason: ${input.reason || "Administrative removal"}`,
-      },
-      transaction
-    );
+  await patchDoc(`daily_leaderboards/${input.date}`, {
+    entries: filtered,
+    updatedAt: new Date().toISOString(),
   });
+
+  if (adminUser) {
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(adminUser, {
+      action: "daily.moderate_leaderboard_entry",
+      targetType: "leaderboard",
+      targetId: `${input.date}:${input.uid}`,
+      details: `Removed user ${input.uid} from daily leaderboard for ${input.date}. Reason: ${input.reason || "Administrative removal"}`,
+    });
+  }
 
   return { ok: true };
 }
@@ -435,18 +384,15 @@ export async function removeDailyLeaderboardEntry(
 /* --------------------------------- analytics ------------------------------- */
 
 export async function getGameAnalytics(input: { since?: string }) {
-  let query: FirebaseFirestore.Query = adminDb.collection("games");
-  if (input.since) {
-    query = query.where("startedAt", ">=", input.since);
-  }
-
-  const snapshot = await query.limit(500).get();
-  const docs = snapshot.docs.map((d) => d.data());
+  const filters = input.since
+    ? [{ field: "startedAt" as const, op: "GREATER_THAN_OR_EQUAL" as const, value: input.since }]
+    : [];
+  const docs = await runQuery({ collection: "games", filters, limit: 500 });
 
   const tally = (key: string) => {
     const counts = new Map<string, number>();
-    for (const d of docs) {
-      const value = str(d[key]) || "unknown";
+    for (const doc of docs) {
+      const value = str(doc.data[key]) || "unknown";
       counts.set(value, (counts.get(value) ?? 0) + 1);
     }
     return [...counts.entries()]

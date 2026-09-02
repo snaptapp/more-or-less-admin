@@ -8,6 +8,15 @@
   color: var(--ds-arena-color-text);
 }
 
+.admin-shell a {
+  color: var(--ds-arena-color-lime);
+  text-decoration: none;
+}
+
+.admin-shell a:hover {
+  text-decoration: underline;
+}
+
 .admin-sidebar {
   border-right: 1px solid var(--ds-arena-color-border);
   background: var(--ds-arena-color-surface-raised);
@@ -121,6 +130,85 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ds-arena-color-text-muted);
+}
+
+.admin-infotip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #242426;
+  border: 1px solid var(--ds-arena-color-border, #3a3a3c);
+  color: var(--ds-arena-color-text-muted, #8e8e93);
+  font-family: var(--ds-arena-font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: help;
+  user-select: none;
+  line-height: 1;
+  text-transform: none;
+  vertical-align: middle;
+  margin-left: 5px;
+}
+
+.admin-infotip:hover,
+.admin-infotip:focus-visible {
+  background: #1c1c1f;
+  color: var(--ds-arena-color-lime, #ccff00);
+  border-color: var(--ds-arena-color-lime, #ccff00);
+  outline: none;
+  z-index: 1000;
+}
+
+.admin-infotip-content {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 240px;
+  max-width: 340px;
+  padding: 10px 14px;
+  background-color: #0c0c0e !important;
+  border: 1px solid #45454d !important;
+  border-radius: var(--ds-arena-radius-md, 8px);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: #f4f4f5 !important;
+  font-family: var(--ds-arena-font-body, system-ui);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 99999 !important;
+}
+
+.admin-infotip:hover .admin-infotip-content,
+.admin-infotip:focus-visible .admin-infotip-content {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-2px);
+}
+
+/* Table header or bottom-positioned tooltips: pop DOWNWARDS into table area */
+th .admin-infotip-content,
+.admin-infotip--bottom .admin-infotip-content {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
+th .admin-infotip:hover .admin-infotip-content,
+th .admin-infotip:focus-visible .admin-infotip-content,
+.admin-infotip--bottom:hover .admin-infotip-content,
+.admin-infotip--bottom:focus-visible .admin-infotip-content {
+  transform: translateX(-50%) translateY(2px);
 }
 
 .admin-input,
