@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState, type FormEvent } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, InfoTip, PageHead } from "@/admin/AdminShell";
+import { exportFactsData } from "@/lib/admin/content.functions";
 import {
   deleteDailyPackAction,
   fetchDaily,
@@ -88,10 +89,12 @@ function ScheduleDailyModal({
 }) {
   const schedule = useServerFn(preScheduleDailyPack);
   const generate = useServerFn(generateDailyPack);
+  const loadAllFacts = useServerFn(exportFactsData);
   const queryClient = useQueryClient();
 
   const [date, setDate] = useState(initialDate);
   const [category, setCategory] = useState("Science & Space");
+  const [questionSearch, setQuestionSearch] = useState("");
   const [rounds, setRounds] = useState<EditableRound[]>([
     {
       round_number: 1,
@@ -107,6 +110,63 @@ function ScheduleDailyModal({
     },
   ]);
   const [generating, setGenerating] = useState(false);
+
+  const factsQuery = useQuery({
+    queryKey: ["active_facts_for_picker"],
+    queryFn: () => loadAllFacts({ data: { status: "active", pageSize: 1000 } }),
+    staleTime: 60_000,
+  });
+
+  const activeFacts = useMemo(() => {
+    const list = Array.isArray(factsQuery.data) ? factsQuery.data : [];
+    return [...list].sort((a, b) =>
+      (a.subject || "").localeCompare(b.subject || "") ||
+      (a.angle || "").localeCompare(b.angle || ""),
+    );
+  }, [factsQuery.data]);
+
+  const filteredFacts = useMemo(() => {
+    if (!questionSearch.trim()) return activeFacts;
+    const term = questionSearch.trim().toLowerCase();
+    return activeFacts.filter(
+      (f) =>
+        f.subject.toLowerCase().includes(term) ||
+        (f.question && f.question.toLowerCase().includes(term)) ||
+        (f.angle && f.angle.toLowerCase().includes(term)) ||
+        (f.fact && f.fact.toLowerCase().includes(term)),
+    );
+  }, [activeFacts, questionSearch]);
+
+  const applyFactToRound = (index: number, f: (typeof activeFacts)[number]) => {
+    const trueNum = Number(f.true_number);
+    const targetDirection = index % 2 === 0 ? "MORE" : "LESS";
+    const multiplier = 1.8 + Math.random() * 0.8;
+    let presentedNum: number;
+
+    if (targetDirection === "MORE") {
+      presentedNum = trueNum > 10 ? Math.round(trueNum / multiplier) : Number((trueNum / multiplier).toFixed(1));
+    } else {
+      presentedNum = trueNum > 10 ? Math.round(trueNum * multiplier) : Number((trueNum * multiplier).toFixed(1));
+    }
+
+    if (presentedNum === trueNum) {
+      presentedNum = targetDirection === "MORE" ? trueNum - 1 : trueNum + 1;
+    }
+
+    const actualDirection = trueNum > presentedNum ? "MORE" : "LESS";
+
+    updateRound(index, {
+      topic: f.subject || category,
+      claim_statement: f.question || f.fact || `${f.subject} - ${f.angle}`,
+      true_number: trueNum,
+      presented_number: presentedNum,
+      unit: f.unit || "",
+      correct_direction: actualDirection,
+      explanation: f.context || f.fact || `${f.subject}'s true value is ${trueNum} ${f.unit}.`,
+      surprise_factor: Number(f.surprise_factor ?? 2),
+      difficulty: "casual",
+    });
+  };
 
   const handleAutoFill = async () => {
     try {
@@ -239,7 +299,7 @@ function ScheduleDailyModal({
           </div>
         </div>
 
-        <div className="admin-grid">
+        <div className="admin-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
           <label className="admin-field">
             <span>Target Date</span>
             <input
@@ -259,6 +319,15 @@ function ScheduleDailyModal({
               placeholder="e.g. Science & Space, Deep Sea Creatures"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
+            />
+          </label>
+          <label className="admin-field">
+            <span>Filter Question Dropdowns</span>
+            <input
+              className="admin-input"
+              placeholder="Search facts by keyword…"
+              value={questionSearch}
+              onChange={(e) => setQuestionSearch(e.target.value)}
             />
           </label>
         </div>
@@ -299,6 +368,35 @@ function ScheduleDailyModal({
                   </button>
                 ) : null}
               </div>
+
+              {/* Per-Question Fact Bank Dropdown Selector */}
+              <label className="admin-field" style={{ background: "rgba(132, 204, 22, 0.05)", padding: 8, borderRadius: 6, border: "1px dashed var(--ds-arena-color-lime, #84cc16)" }}>
+                <span style={{ fontWeight: 600, color: "var(--ds-arena-color-lime, #84cc16)" }}>
+                  ⚡ Select Question from Fact Bank (Dropdown)
+                </span>
+                <select
+                  className="admin-select"
+                  value=""
+                  onChange={(e) => {
+                    const factId = e.target.value;
+                    const selected = activeFacts.find((f) => f.id === factId);
+                    if (selected) {
+                      applyFactToRound(i, selected);
+                    }
+                  }}
+                >
+                  <option value="">
+                    {factsQuery.isLoading
+                      ? "Loading fact bank questions…"
+                      : `-- Choose from ${filteredFacts.length} verified facts to populate this question --`}
+                  </option>
+                  {filteredFacts.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      [{f.subject}] {f.question || f.fact || f.angle} ({f.true_number} {f.unit})
+                    </option>
+                  ))}
+                </select>
+              </label>
 
               <div className="admin-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
                 <label className="admin-field">
