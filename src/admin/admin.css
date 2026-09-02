@@ -276,6 +276,67 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   white-space: nowrap;
 }
 
+.admin-th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.admin-th-sortable:hover {
+  color: var(--ds-arena-color-lime, #84cc16);
+}
+
+.admin-table-header-filters th {
+  padding: 6px 10px 10px;
+  background: var(--ds-arena-color-surface-sunken, rgba(0, 0, 0, 0.2));
+  border-bottom: 2px solid var(--ds-arena-color-border);
+}
+
+.admin-header-input,
+.admin-header-select {
+  background: var(--ds-arena-color-bg, #121214);
+  border: 1px solid var(--ds-arena-color-border);
+  border-radius: var(--ds-arena-radius-sm, 6px);
+  color: var(--ds-arena-color-text);
+  font-family: var(--ds-arena-font-body);
+  font-size: 12px;
+  padding: 4px 8px;
+  min-height: 30px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-header-input::placeholder {
+  color: var(--ds-arena-color-text-muted);
+  font-size: 11px;
+}
+
+.admin-header-input:focus-visible,
+.admin-header-select:focus-visible {
+  outline: 1.5px solid var(--ds-arena-color-lime);
+  outline-offset: 1px;
+  border-color: var(--ds-arena-color-lime);
+}
+
+.admin-clear-filter-btn {
+  background: transparent;
+  border: 1px solid var(--ds-arena-color-border);
+  border-radius: var(--ds-arena-radius-sm, 6px);
+  color: var(--ds-arena-color-text-muted);
+  font-family: var(--ds-arena-font-mono);
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+  min-height: 30px;
+  width: 100%;
+  transition: all 0.15s ease;
+}
+
+.admin-clear-filter-btn:hover {
+  border-color: var(--ds-arena-color-red, #ef4444);
+  color: var(--ds-arena-color-red, #ef4444);
+}
+
 .admin-table td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--ds-arena-color-border);

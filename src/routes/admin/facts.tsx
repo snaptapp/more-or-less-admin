@@ -470,8 +470,18 @@ function FactsPage() {
   const exportFn = useServerFn(exportFactsData);
   const [filters, setFilters] = useState({
     search: "",
+    subject: "",
+    angle: "",
     status: "active",
     contentRating: "",
+    surpriseFactor: "",
+  });
+  const [sort, setSort] = useState<{
+    field: "subject" | "angle" | "true_number" | "surprise_factor" | "served_count";
+    order: "asc" | "desc";
+  }>({
+    field: "subject",
+    order: "asc",
   });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -481,13 +491,18 @@ function FactsPage() {
   const [exporting, setExporting] = useState(false);
 
   const query = useQuery({
-    queryKey: ["facts", filters, page, pageSize],
+    queryKey: ["facts", filters, sort, page, pageSize],
     queryFn: () =>
       list({
         data: {
           search: filters.search || undefined,
+          subject: filters.subject || undefined,
+          angle: filters.angle || undefined,
           status: filters.status || undefined,
           contentRating: filters.contentRating || undefined,
+          surpriseFactor: filters.surpriseFactor !== "" ? Number(filters.surpriseFactor) : undefined,
+          sortField: sort.field,
+          sortOrder: sort.order,
           page,
           pageSize,
         },
@@ -495,14 +510,58 @@ function FactsPage() {
     retry: false,
   });
 
+  const toggleSort = (field: typeof sort.field) => {
+    setPage(1);
+    if (sort.field === field) {
+      setSort({ field, order: sort.order === "asc" ? "desc" : "asc" });
+    } else {
+      setSort({ field, order: "asc" });
+    }
+  };
+
+  const renderSortIcon = (field: typeof sort.field) => {
+    if (sort.field !== field) return <span style={{ opacity: 0.35, marginLeft: 4, fontSize: 10 }}>↕</span>;
+    return (
+      <span style={{ color: "var(--ds-arena-color-lime)", marginLeft: 4, fontSize: 11 }}>
+        {sort.order === "asc" ? "▲" : "▼"}
+      </span>
+    );
+  };
+
+  const hasActiveFilters = Boolean(
+    filters.search ||
+      filters.subject ||
+      filters.angle ||
+      filters.status !== "active" ||
+      filters.contentRating ||
+      filters.surpriseFactor !== "",
+  );
+
+  const resetFilters = () => {
+    setPage(1);
+    setFilters({
+      search: "",
+      subject: "",
+      angle: "",
+      status: "active",
+      contentRating: "",
+      surpriseFactor: "",
+    });
+  };
+
   const handleExportCsv = async () => {
     try {
       setExporting(true);
       const facts = await exportFn({
         data: {
           search: filters.search || undefined,
+          subject: filters.subject || undefined,
+          angle: filters.angle || undefined,
           status: filters.status || undefined,
           contentRating: filters.contentRating || undefined,
+          surpriseFactor: filters.surpriseFactor !== "" ? Number(filters.surpriseFactor) : undefined,
+          sortField: sort.field,
+          sortOrder: sort.order,
         },
       });
       const headers = [
@@ -590,9 +649,10 @@ function FactsPage() {
 
       <div className="admin-toolbar">
         <label className="admin-field" style={{ flex: "1 1 260px" }}>
-          <span>Search subject, angle or question</span>
+          <span>Search all text (subject, angle, question, context)</span>
           <input
             className="admin-input"
+            placeholder="Search keywords…"
             value={filters.search}
             onChange={(e) => {
               setPage(1);
@@ -600,38 +660,6 @@ function FactsPage() {
             }}
           />
         </label>
-        <label className="admin-field">
-          <span>Status</span>
-          <select
-            className="admin-select"
-            value={filters.status}
-            onChange={(e) => {
-              setPage(1);
-              setFilters({ ...filters, status: e.target.value });
-            }}
-          >
-            <option value="">All</option>
-            <option value="active">active</option>
-            <option value="disputed">disputed</option>
-            <option value="retired">retired</option>
-          </select>
-        </label>
-        <label className="admin-field">
-          <span>Rating</span>
-          <select
-            className="admin-select"
-            value={filters.contentRating}
-            onChange={(e) => {
-              setPage(1);
-              setFilters({ ...filters, contentRating: e.target.value });
-            }}
-          >
-            <option value="">All</option>
-            <option value="standard">standard</option>
-            <option value="after_dark">after_dark</option>
-          </select>
-        </label>
-
         <label className="admin-field">
           <span>Per page</span>
           <select
@@ -650,6 +678,13 @@ function FactsPage() {
             <option value="1000">All (1,000)</option>
           </select>
         </label>
+        {hasActiveFilters ? (
+          <div style={{ alignSelf: "flex-end", paddingBottom: "6px" }}>
+            <Button size="sm" variant="ghost" onClick={resetFilters}>
+              Reset filters
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <ErrorNote error={query.error} />
@@ -660,20 +695,109 @@ function FactsPage() {
         <table className="admin-table">
           <thead>
             <tr>
-              <th>Subject</th>
-              <th>
-                Angle{" "}
+              <th className="admin-th-sortable" onClick={() => toggleSort("subject")}>
+                Subject {renderSortIcon("subject")}
+              </th>
+              <th className="admin-th-sortable" onClick={() => toggleSort("angle")}>
+                Angle {renderSortIcon("angle")}{" "}
                 <InfoTip position="bottom" text="The specific metric, dimension, or record being measured." />
               </th>
-              <th>Value</th>
-              <th>
-                Surprise{" "}
+              <th className="admin-th-sortable" onClick={() => toggleSort("true_number")}>
+                Value {renderSortIcon("true_number")}
+              </th>
+              <th className="admin-th-sortable" onClick={() => toggleSort("surprise_factor")}>
+                Surprise {renderSortIcon("surprise_factor")}{" "}
                 <InfoTip position="bottom" text="Scale of 0 (obvious) to 3 (mind-blowing counterintuitive)." />
               </th>
               <th>Rating</th>
               <th>Status</th>
-              <th>Served</th>
+              <th className="admin-th-sortable" onClick={() => toggleSort("served_count")}>
+                Served {renderSortIcon("served_count")}
+              </th>
+              <th style={{ width: 80, textAlign: "right" }} />
+            </tr>
+            <tr className="admin-table-header-filters">
+              <th>
+                <input
+                  className="admin-header-input"
+                  placeholder="Filter subject…"
+                  value={filters.subject}
+                  onChange={(e) => {
+                    setPage(1);
+                    setFilters({ ...filters, subject: e.target.value });
+                  }}
+                />
+              </th>
+              <th>
+                <input
+                  className="admin-header-input"
+                  placeholder="Filter angle…"
+                  value={filters.angle}
+                  onChange={(e) => {
+                    setPage(1);
+                    setFilters({ ...filters, angle: e.target.value });
+                  }}
+                />
+              </th>
               <th />
+              <th>
+                <select
+                  className="admin-header-select"
+                  value={filters.surpriseFactor}
+                  onChange={(e) => {
+                    setPage(1);
+                    setFilters({ ...filters, surpriseFactor: e.target.value });
+                  }}
+                >
+                  <option value="">All</option>
+                  <option value="0">0 · Obvious</option>
+                  <option value="1">1 · Mild</option>
+                  <option value="2">2 · Very</option>
+                  <option value="3">3 · Mind-blowing</option>
+                </select>
+              </th>
+              <th>
+                <select
+                  className="admin-header-select"
+                  value={filters.contentRating}
+                  onChange={(e) => {
+                    setPage(1);
+                    setFilters({ ...filters, contentRating: e.target.value });
+                  }}
+                >
+                  <option value="">All</option>
+                  <option value="standard">standard</option>
+                  <option value="after_dark">after_dark</option>
+                </select>
+              </th>
+              <th>
+                <select
+                  className="admin-header-select"
+                  value={filters.status}
+                  onChange={(e) => {
+                    setPage(1);
+                    setFilters({ ...filters, status: e.target.value });
+                  }}
+                >
+                  <option value="">All</option>
+                  <option value="active">active</option>
+                  <option value="disputed">disputed</option>
+                  <option value="retired">retired</option>
+                </select>
+              </th>
+              <th />
+              <th>
+                {hasActiveFilters ? (
+                  <button
+                    type="button"
+                    className="admin-clear-filter-btn"
+                    onClick={resetFilters}
+                    title="Reset all filters"
+                  >
+                    Reset
+                  </button>
+                ) : null}
+              </th>
             </tr>
           </thead>
           <tbody>

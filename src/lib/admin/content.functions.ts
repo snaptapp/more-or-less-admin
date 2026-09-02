@@ -4,9 +4,14 @@ import { authMiddleware } from "./middleware";
 
 const listInput = z.object({
   search: z.string().optional(),
+  subject: z.string().optional(),
+  angle: z.string().optional(),
   status: z.string().optional(),
   contentRating: z.string().optional(),
+  surpriseFactor: z.number().int().min(0).max(3).optional(),
   minSurprise: z.number().int().min(0).max(3).optional(),
+  sortField: z.enum(["subject", "angle", "true_number", "surprise_factor", "served_count"]).optional(),
+  sortOrder: z.enum(["asc", "desc"]).optional(),
   page: z.number().int().min(1).optional(),
   pageSize: z.number().int().min(1).max(1000).optional(),
 });

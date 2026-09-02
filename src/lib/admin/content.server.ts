@@ -103,10 +103,15 @@ export function toFact(doc: FirestoreDoc): FactRecord {
 
 export interface FactListInput {
   search?: string;
+  subject?: string;
+  angle?: string;
   status?: string;
   contentRating?: string;
   difficulty?: string;
+  surpriseFactor?: number;
   minSurprise?: number;
+  sortField?: "subject" | "angle" | "true_number" | "surprise_factor" | "served_count";
+  sortOrder?: "asc" | "desc";
   page?: number;
   pageSize?: number;
 }
@@ -135,7 +140,18 @@ export async function listFacts(input: FactListInput) {
   });
 
   let facts = window.map(toFact);
-  if (input.minSurprise) {
+  if (input.subject?.trim()) {
+    const sub = input.subject.trim().toLowerCase();
+    facts = facts.filter((f) => f.subject.toLowerCase().includes(sub));
+  }
+  if (input.angle?.trim()) {
+    const ang = input.angle.trim().toLowerCase();
+    facts = facts.filter((f) => (f.angle || "").toLowerCase().includes(ang));
+  }
+  if (input.surpriseFactor !== undefined) {
+    facts = facts.filter((f) => (f.surprise_factor ?? 2) === input.surpriseFactor);
+  }
+  if (input.minSurprise !== undefined) {
     facts = facts.filter((fact) => (fact.surprise_factor ?? 0) >= input.minSurprise!);
   }
   const term = input.search?.trim().toLowerCase();
@@ -147,7 +163,24 @@ export async function listFacts(input: FactListInput) {
         .includes(term),
     );
   }
-  facts.sort((a, b) => a.subject.localeCompare(b.subject) || a.angle.localeCompare(b.angle));
+
+  const sortField = input.sortField || "subject";
+  const sortDir = input.sortOrder === "desc" ? -1 : 1;
+  facts.sort((a, b) => {
+    let diff = 0;
+    if (sortField === "subject") {
+      diff = a.subject.localeCompare(b.subject) || a.angle.localeCompare(b.angle);
+    } else if (sortField === "angle") {
+      diff = a.angle.localeCompare(b.angle) || a.subject.localeCompare(b.subject);
+    } else if (sortField === "true_number") {
+      diff = (a.true_number ?? 0) - (b.true_number ?? 0);
+    } else if (sortField === "surprise_factor") {
+      diff = (a.surprise_factor ?? 2) - (b.surprise_factor ?? 2);
+    } else if (sortField === "served_count") {
+      diff = a.served_count - b.served_count;
+    }
+    return diff * sortDir;
+  });
 
   const total = facts.length;
   const start = (page - 1) * pageSize;
@@ -177,7 +210,18 @@ export async function exportFacts(input: FactListInput): Promise<FactRecord[]> {
   });
 
   let facts = window.map(toFact);
-  if (input.minSurprise) {
+  if (input.subject?.trim()) {
+    const sub = input.subject.trim().toLowerCase();
+    facts = facts.filter((f) => f.subject.toLowerCase().includes(sub));
+  }
+  if (input.angle?.trim()) {
+    const ang = input.angle.trim().toLowerCase();
+    facts = facts.filter((f) => (f.angle || "").toLowerCase().includes(ang));
+  }
+  if (input.surpriseFactor !== undefined) {
+    facts = facts.filter((f) => (f.surprise_factor ?? 2) === input.surpriseFactor);
+  }
+  if (input.minSurprise !== undefined) {
     facts = facts.filter((fact) => (fact.surprise_factor ?? 0) >= input.minSurprise!);
   }
   const term = input.search?.trim().toLowerCase();
@@ -189,7 +233,24 @@ export async function exportFacts(input: FactListInput): Promise<FactRecord[]> {
         .includes(term),
     );
   }
-  facts.sort((a, b) => a.subject.localeCompare(b.subject) || a.angle.localeCompare(b.angle));
+
+  const sortField = input.sortField || "subject";
+  const sortDir = input.sortOrder === "desc" ? -1 : 1;
+  facts.sort((a, b) => {
+    let diff = 0;
+    if (sortField === "subject") {
+      diff = a.subject.localeCompare(b.subject) || a.angle.localeCompare(b.angle);
+    } else if (sortField === "angle") {
+      diff = a.angle.localeCompare(b.angle) || a.subject.localeCompare(b.subject);
+    } else if (sortField === "true_number") {
+      diff = (a.true_number ?? 0) - (b.true_number ?? 0);
+    } else if (sortField === "surprise_factor") {
+      diff = (a.surprise_factor ?? 2) - (b.surprise_factor ?? 2);
+    } else if (sortField === "served_count") {
+      diff = a.served_count - b.served_count;
+    }
+    return diff * sortDir;
+  });
   return facts;
 }
 
