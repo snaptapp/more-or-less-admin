@@ -76,7 +76,9 @@ function parseCsv(text: string): string[][] {
   }
 
   return rows;
-}const CANONICAL_CATEGORIES = [
+}
+
+const CANONICAL_CATEGORIES = [
   "Animals & Nature",
   "Science & Space",
   "Sports",
