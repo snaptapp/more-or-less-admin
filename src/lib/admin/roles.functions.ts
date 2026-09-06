@@ -19,12 +19,24 @@ export const setAdminRole = createServerFn({ method: "POST" })
     }
     const { setAdminClaim } = await import("./roles.server");
     const { logAdminAction } = await import("@/lib/firebase/audit.server");
-    const updated = await setAdminClaim(data.uid, data.admin);
+    const { patchDoc } = await import("@/lib/firebase/firestore.server");
+
+    // Write isAdmin to entitlements/{email} so the onUserCreated trigger
+    // propagates the claim to any future UIDs for the same email address.
+    const entitlementsWriter = async (email: string, isAdmin: boolean) => {
+      await patchDoc(`entitlements/${email}`, {
+        isAdmin,
+        grantedAt: new Date().toISOString(),
+        grantedBy: caller.email ?? caller.uid,
+      });
+    };
+
+    const updated = await setAdminClaim(data.uid, data.admin, entitlementsWriter);
     await logAdminAction(caller, {
       action: data.admin ? "grant_admin" : "revoke_admin",
       targetType: "user",
       targetId: data.uid,
-      details: `${caller.email ?? caller.uid} ${data.admin ? "granted" : "revoked"} admin for ${data.uid}`,
+      details: `${caller.email ?? caller.uid} ${data.admin ? "granted" : "revoked"} admin for ${updated.email ?? data.uid}`,
     });
     return updated;
   });

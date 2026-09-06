@@ -97,7 +97,7 @@ async function callApi(
   return response;
 }
 
-/** Lists all Firebase Auth users (paginated). */
+/** Lists all Firebase Auth users, deduplicated by email (one record per real person). */
 export async function listAuthUsers(): Promise<AdminUserRecord[]> {
   const users: AdminUserRecord[] = [];
   let nextPageToken: string | undefined;
@@ -116,8 +116,31 @@ export async function listAuthUsers(): Promise<AdminUserRecord[]> {
     for (const raw of payload.users ?? []) users.push(toRecord(raw));
     nextPageToken = payload.nextPageToken;
   } while (nextPageToken);
-  users.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
-  return users;
+
+  // Group by lowercase email — one row per real person.
+  // Users with no email (anonymous) are kept as individual rows.
+  const byEmail = new Map<string, AdminUserRecord[]>();
+  const noEmail: AdminUserRecord[] = [];
+  for (const user of users) {
+    const key = user.email?.toLowerCase() ?? "";
+    if (!key) { noEmail.push(user); continue; }
+    const group = byEmail.get(key) ?? [];
+    group.push(user);
+    byEmail.set(key, group);
+  }
+
+  const deduped: AdminUserRecord[] = [];
+  for (const group of byEmail.values()) {
+    // Canonical record: prefer admin, then most-recently-signed-in.
+    const canonical =
+      group.find((u) => u.isAdmin) ??
+      group.sort((a, b) => (b.lastSignInAt ?? "").localeCompare(a.lastSignInAt ?? ""))[0];
+    deduped.push(canonical);
+  }
+  for (const u of noEmail) deduped.push(u);
+
+  deduped.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  return deduped;
 }
 
 function readClaims(raw: RawUser | undefined): Record<string, unknown> {
@@ -129,8 +152,14 @@ function readClaims(raw: RawUser | undefined): Record<string, unknown> {
   }
 }
 
-/** Grants or revokes the admin custom claim, merging with existing claims. */
-export async function setAdminClaim(uid: string, admin: boolean): Promise<AdminUserRecord> {
+/** Grants or revokes the admin custom claim on the UID, and mirrors the state
+ *  to entitlements/{email} so the onUserCreated trigger propagates it to any
+ *  future UIDs created for the same email address. */
+export async function setAdminClaim(
+  uid: string,
+  admin: boolean,
+  entitlementsWriter?: (email: string, isAdmin: boolean) => Promise<void>,
+): Promise<AdminUserRecord> {
   // Read current claims first — accounts:update replaces customAttributes wholesale.
   const lookup = await callApi("/accounts:lookup", { method: "POST", body: { localId: [uid] } });
   const lookupPayload = (await lookup.json()) as { users?: RawUser[] };
@@ -149,5 +178,12 @@ export async function setAdminClaim(uid: string, admin: boolean): Promise<AdminU
     },
   });
   const payload = (await response.json()) as { localId: string };
-  return toRecord({ ...current, localId: payload.localId, customAttributes: JSON.stringify(claims) });
+  const updated = toRecord({ ...current, localId: payload.localId, customAttributes: JSON.stringify(claims) });
+
+  // Mirror to entitlements/{email} for future-UID propagation.
+  if (current.email && entitlementsWriter) {
+    await entitlementsWriter(current.email.toLowerCase(), admin);
+  }
+
+  return updated;
 }

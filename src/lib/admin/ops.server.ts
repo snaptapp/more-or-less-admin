@@ -234,20 +234,52 @@ export async function findPlayers(input: { search?: string }): Promise<PlayerRec
     }))
     .filter((player) =>
       term ? `${player.displayName} ${player.email} ${player.id}`.toLowerCase().includes(term) : true,
-    )
-    .slice(0, 50);
-  return players;
+    );
+
+  // Group by lowercase email — one row per real person.
+  // Players with no email are kept as individual rows.
+  const byEmail = new Map<string, typeof players[number][]>();
+  const noEmail: typeof players = [];
+  for (const player of players) {
+    const key = player.email.toLowerCase();
+    if (!key) { noEmail.push(player); continue; }
+    const group = byEmail.get(key) ?? [];
+    group.push(player);
+    byEmail.set(key, group);
+  }
+
+  const deduped: PlayerRecord[] = [];
+  for (const group of byEmail.values()) {
+    // Canonical UID: prefer any that already has isPremium, otherwise most-recent createdAt.
+    const canonical =
+      group.find((p) => p.isPremium) ??
+      group.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))[0];
+    deduped.push({ ...canonical, stats: null });
+  }
+  for (const p of noEmail) deduped.push(p);
+
+  return deduped.slice(0, 50);
 }
 
 export async function getPlayer(id: string): Promise<PlayerRecord | null> {
   const doc = await getDoc(`users/${id}`);
   if (!doc) return null;
   const summary = await getDoc(`users/${id}/stats/summary`);
+  const email = str(doc.data["email"]);
+
+  // isPremium is authoritative from entitlements/{email}; fall back to the
+  // legacy users/{uid}.isPremium field during the transition period.
+  let isPremium = doc.data["isPremium"] === true;
+  if (email) {
+    const entitlement = await getDoc(`entitlements/${email.toLowerCase()}`);
+    if (entitlement) isPremium = entitlement.data["isPremium"] === true;
+  }
+
   return {
     id: doc.id,
     displayName: str(doc.data["displayName"]),
-    email: str(doc.data["email"]),
-    isPremium: doc.data["isPremium"] === true,
+    email,
+    isPremium,
     createdAt: typeof doc.data["createdAt"] === "string" ? doc.data["createdAt"] : null,
     stats: summary
       ? {
@@ -262,14 +294,28 @@ export async function getPlayer(id: string): Promise<PlayerRecord | null> {
 }
 
 export async function setPremium(input: { id: string; isPremium: boolean }, adminUser?: AdminUser) {
-  await patchDoc(`users/${input.id}`, { isPremium: input.isPremium, updatedAt: new Date().toISOString() });
+  // Resolve the player's email to write to the canonical entitlements/{email} doc.
+  const doc = await getDoc(`users/${input.id}`);
+  const email = doc ? str(doc.data["email"]) : "";
+
+  if (email) {
+    await patchDoc(`entitlements/${email.toLowerCase()}`, {
+      isPremium: input.isPremium,
+      grantedAt: new Date().toISOString(),
+      grantedBy: adminUser?.email ?? adminUser?.uid ?? "system",
+    });
+  } else {
+    // No email on file — fall back to the legacy per-UID field.
+    await patchDoc(`users/${input.id}`, { isPremium: input.isPremium, updatedAt: new Date().toISOString() });
+  }
+
   if (adminUser) {
     const { logAdminAction } = await import("@/lib/firebase/audit.server");
     await logAdminAction(adminUser, {
       action: input.isPremium ? "player.grant_premium" : "player.revoke_premium",
       targetType: "user",
-      targetId: input.id,
-      details: `${input.isPremium ? "Granted" : "Revoked"} premium entitlement for user ${input.id}`,
+      targetId: email || input.id,
+      details: `${input.isPremium ? "Granted" : "Revoked"} premium entitlement for ${email || input.id} (uid: ${input.id})`,
       after: { isPremium: input.isPremium },
     });
   }
