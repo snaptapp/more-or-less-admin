@@ -81,25 +81,6 @@ function OverviewPage() {
             </Card>
           </div>
 
-          <div className="admin-chart-grid">
-            <StatusPie title="Fact bank status" rows={data.series.factStatus} />
-            <StatusPie title="Active content rating" rows={data.series.contentRating} />
-            <CountBar title="Facts by category" rows={data.series.categories} layout="horizontal" />
-            <StatusPie title="Moderation mix" rows={data.series.reports} />
-            <CountBar title="Crawl queue" rows={data.series.crawl} />
-            <StatusPie
-              title="Games by mode (7d)"
-              rows={data.series.gamesByMode}
-              footnote={
-                data.gamesWindowed
-                  ? `Sampled ${data.gamesSampled} games (capped at 500). Shorten the window on Game analytics for exact counts.`
-                  : data.gamesSampled === 0
-                    ? undefined
-                    : `Based on ${data.gamesSampled} sampled games.`
-              }
-            />
-          </div>
-
           <Card>
             <CardLabel>Jump in</CardLabel>
             <div className="admin-toolbar" style={{ marginTop: "var(--ds-arena-space-3)" }}>
@@ -120,6 +101,25 @@ function OverviewPage() {
               </Link>
             </div>
           </Card>
+
+          <div className="admin-chart-grid">
+            <StatusPie title="Fact bank status" rows={data.series.factStatus} />
+            <StatusPie title="Active content rating" rows={data.series.contentRating} />
+            <CountBar title="Facts by category" rows={data.series.categories} layout="horizontal" />
+            <StatusPie title="Moderation mix" rows={data.series.reports} />
+            <CountBar title="Crawl queue" rows={data.series.crawl} />
+            <StatusPie
+              title="Games by mode (7d)"
+              rows={data.series.gamesByMode}
+              footnote={
+                data.gamesWindowed
+                  ? `Sampled ${data.gamesSampled} games (capped at 500). Shorten the window on Game analytics for exact counts.`
+                  : data.gamesSampled === 0
+                    ? undefined
+                    : `Based on ${data.gamesSampled} sampled games.`
+              }
+            />
+          </div>
         </>
       ) : null}
     </>

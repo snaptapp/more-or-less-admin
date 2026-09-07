@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Badge, Button, Card, CardTitle } from "@/index";
-import { ErrorNote, PageHead } from "@/admin/AdminShell";
+import { ErrorNote, InlineEditorRow, PageHead } from "@/admin/AdminShell";
 import { fetchPlayer, fetchPlayers, togglePremium } from "@/lib/admin/ops.functions";
 
 export const Route = createFileRoute("/admin/players")({
@@ -114,7 +114,6 @@ function PlayersPage() {
         </label>
       </div>
       <ErrorNote error={query.error} />
-      {selected ? <PlayerDetail id={selected} onDone={() => setSelected(null)} /> : null}
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>
@@ -127,21 +126,35 @@ function PlayersPage() {
             </tr>
           </thead>
           <tbody>
-            {query.data?.map((player) => (
-              <tr key={player.id}>
-                <td>
-                  <strong>{player.displayName || "—"}</strong>
-                </td>
-                <td>{player.email || "—"}</td>
-                <td>{player.isPremium ? "Yes" : "No"}</td>
-                <td>{player.createdAt ?? "—"}</td>
-                <td>
-                  <Button size="sm" variant="ghost" onClick={() => setSelected(player.id)}>
-                    Inspect
-                  </Button>
-                </td>
-              </tr>
-            ))}
+            {query.data?.map((player) => {
+              const isEditing = selected === player.id;
+              return (
+                <Fragment key={player.id}>
+                  <tr className={isEditing ? "is-editing" : undefined}>
+                    <td>
+                      <strong>{player.displayName || "—"}</strong>
+                    </td>
+                    <td>{player.email || "—"}</td>
+                    <td>{player.isPremium ? "Yes" : "No"}</td>
+                    <td>{player.createdAt ?? "—"}</td>
+                    <td>
+                      <Button
+                        size="sm"
+                        variant={isEditing ? "primary" : "ghost"}
+                        onClick={() => setSelected(isEditing ? null : player.id)}
+                      >
+                        {isEditing ? "Close" : "Inspect"}
+                      </Button>
+                    </td>
+                  </tr>
+                  {isEditing ? (
+                    <InlineEditorRow colSpan={5}>
+                      <PlayerDetail id={player.id} onDone={() => setSelected(null)} />
+                    </InlineEditorRow>
+                  ) : null}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
         {query.isLoading ? <p className="admin-empty">Loading players…</p> : null}

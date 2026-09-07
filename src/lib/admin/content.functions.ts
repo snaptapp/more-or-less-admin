@@ -248,9 +248,19 @@ export const fetchOverview = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const user = context.user;
     const { countCollection } = await import("@/lib/firebase/firestore.server");
-    const { listSubjects, getGameAnalytics } = await import("./ops.server");
+    const { getGameAnalytics } = await import("./ops.server");
 
     const since7d = new Date(Date.now() - 7 * 86_400_000).toISOString();
+
+    const categoryCountsPromise = Promise.all(
+      CANONICAL_CATEGORIES.map(async (category) => ({
+        name: category,
+        count: await countCollection("fact_bank", [
+          { field: "status", op: "EQUAL", value: "active" },
+          { field: "category", op: "EQUAL", value: category },
+        ]),
+      })),
+    );
 
     const [
       active,
@@ -263,9 +273,10 @@ export const fetchOverview = createServerFn({ method: "GET" })
       ratingAfterDark,
       crawlQueued,
       crawlProcessing,
+      crawlDone,
       premium,
       games7d,
-      subjects,
+      categoryCounts,
       gameAnalytics,
     ] = await Promise.all([
       countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "active" }]),
@@ -284,13 +295,14 @@ export const fetchOverview = createServerFn({ method: "GET" })
       ]),
       countCollection("crawl_queue", [{ field: "status", op: "EQUAL", value: "queued" }]),
       countCollection("crawl_queue", [{ field: "status", op: "EQUAL", value: "processing" }]),
+      countCollection("crawl_queue", [{ field: "status", op: "EQUAL", value: "done" }]),
       countCollection("users", [{ field: "isPremium", op: "EQUAL", value: true }]),
       countCollection(
         "game_history",
         [{ field: "playedAt", op: "GREATER_THAN_OR_EQUAL", value: since7d }],
         { allDescendants: true },
       ),
-      listSubjects({}),
+      categoryCountsPromise,
       getGameAnalytics({ since: since7d }),
     ]);
 
@@ -312,9 +324,10 @@ export const fetchOverview = createServerFn({ method: "GET" })
       crawl: [
         { name: "queued", count: crawlQueued },
         { name: "processing", count: crawlProcessing },
+        { name: "done", count: crawlDone },
       ] satisfies OverviewSeriesRow[],
-      categories: subjects.coverage
-        .map((row) => ({ name: row.category, count: row.facts }))
+      categories: categoryCounts
+        .filter((row) => row.count > 0)
         .sort((a, b) => b.count - a.count) satisfies OverviewSeriesRow[],
       gamesByMode: gameAnalytics.byMode satisfies OverviewSeriesRow[],
     };

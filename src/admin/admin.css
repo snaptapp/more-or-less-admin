@@ -348,6 +348,24 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   background: var(--ds-arena-color-surface-raised);
 }
 
+.admin-table tbody tr.is-editing td {
+  background: var(--ds-arena-color-surface-hover);
+}
+
+.admin-inline-editor-row td,
+.admin-table tbody tr.admin-inline-editor-row:hover td {
+  padding: 16px 20px;
+  background: var(--ds-arena-color-surface-sunken, rgba(0, 0, 0, 0.25));
+  border-left: 3px solid var(--ds-arena-color-lime, #84cc16);
+  border-bottom: 1px solid var(--ds-arena-color-border-subtle);
+}
+
+.admin-inline-editor-cell > .ds-card {
+  margin: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
 .admin-table td strong {
   color: var(--ds-arena-color-text);
 }
@@ -494,6 +512,38 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   margin: var(--ds-arena-space-2) 0 0;
   color: var(--ds-arena-color-text-muted);
   font-size: 12px;
+}
+
+.admin-chart-tooltip {
+  background: var(--ds-arena-color-surface);
+  border: 1px solid var(--ds-arena-color-border);
+  border-radius: var(--ds-arena-radius-sm);
+  padding: 8px 10px;
+  color: var(--ds-arena-color-text);
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: var(--ds-arena-shadow-card);
+}
+
+.admin-chart-tooltip__label {
+  color: var(--ds-arena-color-text-muted);
+  font-family: var(--ds-arena-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.admin-chart-tooltip__value {
+  color: var(--ds-arena-color-text);
+  font-weight: 600;
+}
+
+/* Recharts default tooltip items are black; force readable text on dark surfaces. */
+.admin-chart .recharts-default-tooltip,
+.admin-chart .recharts-tooltip-item,
+.admin-chart .recharts-tooltip-label {
+  color: var(--ds-arena-color-text) !important;
 }
 
 .admin-stat {

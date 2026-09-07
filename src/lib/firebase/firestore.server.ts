@@ -32,6 +32,7 @@ const TIMESTAMP_KEYS = new Set([
   "endedAt",
   "updated_at",
   "resolved_at",
+  "playedAt",
 ]);
 
 function baseUrl(): string {

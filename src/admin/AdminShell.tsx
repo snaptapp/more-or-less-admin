@@ -188,6 +188,22 @@ export function PageHead({
   );
 }
 
+export function InlineEditorRow({
+  colSpan,
+  children,
+}: {
+  colSpan: number;
+  children: ReactNode;
+}) {
+  return (
+    <tr className="admin-inline-editor-row">
+      <td colSpan={colSpan} className="admin-inline-editor-cell">
+        {children}
+      </td>
+    </tr>
+  );
+}
+
 export function ErrorNote({ error }: { error: unknown }) {
   if (!error) return null;
   const message =

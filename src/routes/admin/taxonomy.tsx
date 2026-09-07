@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
-import { ErrorNote, PageHead, statusTone } from "@/admin/AdminShell";
+import { ErrorNote, InlineEditorRow, PageHead, statusTone } from "@/admin/AdminShell";
 import {
   fetchCrawlQueue,
   fetchSubjects,
@@ -365,7 +365,6 @@ function TaxonomyPage() {
       </div>
 
       <ErrorNote error={query.error} />
-      {selected ? <SubjectEditor subject={selected} onDone={() => setSelected(null)} /> : null}
 
       <div className="admin-table-wrap">
         <table className="admin-table">
@@ -381,23 +380,37 @@ function TaxonomyPage() {
             </tr>
           </thead>
           <tbody>
-            {query.data?.subjects.map((subject) => (
-              <tr key={subject.id}>
-                <td>
-                  <strong>{subject.subject}</strong>
-                </td>
-                <td>{subject.category || "—"}</td>
-                <td>{subject.sub_category || "—"}</td>
-                <td>{subject.aliases.join(", ") || "—"}</td>
-                <td>{subject.fact_count}</td>
-                <td>{subject.last_crawled_at ?? "—"}</td>
-                <td>
-                  <Button size="sm" variant="ghost" onClick={() => setSelected(subject)}>
-                    Edit
-                  </Button>
-                </td>
-              </tr>
-            ))}
+            {query.data?.subjects.map((subject) => {
+              const isEditing = selected?.id === subject.id;
+              return (
+                <Fragment key={subject.id}>
+                  <tr className={isEditing ? "is-editing" : undefined}>
+                    <td>
+                      <strong>{subject.subject}</strong>
+                    </td>
+                    <td>{subject.category || "—"}</td>
+                    <td>{subject.sub_category || "—"}</td>
+                    <td>{subject.aliases.join(", ") || "—"}</td>
+                    <td>{subject.fact_count}</td>
+                    <td>{subject.last_crawled_at ?? "—"}</td>
+                    <td>
+                      <Button
+                        size="sm"
+                        variant={isEditing ? "primary" : "ghost"}
+                        onClick={() => setSelected(isEditing ? null : subject)}
+                      >
+                        {isEditing ? "Close" : "Edit"}
+                      </Button>
+                    </td>
+                  </tr>
+                  {isEditing ? (
+                    <InlineEditorRow colSpan={7}>
+                      <SubjectEditor subject={subject} onDone={() => setSelected(null)} />
+                    </InlineEditorRow>
+                  ) : null}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
         {query.isLoading ? <p className="admin-empty">Loading subjects…</p> : null}

@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState, type FormEvent } from "react";
+import { Fragment, useMemo, useState, type FormEvent } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
-import { ErrorNote, InfoTip, PageHead } from "@/admin/AdminShell";
+import { ErrorNote, InlineEditorRow, PageHead } from "@/admin/AdminShell";
 import { exportFactsData } from "@/lib/admin/content.functions";
 import {
   deleteDailyPackAction,
@@ -274,7 +274,7 @@ function ScheduleDailyModal({
   };
 
   return (
-    <Card style={{ border: "2px solid var(--ds-arena-color-lime, #84cc16)", marginBottom: "var(--ds-arena-space-5)" }}>
+    <Card style={{ border: "2px solid var(--ds-arena-color-lime, #84cc16)" }}>
       <datalist id="daily-categories-list">
         {CATEGORIES.map((cat) => (
           <option key={cat} value={cat} />
@@ -506,8 +506,7 @@ function DailyPage() {
   const queryClient = useQueryClient();
 
   const [date, setDate] = useState(today);
-  const [scheduling, setScheduling] = useState(false);
-  const [scheduleTargetDate, setScheduleTargetDate] = useState(addDays(today(), 1));
+  const [schedulingDate, setSchedulingDate] = useState<string | null>(null);
 
   const scheduleQuery = useQuery({
     queryKey: ["daily_schedule"],
@@ -573,11 +572,11 @@ function DailyPage() {
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <Button
               onClick={() => {
-                setScheduleTargetDate(addDays(today(), 1));
-                setScheduling((v) => !v);
+                const target = addDays(today(), 1);
+                setSchedulingDate((current) => (current === target ? null : target));
               }}
             >
-              {scheduling ? "Close Scheduler" : "+ Schedule Daily"}
+              {schedulingDate ? "Close Scheduler" : "+ Schedule Daily"}
             </Button>
           </div>
         }
@@ -585,10 +584,11 @@ function DailyPage() {
 
       <ErrorNote error={scheduleQuery.error || dailyQuery.error} />
 
-      {scheduling ? (
+      {schedulingDate && !upcomingTimeline.some((item) => item.date === schedulingDate) ? (
         <ScheduleDailyModal
-          initialDate={scheduleTargetDate}
-          onDone={() => setScheduling(false)}
+          key={schedulingDate}
+          initialDate={schedulingDate}
+          onDone={() => setSchedulingDate(null)}
         />
       ) : null}
 
@@ -617,81 +617,92 @@ function DailyPage() {
               {upcomingTimeline.map((item) => {
                 const isSelected = date === item.date;
                 const isScheduled = Boolean(item.pack);
+                const isEditing = schedulingDate === item.date;
                 return (
-                  <tr
-                    key={item.date}
-                    style={{
-                      backgroundColor: isSelected
-                        ? "var(--ds-arena-color-surface-hover)"
-                        : item.isToday
-                          ? "rgba(132, 204, 22, 0.06)"
-                          : undefined,
-                    }}
-                  >
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <strong style={{ fontFamily: "var(--ds-arena-font-mono)", fontSize: 13 }}>
-                          {item.date}
-                        </strong>
-                        <span style={{ fontSize: 11, color: item.isToday ? "var(--ds-arena-color-lime)" : "var(--ds-arena-color-text-muted)" }}>
-                          ({item.label})
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      {item.pack ? (
-                        <Badge tone="purple">{item.pack.category}</Badge>
-                      ) : (
-                        <span style={{ color: "var(--ds-arena-color-text-muted)", fontStyle: "italic", fontSize: 13 }}>
-                          On-demand fallback (Deep Sea Creatures)
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      {isScheduled ? (
-                        <Badge tone="green">✓ Pre-scheduled</Badge>
-                      ) : (
-                        <Badge tone="amber">Unscheduled</Badge>
-                      )}
-                    </td>
-                    <td>{item.pack?.total_rounds ? `${item.pack.total_rounds} rounds` : "—"}</td>
-                    <td style={{ fontSize: 12 }}>{item.pack?.createdAt ? item.pack.createdAt.slice(0, 10) : "—"}</td>
-                    <td style={{ textAlign: "right" }}>
-                      <div className="admin-row-actions" style={{ justifyContent: "flex-end" }}>
-                        <Button
-                          size="sm"
-                          variant={isSelected ? "primary" : "ghost"}
-                          onClick={() => setDate(item.date)}
-                        >
-                          {isSelected ? "Inspecting" : "Inspect"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setScheduleTargetDate(item.date);
-                            setScheduling(true);
-                          }}
-                        >
-                          {isScheduled ? "Edit pack" : "Schedule"}
-                        </Button>
+                  <Fragment key={item.date}>
+                    <tr
+                      className={isEditing ? "is-editing" : undefined}
+                      style={
+                        !isEditing && isSelected
+                          ? { backgroundColor: "var(--ds-arena-color-surface-hover)" }
+                          : !isEditing && item.isToday
+                            ? { backgroundColor: "rgba(132, 204, 22, 0.06)" }
+                            : undefined
+                      }
+                    >
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <strong style={{ fontFamily: "var(--ds-arena-font-mono)", fontSize: 13 }}>
+                            {item.date}
+                          </strong>
+                          <span style={{ fontSize: 11, color: item.isToday ? "var(--ds-arena-color-lime)" : "var(--ds-arena-color-text-muted)" }}>
+                            ({item.label})
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        {item.pack ? (
+                          <Badge tone="purple">{item.pack.category}</Badge>
+                        ) : (
+                          <span style={{ color: "var(--ds-arena-color-text-muted)", fontStyle: "italic", fontSize: 13 }}>
+                            On-demand fallback (Deep Sea Creatures)
+                          </span>
+                        )}
+                      </td>
+                      <td>
                         {isScheduled ? (
+                          <Badge tone="green">✓ Pre-scheduled</Badge>
+                        ) : (
+                          <Badge tone="amber">Unscheduled</Badge>
+                        )}
+                      </td>
+                      <td>{item.pack?.total_rounds ? `${item.pack.total_rounds} rounds` : "—"}</td>
+                      <td style={{ fontSize: 12 }}>{item.pack?.createdAt ? item.pack.createdAt.slice(0, 10) : "—"}</td>
+                      <td style={{ textAlign: "right" }}>
+                        <div className="admin-row-actions" style={{ justifyContent: "flex-end" }}>
                           <Button
                             size="sm"
-                            variant="danger"
-                            disabled={deleteMutation.isPending}
-                            onClick={() => {
-                              if (window.confirm(`Delete pre-scheduled daily pack for ${item.date}?`)) {
-                                deleteMutation.mutate(item.date);
-                              }
-                            }}
+                            variant={isSelected ? "primary" : "ghost"}
+                            onClick={() => setDate(item.date)}
                           >
-                            Delete
+                            {isSelected ? "Inspecting" : "Inspect"}
                           </Button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
+                          <Button
+                            size="sm"
+                            variant={isEditing ? "primary" : "ghost"}
+                            onClick={() =>
+                              setSchedulingDate((current) => (current === item.date ? null : item.date))
+                            }
+                          >
+                            {isEditing ? "Close" : isScheduled ? "Edit pack" : "Schedule"}
+                          </Button>
+                          {isScheduled ? (
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              disabled={deleteMutation.isPending}
+                              onClick={() => {
+                                if (window.confirm(`Delete pre-scheduled daily pack for ${item.date}?`)) {
+                                  deleteMutation.mutate(item.date);
+                                }
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                    {isEditing ? (
+                      <InlineEditorRow colSpan={6}>
+                        <ScheduleDailyModal
+                          key={item.date}
+                          initialDate={item.date}
+                          onDone={() => setSchedulingDate(null)}
+                        />
+                      </InlineEditorRow>
+                    ) : null}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -714,12 +725,11 @@ function DailyPage() {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => {
-              setScheduleTargetDate(date);
-              setScheduling(true);
-            }}
+            onClick={() =>
+              setSchedulingDate((current) => (current === date ? null : date))
+            }
           >
-            {pack ? "Edit this pack" : `+ Schedule pack for ${date}`}
+            {schedulingDate === date ? "Close" : pack ? "Edit this pack" : `+ Schedule pack for ${date}`}
           </Button>
         </div>
       </div>
@@ -735,12 +745,11 @@ function DailyPage() {
           <div style={{ marginTop: "var(--ds-arena-space-3)" }}>
             <Button
               size="sm"
-              onClick={() => {
-                setScheduleTargetDate(date);
-                setScheduling(true);
-              }}
+              onClick={() =>
+                setSchedulingDate((current) => (current === date ? null : date))
+              }
             >
-              Schedule pack for {date}
+              {schedulingDate === date ? "Close scheduler" : `Schedule pack for ${date}`}
             </Button>
           </div>
         </Card>

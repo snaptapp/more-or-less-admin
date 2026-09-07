@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState, Fragment, type FormEvent } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
-import { ErrorNote, InfoTip, PageHead, statusTone } from "@/admin/AdminShell";
+import { ErrorNote, InfoTip, InlineEditorRow, PageHead, statusTone } from "@/admin/AdminShell";
 import {
   addFact,
   bulkImportFacts,
@@ -946,15 +946,7 @@ function FactsPage() {
               const isEditing = selected?.id === fact.id;
               return (
                 <Fragment key={fact.id}>
-                  <tr
-                    style={
-                      isEditing
-                        ? {
-                            backgroundColor: "var(--ds-arena-color-surface-hover)",
-                          }
-                        : undefined
-                    }
-                  >
+                  <tr className={isEditing ? "is-editing" : undefined}>
                     <td>
                       <strong>{fact.subject}</strong>
                     </td>
@@ -1006,19 +998,9 @@ function FactsPage() {
                     </td>
                   </tr>
                   {isEditing ? (
-                    <tr className="admin-inline-editor-row" key={`${fact.id}-editor`}>
-                      <td
-                        colSpan={8}
-                        style={{
-                          padding: "16px 20px",
-                          background: "var(--ds-arena-color-surface-sunken, rgba(0, 0, 0, 0.25))",
-                          borderLeft: "3px solid var(--ds-arena-color-lime, #84cc16)",
-                          borderBottom: "1px solid var(--ds-arena-color-border-subtle)",
-                        }}
-                      >
-                        <FactEditor fact={fact} onDone={() => setSelected(null)} />
-                      </td>
-                    </tr>
+                    <InlineEditorRow colSpan={8}>
+                      <FactEditor fact={fact} onDone={() => setSelected(null)} />
+                    </InlineEditorRow>
                   ) : null}
                 </Fragment>
               );

@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { TooltipProps } from "recharts";
 import { Card, CardTitle } from "@/index";
 
 export type ChartRow = { name: string; count: number };
@@ -27,20 +28,25 @@ const ARENA = {
 
 const PALETTE = [ARENA.lime, ARENA.amber, ARENA.red, ARENA.purple, ARENA.muted, "#5b8def", "#2dd4bf"] as const;
 
-const tooltipStyle = {
-  background: ARENA.surface,
-  border: `1px solid ${ARENA.border}`,
-  borderRadius: 8,
-  color: ARENA.text,
-  fontSize: 12,
-};
-
-function hasData(rows: ChartRow[]): boolean {
-  return rows.some((row) => row.count > 0);
+function positiveRows(rows: ChartRow[]): ChartRow[] {
+  return rows.filter((row) => row.count > 0);
 }
 
 function EmptyState() {
   return <p className="admin-chart-empty">No data</p>;
+}
+
+function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
+  if (!active || !payload?.length) return null;
+  const entry = payload[0];
+  const name = (entry?.name ?? label ?? "") as string;
+  const value = entry?.value ?? 0;
+  return (
+    <div className="admin-chart-tooltip">
+      {name ? <div className="admin-chart-tooltip__label">{name}</div> : null}
+      <div className="admin-chart-tooltip__value">{value}</div>
+    </div>
+  );
 }
 
 export function StatusPie({
@@ -52,36 +58,38 @@ export function StatusPie({
   rows: ChartRow[];
   footnote?: string;
 }) {
+  const data = positiveRows(rows);
+
   return (
     <Card>
       <CardTitle>{title}</CardTitle>
       <div className="admin-chart">
-        {!hasData(rows) ? (
+        {data.length === 0 ? (
           <EmptyState />
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
+            <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
               <Pie
-                data={rows}
+                data={data}
                 dataKey="count"
                 nameKey="name"
                 cx="50%"
-                cy="50%"
-                innerRadius={48}
+                cy="42%"
+                innerRadius={52}
                 outerRadius={78}
-                paddingAngle={2}
+                paddingAngle={data.length > 1 ? 2 : 0}
                 stroke={ARENA.border}
               >
-                {rows.map((row, index) => (
+                {data.map((row, index) => (
                   <Cell key={row.name} fill={PALETTE[index % PALETTE.length]} />
                 ))}
               </Pie>
-              <Tooltip
-                contentStyle={tooltipStyle}
-                formatter={(value: number) => [value, "count"]}
-              />
+              <Tooltip content={<ChartTooltip />} />
               <Legend
-                wrapperStyle={{ color: ARENA.muted, fontSize: 12 }}
+                verticalAlign="bottom"
+                align="center"
+                iconType="circle"
+                wrapperStyle={{ color: ARENA.text, fontSize: 12, paddingTop: 4 }}
                 formatter={(value) => <span style={{ color: ARENA.text }}>{value}</span>}
               />
             </PieChart>
@@ -104,8 +112,9 @@ export function CountBar({
   layout?: "vertical" | "horizontal";
   footnote?: string;
 }) {
+  const data = positiveRows(rows);
   const horizontal = layout === "horizontal";
-  const chartHeight = Math.max(240, rows.length * 28);
+  const chartHeight = horizontal ? Math.max(180, data.length * 36 + 24) : 240;
 
   return (
     <Card>
@@ -114,33 +123,51 @@ export function CountBar({
         className="admin-chart"
         style={horizontal ? { height: chartHeight, minHeight: chartHeight } : undefined}
       >
-        {!hasData(rows) ? (
+        {data.length === 0 ? (
           <EmptyState />
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
-              data={rows}
+              data={data}
               layout={horizontal ? "vertical" : "horizontal"}
-              margin={{ top: 8, right: 12, left: horizontal ? 8 : 0, bottom: 4 }}
+              margin={{
+                top: 8,
+                right: 16,
+                left: horizontal ? 4 : 0,
+                bottom: 4,
+              }}
             >
               {horizontal ? (
                 <>
-                  <XAxis type="number" stroke={ARENA.muted} tick={{ fill: ARENA.muted, fontSize: 11 }} />
+                  <XAxis
+                    type="number"
+                    stroke={ARENA.muted}
+                    tick={{ fill: ARENA.muted, fontSize: 11 }}
+                    allowDecimals={false}
+                  />
                   <YAxis
                     type="category"
                     dataKey="name"
-                    width={110}
+                    width={120}
                     stroke={ARENA.muted}
                     tick={{ fill: ARENA.text, fontSize: 11 }}
                   />
                 </>
               ) : (
                 <>
-                  <XAxis dataKey="name" stroke={ARENA.muted} tick={{ fill: ARENA.text, fontSize: 11 }} />
-                  <YAxis stroke={ARENA.muted} tick={{ fill: ARENA.muted, fontSize: 11 }} allowDecimals={false} />
+                  <XAxis
+                    dataKey="name"
+                    stroke={ARENA.muted}
+                    tick={{ fill: ARENA.text, fontSize: 11 }}
+                  />
+                  <YAxis
+                    stroke={ARENA.muted}
+                    tick={{ fill: ARENA.muted, fontSize: 11 }}
+                    allowDecimals={false}
+                  />
                 </>
               )}
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(215, 242, 74, 0.08)" }} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(215, 242, 74, 0.08)" }} />
               <Bar dataKey="count" radius={[4, 4, 4, 4]} fill={ARENA.lime} maxBarSize={36} />
             </BarChart>
           </ResponsiveContainer>
