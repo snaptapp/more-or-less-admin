@@ -53,6 +53,14 @@ function ReportCard({ entry }: { entry: Entry }) {
       </div>
       <p style={{ color: "var(--ds-arena-color-text)", margin: "8px 0" }}>{entry.report.claimStatement}</p>
       <dl className="admin-kv">
+        {entry.report.initialTopic && entry.report.initialTopic !== entry.report.topic ? (
+          <>
+            <dt>Selected Topic</dt>
+            <dd>{entry.report.initialTopic}</dd>
+          </>
+        ) : null}
+        <dt>Exact Question</dt>
+        <dd style={{ fontWeight: 600 }}>{entry.report.claimStatement}</dd>
         <dt>Presented</dt>
         <dd>
           {entry.report.presentedNumber ?? "—"} {entry.report.unit}
@@ -61,10 +69,84 @@ function ReportCard({ entry }: { entry: Entry }) {
         <dd>
           {entry.report.trueNumber ?? "—"} {entry.report.unit}
         </dd>
-        <dt>Reason</dt>
+        {entry.report.playerGuess ? (
+          <>
+            <dt>Player Guess</dt>
+            <dd>
+              <strong>{entry.report.playerGuess}</strong>
+              {entry.report.isPlayerCorrect !== null && entry.report.isPlayerCorrect !== undefined ? (
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: "0.85em",
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    background: entry.report.isPlayerCorrect ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)",
+                    color: entry.report.isPlayerCorrect ? "#10b981" : "#ef4444",
+                  }}
+                >
+                  {entry.report.isPlayerCorrect ? "CORRECT" : "WRONG"}
+                </span>
+              ) : null}
+            </dd>
+          </>
+        ) : null}
+        <dt>Dispute Reason</dt>
         <dd>{entry.report.reason || "—"}</dd>
-        <dt>Feedback</dt>
+        <dt>Player Feedback</dt>
         <dd>{entry.report.feedbackText || "—"}</dd>
+        <dt>Ombudsman Ruling</dt>
+        <dd>
+          {entry.report.ombudsmanRuling ? (
+            <div>
+              <div style={{ marginBottom: 4 }}>{entry.report.ombudsmanRuling}</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                {entry.report.ombudsmanArbiter ? (
+                  <span
+                    style={{
+                      fontSize: "0.8em",
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      background: entry.report.ombudsmanArbiter === "gemini" ? "rgba(147, 51, 234, 0.2)" : "rgba(107, 114, 128, 0.2)",
+                      color: entry.report.ombudsmanArbiter === "gemini" ? "#c084fc" : "#9ca3af",
+                    }}
+                  >
+                    Arbiter: {entry.report.ombudsmanArbiter === "gemini" ? "Gemini (Vertex AI Grounding)" : "Edge Worker (Fallback Review)"}
+                  </span>
+                ) : null}
+                {entry.report.ombudsmanAgreed !== null && entry.report.ombudsmanAgreed !== undefined ? (
+                  <span
+                    style={{
+                      fontSize: "0.8em",
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      background: entry.report.ombudsmanAgreed ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)",
+                      color: entry.report.ombudsmanAgreed ? "#10b981" : "#ef4444",
+                    }}
+                  >
+                    {entry.report.ombudsmanAgreed ? "Agreed with player" : "Rejected dispute"}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            "—"
+          )}
+        </dd>
+        {entry.report.ombudsmanSources && entry.report.ombudsmanSources.length > 0 ? (
+          <>
+            <dt>Grounding Sources</dt>
+            <dd>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {entry.report.ombudsmanSources.map((source, idx) => (
+                  <li key={idx} style={{ fontSize: "0.9em", color: "var(--ds-arena-color-text-muted)" }}>
+                    {source}
+                  </li>
+                ))}
+              </ul>
+            </dd>
+          </>
+        ) : null}
         <dt>Reporter</dt>
         <dd>{entry.report.reporterUid || "anonymous"}</dd>
         <dt>Created</dt>

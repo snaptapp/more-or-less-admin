@@ -516,6 +516,7 @@ export async function createFact(input: {
 export interface ReportRecord {
   id: string;
   topic: string;
+  initialTopic?: string;
   claimStatement: string;
   presentedNumber: number | null;
   trueNumber: number | null;
@@ -526,13 +527,49 @@ export interface ReportRecord {
   status: string;
   createdAt: string | null;
   resolutionNote: string | null;
+  // Rich context fields:
+  playerGuess?: "MORE" | "LESS" | "SKIP" | "TIMEOUT" | string;
+  isPlayerCorrect?: boolean | null;
+  ombudsmanVerdict?: string;
+  ombudsmanAgreed?: boolean | null;
+  ombudsmanRuling?: string;
+  ombudsmanSources: string[];
+  ombudsmanArbiter?: "gemini" | "edge_worker" | "unspecified";
 }
 
 function toReport(doc: FirestoreDoc): ReportRecord {
   const d = doc.data;
+  
+  // Backwards compatibility for grounding sources
+  let sources: string[] = [];
+  if (Array.isArray(d["ombudsmanSources"])) {
+    sources = d["ombudsmanSources"].map((s) => String(s));
+  } else if (Array.isArray(d["groundingSources"])) {
+    sources = d["groundingSources"].map((s) => String(s));
+  }
+
+  // Backwards compatibility for arbiter classification
+  let arbiter: "gemini" | "edge_worker" | "unspecified" = "unspecified";
+  const explicitArbiter = str(d["ombudsmanArbiter"]);
+  const ruling = str(d["ombudsmanRuling"]) || str(d["ruling"]);
+  
+  if (explicitArbiter === "gemini" || explicitArbiter === "edge_worker") {
+    arbiter = explicitArbiter;
+  } else if (sources.some((s) => s.toLowerCase().includes("edge")) || ruling.toLowerCase().includes("edge ombudsman") || ruling.toLowerCase().includes("submitted for review")) {
+    arbiter = "edge_worker";
+  } else if (sources.some((s) => s.toLowerCase().includes("google") || s.toLowerCase().includes("vertex") || s.toLowerCase().includes("gemini"))) {
+    arbiter = "gemini";
+  }
+
+  const rawVerdict = str(d["ombudsmanVerdict"]) || str(d["verdict"]);
+  const agreed = typeof d["ombudsmanAgreed"] === "boolean"
+    ? d["ombudsmanAgreed"]
+    : rawVerdict === "DEBUNKED_AND_EVICTED" || rawVerdict === "AMBIGUOUS_UNIT";
+
   return {
     id: doc.id,
     topic: str(d["topic"]),
+    initialTopic: str(d["initialTopic"]) || undefined,
     claimStatement: str(d["claimStatement"]),
     presentedNumber: num(d["presentedNumber"]),
     trueNumber: num(d["trueNumber"]),
@@ -543,6 +580,13 @@ function toReport(doc: FirestoreDoc): ReportRecord {
     status: str(d["status"]) || "pending_review",
     createdAt: typeof d["createdAt"] === "string" ? d["createdAt"] : null,
     resolutionNote: typeof d["resolutionNote"] === "string" ? d["resolutionNote"] : null,
+    playerGuess: str(d["playerGuess"]) || undefined,
+    isPlayerCorrect: typeof d["isPlayerCorrect"] === "boolean" ? d["isPlayerCorrect"] : null,
+    ombudsmanVerdict: rawVerdict || undefined,
+    ombudsmanAgreed: rawVerdict ? agreed : null,
+    ombudsmanRuling: ruling || undefined,
+    ombudsmanSources: sources,
+    ombudsmanArbiter: arbiter,
   };
 }
 
