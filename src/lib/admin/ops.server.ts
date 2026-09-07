@@ -736,26 +736,54 @@ export async function removeDailyLeaderboardEntry(
 
 /* --------------------------------- analytics ------------------------------- */
 
-// Wire labels in game_history still include pre-contract aliases
-// (standard3Round, versus1v1, …). Fold those into product modes.
-const CANONICAL_MODE_LABEL: Record<string, string> = {
-  standard: "Standard",
-  standard3round: "Standard",
-  cutthroat: "Cutthroat",
-  blitz: "Blitz",
-  blitz60s: "Blitz",
-  versus: "Versus",
-  versus1v1: "Versus",
-  party: "Party",
-  partyroom: "Party",
-  daily: "Daily",
-  dailychallenge: "Daily",
-};
+type ProductMode = "Classic" | "Cutthroat" | "Daily Blitz" | "Unknown";
+type LobbyKind = "single" | "multiplayer";
 
-function canonicalModeOf(data: Record<string, Json>): string {
-  const raw = str(data["gameMode"]);
-  if (!raw) return "Unknown";
-  return CANONICAL_MODE_LABEL[raw.toLowerCase()] ?? "Unknown";
+interface ClassifiedGame {
+  product: ProductMode;
+  lobby: LobbyKind | null;
+  label: string;
+}
+
+const DAILY_WIRES = new Set(["daily", "dailychallenge", "blitz", "blitz60s"]);
+const CUTTHROAT_WIRES = new Set(["cutthroat"]);
+const CLASSIC_WIRES = new Set([
+  "standard",
+  "standard3round",
+  "versus",
+  "versus1v1",
+  "party",
+  "partyroom",
+]);
+const MULTIPLAYER_WIRES = new Set(["versus", "versus1v1", "party", "partyroom"]);
+
+function classifyGame(data: Record<string, Json>): ClassifiedGame {
+  const wire = str(data["gameMode"]).toLowerCase();
+  const ruleset = str(data["ruleset"]).toLowerCase();
+  const source = str(data["matchSource"]).toLowerCase();
+
+  let product: ProductMode = "Unknown";
+  if (DAILY_WIRES.has(wire)) product = "Daily Blitz";
+  else if (CUTTHROAT_WIRES.has(wire) || ruleset === "cutthroat") product = "Cutthroat";
+  else if (
+    CLASSIC_WIRES.has(wire) ||
+    ruleset === "standard" ||
+    ruleset === "party" ||
+    ruleset === "blitz"
+  ) {
+    product = "Classic";
+  }
+
+  if (product === "Daily Blitz") {
+    return { product, lobby: null, label: "Daily Blitz" };
+  }
+  if (product === "Unknown") {
+    return { product, lobby: null, label: "Unknown" };
+  }
+
+  const lobby: LobbyKind =
+    source === "party" || MULTIPLAYER_WIRES.has(wire) ? "multiplayer" : "single";
+  return { product, lobby, label: `${product} (${lobby})` };
 }
 
 export async function getGameAnalytics(input: { since?: string }) {
@@ -828,10 +856,13 @@ export async function getGameAnalytics(input: { since?: string }) {
       .sort((a, b) => b.count - a.count);
   };
 
-  const tallyMode = () => {
+  const classified = docs.map((doc) => classifyGame(doc.data));
+
+  const tallyClassified = (key: "product" | "label", include: (row: ClassifiedGame) => boolean) => {
     const counts = new Map<string, number>();
-    for (const doc of docs) {
-      const value = canonicalModeOf(doc.data);
+    for (const row of classified) {
+      if (!include(row)) continue;
+      const value = row[key];
       counts.set(value, (counts.get(value) ?? 0) + 1);
     }
     return [...counts.entries()]
@@ -857,7 +888,8 @@ export async function getGameAnalytics(input: { since?: string }) {
     windowed: docs.length >= 500,
     orderedNewestFirst,
     indexUnavailable,
-    byMode: tallyMode(),
+    byMode: tallyClassified("product", () => true),
+    byLobby: tallyClassified("label", (row) => row.lobby !== null),
     byCategory: tally("category"),
     byVerified: tallyBool("verified", "verified", "unverified"),
   };

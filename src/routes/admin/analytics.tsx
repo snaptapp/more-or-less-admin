@@ -301,8 +301,13 @@ function AnalyticsPage() {
           </Card>
           <div className="admin-two-col">
             <Breakdown title="By mode" rows={data.byMode} total={data.total} />
-            <Breakdown title="Verified vs unverified" rows={data.byVerified} total={data.total} />
+            <Breakdown
+              title="Classic / Cutthroat lobby"
+              rows={data.byLobby}
+              total={data.byLobby.reduce((sum, row) => sum + row.count, 0)}
+            />
           </div>
+          <Breakdown title="Verified vs unverified" rows={data.byVerified} total={data.total} />
           <CategoryBreakdown
             rows={data.byCategory}
             deleted={deletedCategories}
