@@ -19,6 +19,7 @@ import {
   type EditableRound,
 } from "./daily-blitz";
 import { generatePackViaGoAgent, goAgentConfigured } from "./goagent.server";
+import { isAbortError, responseSnippet } from "./http";
 import { listDailyPacks } from "./ops.server";
 
 const MODEL_ID = "gemini-3.8-flash";
@@ -384,33 +385,46 @@ async function executeTool(
 
 async function generateContent(contents: GeminiContent[], system: string): Promise<GeminiContent> {
   const token = await getAccessToken(["https://www.googleapis.com/auth/cloud-platform"]);
-  const response = await fetch(vertexUrl(), {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      systemInstruction: { role: "system", parts: [{ text: system }] },
-      contents,
-      tools: TOOLS,
-      generationConfig: {
-        temperature: 0.4,
-        thinkingConfig: { thinkingLevel: "LOW" },
+  let response: Response;
+  try {
+    response = await fetch(vertexUrl(), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-    }),
-    signal: AbortSignal.timeout(60_000),
-  });
+      body: JSON.stringify({
+        systemInstruction: { role: "system", parts: [{ text: system }] },
+        contents,
+        tools: TOOLS,
+        generationConfig: {
+          temperature: 0.4,
+          thinkingConfig: { thinkingLevel: "LOW" },
+        },
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch (err) {
+    if (isAbortError(err)) {
+      throw new Error("Gemini chat timed out.");
+    }
+    throw err;
+  }
   if (!response.ok) {
-    const detail = (await response.text()).slice(0, 400);
+    const detail = await responseSnippet(response, 400);
     throw new Error(
       `Gemini chat failed (${response.status}): ${detail}. Grant the ops service account roles/aiplatform.user on ${projectId()} if this is 403.`,
     );
   }
-  const payload = (await response.json()) as {
+  let payload: {
     candidates?: Array<{ content?: GeminiContent }>;
     error?: { message?: string };
   };
+  try {
+    payload = (await response.json()) as typeof payload;
+  } catch {
+    throw new Error("Gemini chat returned invalid JSON.");
+  }
   const content = payload.candidates?.[0]?.content;
   if (!content?.parts?.length) {
     throw new Error(payload.error?.message || "Gemini returned no content.");

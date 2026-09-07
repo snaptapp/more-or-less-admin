@@ -8,6 +8,7 @@
  */
 import { getOidcIdToken } from "../firebase/credentials.server";
 import { DAILY_BLITZ_ROUNDS, mapPackRounds, type EditableRound } from "./daily-blitz";
+import { isAbortError, responseSnippet } from "./http";
 
 const ADMIN_PACK_TIMEOUT_MS = 170_000;
 const ADMIN_PACK_BUDGET_HEADER = "X-Mol-Pack-Budget";
@@ -65,23 +66,36 @@ export async function generatePackViaGoAgent(input: GoPackRequest): Promise<GoPa
   const guidance = input.guidance?.trim();
   if (guidance) body.guidance = guidance;
 
-  const response = await fetch(`${baseUrl}/pack`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${idToken}`,
-      [ADMIN_PACK_BUDGET_HEADER]: "admin",
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(ADMIN_PACK_TIMEOUT_MS),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/pack`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+        [ADMIN_PACK_BUDGET_HEADER]: "admin",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(ADMIN_PACK_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (isAbortError(err)) {
+      throw new Error(`Go agent /pack timed out after ${ADMIN_PACK_TIMEOUT_MS}ms`);
+    }
+    throw err;
+  }
 
   if (!response.ok) {
-    const detail = (await response.text()).slice(0, 300);
+    const detail = await responseSnippet(response, 300);
     throw new Error(`Go agent /pack failed (${response.status}): ${detail}`);
   }
 
-  const raw = (await response.json()) as Record<string, unknown>;
+  let raw: Record<string, unknown>;
+  try {
+    raw = (await response.json()) as Record<string, unknown>;
+  } catch {
+    throw new Error("Go agent /pack returned invalid JSON");
+  }
   const roundsRaw = Array.isArray(raw.rounds) ? raw.rounds : [];
   const rounds = mapPackRounds(roundsRaw, topic);
   const isValid = raw.is_valid !== false && rounds.length > 0;
