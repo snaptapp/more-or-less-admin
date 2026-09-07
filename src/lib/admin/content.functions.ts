@@ -237,7 +237,7 @@ export const fetchOverview = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const user = context.user;
-    const { countCollection } = await import("@/lib/firebase/firestore.server");
+    const { countCollection, isFirestoreIndexError } = await import("@/lib/firebase/firestore.server");
     const { getGameAnalytics } = await import("./ops.server");
 
     const since7d = new Date(Date.now() - 7 * 86_400_000).toISOString();
@@ -291,7 +291,10 @@ export const fetchOverview = createServerFn({ method: "GET" })
         "game_history",
         [{ field: "playedAt", op: "GREATER_THAN_OR_EQUAL", value: since7d }],
         { allDescendants: true },
-      ),
+      ).catch((error: unknown) => {
+        if (isFirestoreIndexError(error)) return null;
+        throw error;
+      }),
       categoryCountsPromise,
       getGameAnalytics({ since: since7d }),
     ]);
@@ -334,5 +337,6 @@ export const fetchOverview = createServerFn({ method: "GET" })
       series,
       gamesWindowed: gameAnalytics.windowed,
       gamesSampled: gameAnalytics.total,
+      gamesIndexUnavailable: gameAnalytics.indexUnavailable || games7d === null,
     };
   });

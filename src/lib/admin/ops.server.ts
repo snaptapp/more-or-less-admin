@@ -5,6 +5,7 @@
 import {
   createDoc,
   getDoc,
+  isFirestoreIndexError,
   listDocs,
   normalizeKey,
   patchDoc,
@@ -759,31 +760,61 @@ function canonicalModeOf(data: Record<string, Json>): string {
 
 export async function getGameAnalytics(input: { since?: string }) {
   // game_history lives under users/{uid}/game_history/{id}. Collection-group
-  // queries on playedAt need COLLECTION_GROUP indexes (ASC ready; DESC may still
-  // be building after deploy). Prefer newest-first; fall back without orderBy.
+  // inequality / orderBy on playedAt need COLLECTION_GROUP field overrides.
+  // Prefer a real windowed query; if the index is missing, sample without
+  // filters so Overview / Analytics still render.
   const filters = input.since
     ? [{ field: "playedAt" as const, op: "GREATER_THAN_OR_EQUAL" as const, value: input.since }]
     : [];
+  const newestFirst = { field: "playedAt" as const, direction: "DESCENDING" as const };
 
-  async function load(orderBy?: { field: string; direction: "ASCENDING" | "DESCENDING" }) {
+  async function load(
+    orderBy?: { field: "playedAt"; direction: "ASCENDING" | "DESCENDING" },
+    useFilters = true,
+  ) {
     return runQuery({
       collection: "game_history",
       allDescendants: true,
-      filters,
+      filters: useFilters ? filters : [],
       ...(orderBy ? { orderBy } : {}),
       limit: 500,
     });
   }
 
-  let docs: Awaited<ReturnType<typeof load>>;
-  let orderedNewestFirst = true;
-  try {
-    docs = await load({ field: "playedAt", direction: "DESCENDING" });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!/index|FAILED_PRECONDITION|COLLECTION_GROUP/i.test(message)) throw error;
-    docs = await load();
-    orderedNewestFirst = false;
+  const attempts: Array<{
+    orderBy?: { field: "playedAt"; direction: "ASCENDING" | "DESCENDING" };
+    useFilters: boolean;
+    newestFirst: boolean;
+  }> = [
+    { orderBy: newestFirst, useFilters: true, newestFirst: true },
+    { useFilters: true, newestFirst: false },
+    { orderBy: newestFirst, useFilters: false, newestFirst: true },
+    { useFilters: false, newestFirst: false },
+  ];
+
+  let docs: Awaited<ReturnType<typeof load>> = [];
+  let orderedNewestFirst = false;
+  let indexUnavailable = false;
+
+  let loaded = false;
+  for (const attempt of attempts) {
+    try {
+      docs = await load(attempt.orderBy, attempt.useFilters);
+      orderedNewestFirst = attempt.newestFirst;
+      indexUnavailable = !attempt.useFilters;
+      if (!attempt.useFilters && input.since) {
+        docs = docs.filter((doc) => str(doc.data["playedAt"]) >= input.since!);
+      }
+      loaded = true;
+      break;
+    } catch (error) {
+      if (!isFirestoreIndexError(error)) throw error;
+    }
+  }
+
+  if (!loaded) {
+    docs = [];
+    indexUnavailable = true;
   }
 
   const tally = (key: string) => {
@@ -825,6 +856,7 @@ export async function getGameAnalytics(input: { since?: string }) {
     total: docs.length,
     windowed: docs.length >= 500,
     orderedNewestFirst,
+    indexUnavailable,
     byMode: tallyMode(),
     byCategory: tally("category"),
     byVerified: tallyBool("verified", "verified", "unverified"),

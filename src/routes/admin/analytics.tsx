@@ -282,12 +282,18 @@ function AnalyticsPage() {
           <Card>
             <CardLabel>Games sampled</CardLabel>
             <p className="admin-stat">{data.total}</p>
+            {data.indexUnavailable ? (
+              <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: 0 }}>
+                Collection-group index on playedAt is not Enabled yet, so this sample is unordered.
+                Click Save once in the Firebase index dialog, then wait until status is Enabled.
+              </p>
+            ) : null}
             {data.windowed ? (
               <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: 0 }}>
                 Capped at 500 most recent documents. Shorten the window for exact counts.
               </p>
             ) : null}
-            {!data.orderedNewestFirst ? (
+            {!data.orderedNewestFirst && !data.indexUnavailable ? (
               <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: 0 }}>
                 Newest-first index still building; sample order may not be chronological yet.
               </p>

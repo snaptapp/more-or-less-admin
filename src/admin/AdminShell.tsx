@@ -205,8 +205,12 @@ export function InlineEditorRow({
 
 export function ErrorNote({ error }: { error: unknown }) {
   if (!error) return null;
-  const message =
+  const raw =
     error instanceof Error ? error.message : typeof error === "string" ? error : "Request failed";
+  const message =
+    /FAILED_PRECONDITION|requires an index|COLLECTION_GROUP/i.test(raw)
+      ? "A Firestore collection-group index is missing, so this page cannot load game history yet. Open the Firebase index dialog, click Save once, and wait until the index status is Enabled."
+      : raw.replace(/https:\/\/console\.firebase\.google\.com\S+/g, "").trim() || raw;
   return <p className="admin-error">{message}</p>;
 }
 

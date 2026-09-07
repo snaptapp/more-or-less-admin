@@ -71,7 +71,12 @@ function OverviewPage() {
             </Card>
             <Card>
               <CardLabel>Games (7d)</CardLabel>
-              <p className="admin-stat">{data.games7d}</p>
+              <p className="admin-stat">{data.games7d ?? "—"}</p>
+              {data.gamesIndexUnavailable ? (
+                <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: 0 }}>
+                  game_history index not enabled yet
+                </p>
+              ) : null}
             </Card>
             <Card>
               <CardLabel>Premium users</CardLabel>
@@ -112,11 +117,13 @@ function OverviewPage() {
               title="Games by mode (7d)"
               rows={data.series.gamesByMode}
               footnote={
-                data.gamesWindowed
-                  ? `Sampled ${data.gamesSampled} games (capped at 500). Shorten the window on Game analytics for exact counts.`
-                  : data.gamesSampled === 0
-                    ? undefined
-                    : `Based on ${data.gamesSampled} sampled games.`
+                data.gamesIndexUnavailable
+                  ? "Approximate until the game_history playedAt collection-group index is Enabled in Firebase."
+                  : data.gamesWindowed
+                    ? `Sampled ${data.gamesSampled} games (capped at 500). Shorten the window on Game analytics for exact counts.`
+                    : data.gamesSampled === 0
+                      ? undefined
+                      : `Based on ${data.gamesSampled} sampled games.`
               }
             />
           </div>

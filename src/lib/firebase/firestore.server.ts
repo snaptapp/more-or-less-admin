@@ -129,6 +129,13 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return (text ? JSON.parse(text) : {}) as T;
 }
 
+export function isFirestoreIndexError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /FAILED_PRECONDITION|requires an index|requires additional indexing|COLLECTION_GROUP/i.test(
+    message,
+  );
+}
+
 export async function getDoc(path: string): Promise<FirestoreDoc | null> {
   try {
     const raw = await request<Parameters<typeof toDoc>[0]>(`${baseUrl()}/${path}`);
