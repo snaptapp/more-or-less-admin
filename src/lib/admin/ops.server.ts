@@ -517,6 +517,29 @@ export async function removeDailyLeaderboardEntry(
 
 /* --------------------------------- analytics ------------------------------- */
 
+// Live game_history docs often omit matchSource (added later). Infer it the
+// same way the game backend does: stored field, else mode contract / aliases.
+const MATCH_SOURCE_BY_MODE: Record<string, "client" | "server" | "party"> = {
+  standard: "client",
+  standard3Round: "client",
+  cutthroat: "client",
+  blitz: "client",
+  blitz60s: "client",
+  daily: "server",
+  dailyChallenge: "server",
+  versus: "server",
+  versus1v1: "server",
+  party: "party",
+  partyRoom: "party",
+};
+
+function matchSourceOf(data: Record<string, Json>): string {
+  const stored = str(data["matchSource"]) || str(data["match_source"]);
+  if (stored) return stored;
+  const mode = str(data["gameMode"]);
+  return MATCH_SOURCE_BY_MODE[mode] ?? MATCH_SOURCE_BY_MODE[mode.toLowerCase()] ?? "unknown";
+}
+
 export async function getGameAnalytics(input: { since?: string }) {
   // game_history lives under users/{uid}/game_history/{id}. Collection-group
   // queries on playedAt need COLLECTION_GROUP indexes (ASC ready; DESC may still
@@ -557,6 +580,17 @@ export async function getGameAnalytics(input: { since?: string }) {
       .sort((a, b) => b.count - a.count);
   };
 
+  const tallyMatchSource = () => {
+    const counts = new Map<string, number>();
+    for (const doc of docs) {
+      const value = matchSourceOf(doc.data);
+      counts.set(value, (counts.get(value) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  };
+
   const tallyBool = (key: string, trueLabel: string, falseLabel: string) => {
     let yes = 0;
     let no = 0;
@@ -577,7 +611,7 @@ export async function getGameAnalytics(input: { since?: string }) {
     byMode: tally("gameMode"),
     byCategory: tally("category"),
     byDifficulty: tally("difficulty"),
-    byMatchSource: tally("matchSource"),
+    byMatchSource: tallyMatchSource(),
     byVerified: tallyBool("verified", "verified", "unverified"),
   };
 }
