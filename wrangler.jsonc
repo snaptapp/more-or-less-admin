@@ -19,6 +19,7 @@
     // the same name overrides this bootstrap var without locking ops out.
     "ADMIN_EMAIL_ALLOWLIST": "michael.anderson@trackdub.com,mta1124@gmail.com",
     "GO_AGENT_URL": "https://agent-go-213137202876.us-central1.run.app",
-    "VERTEX_LOCATION": "global"
+    "VERTEX_LOCATION": "global",
+    "OPS_CHAT_BACKEND": "gemini"
   }
 }

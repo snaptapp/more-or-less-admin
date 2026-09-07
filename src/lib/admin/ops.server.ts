@@ -595,6 +595,85 @@ export async function getDailyPack(date: string): Promise<DailyPack | null> {
   };
 }
 
+export interface DailyPackDraft {
+  date: string;
+  category: string;
+  brief: string;
+  rounds: Json[];
+  status: "awaiting_review";
+  source: string;
+  draftedAt: string | null;
+  total_rounds: number;
+}
+
+function toDailyDraft(date: string, data: Record<string, Json>): DailyPackDraft {
+  const rounds = Array.isArray(data["rounds"]) ? (data["rounds"] as Json[]) : [];
+  return {
+    date,
+    category: str(data["category"]),
+    brief: str(data["brief"]),
+    rounds,
+    status: "awaiting_review",
+    source: str(data["source"]) || "strategist",
+    draftedAt: typeof data["draftedAt"] === "string" ? data["draftedAt"] : null,
+    total_rounds: rounds.length || (num(data["total_rounds"]) ?? 0),
+  };
+}
+
+export async function getDailyDraft(date: string): Promise<DailyPackDraft | null> {
+  const doc = await getDoc(`daily_pack_drafts/${date}`);
+  if (!doc) return null;
+  return toDailyDraft(date, doc.data);
+}
+
+export async function listDailyDrafts(limit = 60): Promise<DailyPackDraft[]> {
+  const { docs } = await listDocs("daily_pack_drafts", { pageSize: limit });
+  const drafts = docs.map((doc) => toDailyDraft(doc.id, doc.data));
+  drafts.sort((a, b) => b.date.localeCompare(a.date));
+  return drafts;
+}
+
+export async function writeDailyDraft(input: {
+  date: string;
+  category: string;
+  brief?: string;
+  rounds: unknown[];
+  source?: string;
+}): Promise<DailyPackDraft> {
+  const live = await getDailyPack(input.date);
+  if (live) {
+    throw new Error(`Live daily_packs/${input.date} already exists. Drafts cannot overwrite published packs.`);
+  }
+  const rounds = Array.isArray(input.rounds) ? input.rounds : [];
+  const payload = {
+    date: input.date,
+    category: input.category,
+    brief: input.brief ?? "",
+    rounds,
+    status: "awaiting_review",
+    source: input.source ?? "strategist",
+    draftedAt: new Date().toISOString(),
+    total_rounds: rounds.length,
+  };
+  const path = `daily_pack_drafts/${input.date}`;
+  const existing = await getDoc(path);
+  if (existing) {
+    await patchDoc(path, payload);
+  } else {
+    await createDoc("daily_pack_drafts", input.date, payload);
+  }
+  return {
+    date: input.date,
+    category: input.category,
+    brief: input.brief ?? "",
+    rounds: rounds as Json[],
+    status: "awaiting_review",
+    source: input.source ?? "strategist",
+    draftedAt: payload.draftedAt,
+    total_rounds: rounds.length,
+  };
+}
+
 export async function deleteDailyPack(date: string, adminUser?: AdminUser): Promise<{ ok: boolean }> {
   const { deleteDoc } = await import("../firebase/firestore.server");
   await deleteDoc(`daily_packs/${date}`);
@@ -663,6 +742,12 @@ export async function scheduleDailyPack(
     await patchDoc(`daily_packs/${input.date}`, payload);
   } else {
     await createDoc("daily_packs", input.date, payload);
+  }
+
+  const draftDoc = await getDoc(`daily_pack_drafts/${input.date}`);
+  if (draftDoc) {
+    const { deleteDoc } = await import("../firebase/firestore.server");
+    await deleteDoc(`daily_pack_drafts/${input.date}`);
   }
 
   if (adminUser) {

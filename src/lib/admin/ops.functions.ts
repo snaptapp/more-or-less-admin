@@ -219,7 +219,9 @@ export const fetchDailySchedule = createServerFn({ method: "POST" }).middleware(
   .handler(async ({ data }) => {
     const { listDailyPacks } = await import("./ops.server");
     const packs = await listDailyPacks(data?.limit ?? 100);
-    return { packs };
+    const { listDailyDrafts } = await import("./ops.server");
+    const drafts = await listDailyDrafts(60);
+    return { packs, drafts };
   });
 
 export const fetchDaily = createServerFn({ method: "POST" }).middleware([authMiddleware])
@@ -227,12 +229,13 @@ export const fetchDaily = createServerFn({ method: "POST" }).middleware([authMid
     z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(data),
   )
   .handler(async ({ data }) => {
-    const { getDailyPack, getDailyLeaderboard } = await import("./ops.server");
-    const [pack, leaderboard] = await Promise.all([
+    const { getDailyPack, getDailyLeaderboard, getDailyDraft } = await import("./ops.server");
+    const [pack, leaderboard, draft] = await Promise.all([
       getDailyPack(data.date),
       getDailyLeaderboard(data.date),
+      getDailyDraft(data.date),
     ]);
-    return { pack, leaderboard };
+    return { pack, leaderboard, draft };
   });
 
 export const generateDailyPack = createServerFn({ method: "POST" }).middleware([authMiddleware])
@@ -279,6 +282,26 @@ export const chatDailyBlitz = createServerFn({ method: "POST" }).middleware([aut
       rounds: data.rounds,
       messages: data.messages,
     });
+  });
+
+export const chatFactsBank = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        messages: z
+          .array(
+            z.object({
+              role: z.enum(["user", "assistant"]),
+              text: z.string().max(4000),
+            }),
+          )
+          .max(24),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { runFactsBankChat } = await import("./facts-chat.server");
+    return runFactsBankChat({ messages: data.messages });
   });
 
 export const preScheduleDailyPack = createServerFn({ method: "POST" }).middleware([authMiddleware])

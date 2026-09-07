@@ -47,7 +47,7 @@ Connect Git so every commit/PR merge to `main` builds and deploys with no CI run
 | Root directory | `/` (repo root) |
 
 5. Keep runtime secrets on the Worker (**Settings → Variables and Secrets**). Do not put `FIREBASE_SERVICE_ACCOUNT_JSON` or `GO_AGENT_SERVICE_ACCOUNT_JSON` in `wrangler.jsonc`. `FIREBASE_WEB_API_KEY` in `vars` is the publishable Firebase web key used by browser sign-in, not a service-account credential. `ADMIN_EMAIL_ALLOWLIST` may be set as a Worker secret of the same name (secret wins over the bootstrap var).
-6. Daily Blitz authoring (`/admin/daily`) calls the Go pack factory on Cloud Run (`GO_AGENT_URL` var) and Vertex Gemini for the strategist chat. The ops service account needs `roles/run.invoker` on `agent-go` and `roles/aiplatform.user` on project `more-or-less-505908`.
+6. Daily Blitz authoring (`/admin/daily`) calls the Go pack factory on Cloud Run (`GO_AGENT_URL` var) and a swappable chat backend (`OPS_CHAT_BACKEND`, default `gemini`) for the strategist. The ops service account needs `roles/run.invoker` on `agent-go` and `roles/aiplatform.user` on project `more-or-less-505908`. Chat never publishes: Apply cards load the editor, Save & Schedule writes `daily_packs`. Autonomous cron (`POST /api/internal/daily-drafts` with `OPS_CRON_SECRET`) writes `daily_pack_drafts` only. Content (`/admin/facts`) uses the same chat rail to enqueue crawls; Fact Foundry is the only `fact_bank` writer.
 7. Push or merge to `main` to trigger a production deploy. Preview branches upload a version only.
 
 Alternatively: **Workers & Pages** → **Create** → **Import a repository** → same settings. Worker name must stay `tanstack-start-app` so it continues serving `ops.snaptapp.us`.
