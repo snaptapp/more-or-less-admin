@@ -467,6 +467,42 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   margin-bottom: 8px;
 }
 
+.admin-bar-row--filterable {
+  grid-template-columns: minmax(72px, 140px) 1fr 48px auto;
+}
+
+.admin-bar-row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-hidden-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: var(--ds-arena-space-3);
+}
+
+.admin-hidden-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 4px 8px 4px 10px;
+  border: 1px solid var(--ds-arena-color-border);
+  border-radius: 999px;
+  background: var(--ds-arena-color-surface);
+  color: var(--ds-arena-color-text-muted);
+  font-size: 12px;
+}
+
+.admin-hidden-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
   .admin-shell {
     grid-template-columns: 1fr;
