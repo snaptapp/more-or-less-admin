@@ -457,13 +457,43 @@ th .admin-infotip:focus-visible .admin-infotip-content,
     flex-wrap: wrap;
   }
 
-  .admin-two-col {
+  .admin-two-col,
+  .admin-chart-grid {
     grid-template-columns: 1fr;
   }
 
   .admin-main {
     padding: var(--ds-arena-space-4);
   }
+}
+
+.admin-chart-grid {
+  display: grid;
+  gap: var(--ds-arena-space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.admin-chart {
+  min-height: 240px;
+  height: 240px;
+  margin-top: var(--ds-arena-space-3);
+}
+
+.admin-chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  margin: 0;
+  color: var(--ds-arena-color-text-muted);
+  font-size: 14px;
+}
+
+.admin-chart-footnote {
+  margin: var(--ds-arena-space-2) 0 0;
+  color: var(--ds-arena-color-text-muted);
+  font-size: 12px;
 }
 
 .admin-stat {
