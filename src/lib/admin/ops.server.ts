@@ -519,9 +519,14 @@ export async function removeDailyLeaderboardEntry(
 
 export async function getGameAnalytics(input: { since?: string }) {
   const filters = input.since
-    ? [{ field: "startedAt" as const, op: "GREATER_THAN_OR_EQUAL" as const, value: input.since }]
+    ? [{ field: "playedAt" as const, op: "GREATER_THAN_OR_EQUAL" as const, value: input.since }]
     : [];
-  const docs = await runQuery({ collection: "games", filters, limit: 500 });
+  const docs = await runQuery({
+    collection: "game_history",
+    allDescendants: true,
+    filters,
+    limit: 500,
+  });
 
   const tally = (key: string) => {
     const counts = new Map<string, number>();

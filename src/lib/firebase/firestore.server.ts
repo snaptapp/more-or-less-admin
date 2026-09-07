@@ -167,6 +167,7 @@ export interface QueryFilter {
 
 export async function runQuery(options: {
   collection: string;
+  allDescendants?: boolean;
   filters?: QueryFilter[];
   orderBy?: { field: string; direction?: "ASCENDING" | "DESCENDING" };
   limit?: number;
@@ -174,7 +175,12 @@ export async function runQuery(options: {
 }): Promise<FirestoreDoc[]> {
   const filters = options.filters ?? [];
   const structuredQuery: Record<string, unknown> = {
-    from: [{ collectionId: options.collection }],
+    from: [
+      {
+        collectionId: options.collection,
+        ...(options.allDescendants ? { allDescendants: true } : {}),
+      },
+    ],
     limit: options.limit ?? 50,
   };
   if (options.offset) structuredQuery["offset"] = options.offset;
@@ -253,8 +259,16 @@ export async function deleteDoc(path: string): Promise<void> {
 export async function countCollection(
   collection: string,
   filters: QueryFilter[] = [],
+  options?: { allDescendants?: boolean },
 ): Promise<number> {
-  const structuredQuery: Record<string, unknown> = { from: [{ collectionId: collection }] };
+  const structuredQuery: Record<string, unknown> = {
+    from: [
+      {
+        collectionId: collection,
+        ...(options?.allDescendants ? { allDescendants: true } : {}),
+      },
+    ],
+  };
   if (filters.length === 1) {
     structuredQuery["where"] = {
       fieldFilter: {

@@ -240,19 +240,84 @@ export const actOnReport = createServerFn({ method: "POST" }).middleware([authMi
     return result;
   });
 
+export type OverviewSeriesRow = { name: string; count: number };
+
 /** Confirms the admin connection and returns live collection counters via native Firestore count() */
 export const fetchOverview = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const user = context.user;
     const { countCollection } = await import("@/lib/firebase/firestore.server");
+    const { listSubjects, getGameAnalytics } = await import("./ops.server");
 
-    const [active, disputed, retired, pending] = await Promise.all([
+    const since7d = new Date(Date.now() - 7 * 86_400_000).toISOString();
+
+    const [
+      active,
+      disputed,
+      retired,
+      pending,
+      reportsResolved,
+      reportsRejected,
+      ratingStandard,
+      ratingAfterDark,
+      crawlQueued,
+      crawlProcessing,
+      premium,
+      games7d,
+      subjects,
+      gameAnalytics,
+    ] = await Promise.all([
       countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "active" }]),
       countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "disputed" }]),
       countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "retired" }]),
       countCollection("trivia_reports", [{ field: "status", op: "EQUAL", value: "pending_review" }]),
+      countCollection("trivia_reports", [{ field: "status", op: "EQUAL", value: "resolved" }]),
+      countCollection("trivia_reports", [{ field: "status", op: "EQUAL", value: "rejected" }]),
+      countCollection("fact_bank", [
+        { field: "status", op: "EQUAL", value: "active" },
+        { field: "content_rating", op: "EQUAL", value: "standard" },
+      ]),
+      countCollection("fact_bank", [
+        { field: "status", op: "EQUAL", value: "active" },
+        { field: "content_rating", op: "EQUAL", value: "after_dark" },
+      ]),
+      countCollection("crawl_queue", [{ field: "status", op: "EQUAL", value: "queued" }]),
+      countCollection("crawl_queue", [{ field: "status", op: "EQUAL", value: "processing" }]),
+      countCollection("users", [{ field: "isPremium", op: "EQUAL", value: true }]),
+      countCollection(
+        "game_history",
+        [{ field: "playedAt", op: "GREATER_THAN_OR_EQUAL", value: since7d }],
+        { allDescendants: true },
+      ),
+      listSubjects({}),
+      getGameAnalytics({ since: since7d }),
     ]);
+
+    const series = {
+      factStatus: [
+        { name: "active", count: active },
+        { name: "disputed", count: disputed },
+        { name: "retired", count: retired },
+      ] satisfies OverviewSeriesRow[],
+      contentRating: [
+        { name: "standard", count: ratingStandard },
+        { name: "after_dark", count: ratingAfterDark },
+      ] satisfies OverviewSeriesRow[],
+      reports: [
+        { name: "pending_review", count: pending },
+        { name: "resolved", count: reportsResolved },
+        { name: "rejected", count: reportsRejected },
+      ] satisfies OverviewSeriesRow[],
+      crawl: [
+        { name: "queued", count: crawlQueued },
+        { name: "processing", count: crawlProcessing },
+      ] satisfies OverviewSeriesRow[],
+      categories: subjects.coverage
+        .map((row) => ({ name: row.category, count: row.facts }))
+        .sort((a, b) => b.count - a.count) satisfies OverviewSeriesRow[],
+      gamesByMode: gameAnalytics.byMode satisfies OverviewSeriesRow[],
+    };
 
     return {
       user,
@@ -260,5 +325,11 @@ export const fetchOverview = createServerFn({ method: "GET" })
       disputed,
       retired,
       pending,
+      crawlQueued,
+      games7d,
+      premium,
+      series,
+      gamesWindowed: gameAnalytics.windowed,
+      gamesSampled: gameAnalytics.total,
     };
   });
