@@ -518,6 +518,7 @@ export interface ReportRecord {
   topic: string;
   initialTopic?: string;
   claimStatement: string;
+  explanation: string;
   presentedNumber: number | null;
   trueNumber: number | null;
   unit: string;
@@ -527,8 +528,7 @@ export interface ReportRecord {
   status: string;
   createdAt: string | null;
   resolutionNote: string | null;
-  // Rich context fields:
-  playerGuess?: "MORE" | "LESS" | "SKIP" | "TIMEOUT" | string;
+  playerGuess?: string;
   isPlayerCorrect?: boolean | null;
   ombudsmanVerdict?: string;
   ombudsmanAgreed?: boolean | null;
@@ -537,53 +537,109 @@ export interface ReportRecord {
   ombudsmanArbiter?: "gemini" | "edge_worker" | "unspecified";
 }
 
+function firstStr(d: Record<string, Json>, keys: string[]): string {
+  for (const key of keys) {
+    const value = d[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function asNum(value: Json | undefined): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function asBool(value: Json | undefined): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const lowered = value.trim().toLowerCase();
+    if (lowered === "true" || lowered === "yes") return true;
+    if (lowered === "false" || lowered === "no") return false;
+  }
+  return null;
+}
+
+function asSources(value: Json | undefined): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      if (item && typeof item === "object") {
+        const row = item as Record<string, Json>;
+        return (
+          firstStr(row, ["title", "uri", "url", "source", "citation", "name"]) ||
+          JSON.stringify(item)
+        );
+      }
+      return "";
+    })
+    .filter(Boolean);
+}
+
 function toReport(doc: FirestoreDoc): ReportRecord {
   const d = doc.data;
-  
-  // Backwards compatibility for grounding sources
-  let sources: string[] = [];
-  if (Array.isArray(d["ombudsmanSources"])) {
-    sources = d["ombudsmanSources"].map((s) => String(s));
-  } else if (Array.isArray(d["groundingSources"])) {
-    sources = d["groundingSources"].map((s) => String(s));
-  }
+  const sources = [
+    ...asSources(d["ombudsmanSources"]),
+    ...asSources(d["groundingSources"]),
+    ...asSources(d["citations"]),
+  ].filter((source, index, all) => all.indexOf(source) === index);
 
-  // Backwards compatibility for arbiter classification
+  const ruling =
+    firstStr(d, ["ombudsmanRuling", "ombudsman_ruling", "ruling"]) || "";
+  const explicitArbiter = firstStr(d, ["ombudsmanArbiter", "ombudsman_arbiter", "arbiter"]).toLowerCase();
   let arbiter: "gemini" | "edge_worker" | "unspecified" = "unspecified";
-  const explicitArbiter = str(d["ombudsmanArbiter"]);
-  const ruling = str(d["ombudsmanRuling"]) || str(d["ruling"]);
-  
-  if (explicitArbiter === "gemini" || explicitArbiter === "edge_worker") {
-    arbiter = explicitArbiter;
-  } else if (sources.some((s) => s.toLowerCase().includes("edge")) || ruling.toLowerCase().includes("edge ombudsman") || ruling.toLowerCase().includes("submitted for review")) {
-    arbiter = "edge_worker";
-  } else if (sources.some((s) => s.toLowerCase().includes("google") || s.toLowerCase().includes("vertex") || s.toLowerCase().includes("gemini"))) {
+  if (explicitArbiter === "gemini" || explicitArbiter === "vertex" || explicitArbiter === "google") {
     arbiter = "gemini";
+  } else if (
+    explicitArbiter === "edge_worker" ||
+    explicitArbiter === "edge" ||
+    explicitArbiter === "worker"
+  ) {
+    arbiter = "edge_worker";
+  } else if (
+    sources.some((s) => /google|vertex|gemini/i.test(s)) ||
+    /gemini|vertex|google search grounding/i.test(ruling)
+  ) {
+    arbiter = "gemini";
+  } else if (sources.some((s) => /edge/i.test(s)) || /edge ombudsman/i.test(ruling)) {
+    arbiter = "edge_worker";
   }
 
-  const rawVerdict = str(d["ombudsmanVerdict"]) || str(d["verdict"]);
-  const agreed = typeof d["ombudsmanAgreed"] === "boolean"
-    ? d["ombudsmanAgreed"]
-    : rawVerdict === "DEBUNKED_AND_EVICTED" || rawVerdict === "AMBIGUOUS_UNIT";
+  const rawVerdict = firstStr(d, ["ombudsmanVerdict", "ombudsman_verdict", "verdict"]);
+  const agreedFlag = asBool(d["ombudsmanAgreed"]) ?? asBool(d["ombudsman_agreed"]);
+  const agreed =
+    agreedFlag !== null
+      ? agreedFlag
+      : rawVerdict === "DEBUNKED_AND_EVICTED" || rawVerdict === "AMBIGUOUS_UNIT"
+        ? true
+        : rawVerdict === "VERIFIED_CANONICAL"
+          ? false
+          : null;
 
   return {
     id: doc.id,
-    topic: str(d["topic"]),
-    initialTopic: str(d["initialTopic"]) || undefined,
-    claimStatement: str(d["claimStatement"]),
-    presentedNumber: num(d["presentedNumber"]),
-    trueNumber: num(d["trueNumber"]),
-    unit: str(d["unit"]),
-    reason: str(d["reason"]),
-    feedbackText: str(d["feedbackText"]),
-    reporterUid: str(d["reporterUid"]),
-    status: str(d["status"]) || "pending_review",
-    createdAt: typeof d["createdAt"] === "string" ? d["createdAt"] : null,
+    topic: firstStr(d, ["topic", "questionTopic", "question_topic"]),
+    initialTopic: firstStr(d, ["initialTopic", "initial_topic", "selectedTopic", "category"]) || undefined,
+    claimStatement: firstStr(d, ["claimStatement", "claim_statement", "claim", "question"]),
+    explanation: firstStr(d, ["explanation", "reveal", "context"]),
+    presentedNumber: asNum(d["presentedNumber"]) ?? asNum(d["presented_number"]),
+    trueNumber: asNum(d["trueNumber"]) ?? asNum(d["true_number"]),
+    unit: firstStr(d, ["unit"]),
+    reason: firstStr(d, ["reason", "disputeReason", "dispute_reason"]),
+    feedbackText: firstStr(d, ["feedbackText", "feedback_text", "feedback"]),
+    reporterUid: firstStr(d, ["reporterUid", "reporter_uid", "uid"]),
+    status: firstStr(d, ["status"]) || "pending_review",
+    createdAt: typeof d["createdAt"] === "string" ? d["createdAt"] : typeof d["created_at"] === "string" ? d["created_at"] : null,
     resolutionNote: typeof d["resolutionNote"] === "string" ? d["resolutionNote"] : null,
-    playerGuess: str(d["playerGuess"]) || undefined,
-    isPlayerCorrect: typeof d["isPlayerCorrect"] === "boolean" ? d["isPlayerCorrect"] : null,
+    playerGuess: firstStr(d, ["playerGuess", "player_guess", "guess", "choice"]) || undefined,
+    isPlayerCorrect: asBool(d["isPlayerCorrect"]) ?? asBool(d["is_player_correct"]),
     ombudsmanVerdict: rawVerdict || undefined,
-    ombudsmanAgreed: rawVerdict ? agreed : null,
+    ombudsmanAgreed: agreed,
     ombudsmanRuling: ruling || undefined,
     ombudsmanSources: sources,
     ombudsmanArbiter: arbiter,

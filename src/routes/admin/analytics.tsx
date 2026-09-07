@@ -10,7 +10,7 @@ export const Route = createFileRoute("/admin/analytics")({
   head: () => ({
     meta: [
       { title: "Game Analytics — More or Less Admin" },
-      { name: "description", content: "Read-only breakdown of recent games by mode and category." },
+      { name: "description", content: "Read-only breakdown of recent game_history by mode, category, and source." },
     ],
   }),
   component: AnalyticsPage,
@@ -87,7 +87,7 @@ function AnalyticsPage() {
     <>
       <PageHead
         title="Game analytics"
-        description="Read-only sample of the games collection."
+        description="Read-only sample of users/*/game_history (collection group)."
         actions={
           <label className="admin-field">
             <span>Window</span>
@@ -114,17 +114,25 @@ function AnalyticsPage() {
             <p className="admin-stat">{data.total}</p>
             {data.windowed ? (
               <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: 0 }}>
-                Capped at 500 documents — shorten the window for exact counts.
+                Capped at 500 most recent documents. Shorten the window for exact counts.
+              </p>
+            ) : null}
+            {!data.orderedNewestFirst ? (
+              <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: 0 }}>
+                Newest-first index still building; sample order may not be chronological yet.
               </p>
             ) : null}
           </Card>
           <div className="admin-two-col">
             <Breakdown title="By mode" rows={data.byMode} total={data.total} />
-            <Breakdown title="By pace" rows={data.byPace} total={data.total} />
+            <Breakdown title="By match source" rows={data.byMatchSource} total={data.total} />
           </div>
           <div className="admin-two-col">
             <Breakdown title="By category" rows={data.byCategory} total={data.total} />
             <Breakdown title="By difficulty" rows={data.byDifficulty} total={data.total} />
+          </div>
+          <div className="admin-two-col">
+            <Breakdown title="Verified vs unverified" rows={data.byVerified} total={data.total} />
           </div>
         </>
       ) : null}

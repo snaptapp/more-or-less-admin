@@ -18,6 +18,77 @@ export const Route = createFileRoute("/admin/reports")({
 
 type Entry = Awaited<ReturnType<typeof fetchReports>>[number];
 
+const REASON_LABELS: Record<string, string> = {
+  INCORRECT_NUMBER: "True number is incorrect",
+  AMBIGUOUS_QUESTION: "Question claim is ambiguous",
+  WRONG_UNIT: "Unit of measurement is wrong",
+  OUTDATED_FACT: "Information is outdated",
+};
+
+function displayOrMissing(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : "Not recorded";
+}
+
+function formatGuess(guess: string | undefined): string {
+  if (!guess) return "Not recorded";
+  switch (guess.toUpperCase()) {
+    case "MORE":
+      return "MORE";
+    case "LESS":
+      return "LESS";
+    case "SKIP":
+      return "Skipped";
+    case "TIMEOUT":
+      return "Timed out";
+    default:
+      return guess;
+  }
+}
+
+function Pill({
+  tone,
+  children,
+}: {
+  tone: "lime" | "red" | "amber" | "purple" | "muted";
+  children: string;
+}) {
+  const styles: Record<typeof tone, { background: string; color: string }> = {
+    lime: { background: "rgba(16, 185, 129, 0.2)", color: "#10b981" },
+    red: { background: "rgba(239, 68, 68, 0.2)", color: "#ef4444" },
+    amber: { background: "rgba(246, 195, 68, 0.2)", color: "#f6c344" },
+    purple: { background: "rgba(147, 51, 234, 0.2)", color: "#c084fc" },
+    muted: { background: "rgba(107, 114, 128, 0.2)", color: "#9ca3af" },
+  };
+  return (
+    <span className="admin-pill" style={styles[tone]}>
+      {children}
+    </span>
+  );
+}
+
+function SourceList({ sources }: { sources: string[] }) {
+  if (sources.length === 0) return <>Not recorded</>;
+  return (
+    <ul style={{ margin: 0, paddingLeft: 18 }}>
+      {sources.map((source, idx) => {
+        const href = /^https?:\/\//i.test(source) ? source : null;
+        return (
+          <li key={`${source}-${idx}`} style={{ fontSize: "0.9em" }}>
+            {href ? (
+              <a href={href} target="_blank" rel="noreferrer">
+                {source}
+              </a>
+            ) : (
+              source
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function ReportCard({ entry }: { entry: Entry }) {
   const act = useServerFn(actOnReport);
   const queryClient = useQueryClient();
@@ -44,121 +115,111 @@ function ReportCard({ entry }: { entry: Entry }) {
   });
 
   const pending = entry.report.status === "pending_review";
+  const report = entry.report;
+  const chosenTopic = report.initialTopic || report.topic;
+  const questionTopic = report.topic;
+  const guess = report.playerGuess?.toUpperCase();
+  const outcome =
+    guess === "SKIP"
+      ? { label: "Skipped", tone: "amber" as const }
+      : guess === "TIMEOUT"
+        ? { label: "Timed out", tone: "amber" as const }
+        : report.isPlayerCorrect === true
+          ? { label: "Correct", tone: "lime" as const }
+          : report.isPlayerCorrect === false
+            ? { label: "Wrong", tone: "red" as const }
+            : null;
+  const arbiter = report.ombudsmanArbiter;
+  const arbiterLabel =
+    arbiter === "gemini"
+      ? "Gemini (Vertex AI grounding)"
+      : arbiter === "edge_worker"
+        ? "Edge worker (rule-based fallback)"
+        : "Not recorded";
 
   return (
     <Card>
       <div className="admin-page-head">
-        <CardTitle>{entry.report.topic || "Untitled topic"}</CardTitle>
-        <Badge tone={statusTone(entry.report.status)}>{entry.report.status}</Badge>
+        <CardTitle>{chosenTopic || "Untitled topic"}</CardTitle>
+        <Badge tone={statusTone(report.status)}>{report.status}</Badge>
       </div>
-      <p style={{ color: "var(--ds-arena-color-text)", margin: "8px 0" }}>{entry.report.claimStatement}</p>
-      <dl className="admin-kv">
-        {entry.report.initialTopic && entry.report.initialTopic !== entry.report.topic ? (
+      <dl className="admin-kv" style={{ marginTop: "var(--ds-arena-space-3)" }}>
+        <dt>Topic chosen</dt>
+        <dd>{displayOrMissing(chosenTopic)}</dd>
+        {questionTopic && chosenTopic && questionTopic !== chosenTopic ? (
           <>
-            <dt>Selected Topic</dt>
-            <dd>{entry.report.initialTopic}</dd>
+            <dt>Question topic</dt>
+            <dd>{questionTopic}</dd>
           </>
         ) : null}
-        <dt>Exact Question</dt>
-        <dd style={{ fontWeight: 600 }}>{entry.report.claimStatement}</dd>
+        <dt>Exact question</dt>
+        <dd style={{ fontWeight: 600, color: "var(--ds-arena-color-text)" }}>
+          {displayOrMissing(report.claimStatement)}
+        </dd>
         <dt>Presented</dt>
         <dd>
-          {entry.report.presentedNumber ?? "—"} {entry.report.unit}
+          {report.presentedNumber ?? "Not recorded"} {report.unit}
         </dd>
         <dt>Stored true</dt>
         <dd>
-          {entry.report.trueNumber ?? "—"} {entry.report.unit}
+          {report.trueNumber ?? "Not recorded"} {report.unit}
         </dd>
-        {entry.report.playerGuess ? (
-          <>
-            <dt>Player Guess</dt>
-            <dd>
-              <strong>{entry.report.playerGuess}</strong>
-              {entry.report.isPlayerCorrect !== null && entry.report.isPlayerCorrect !== undefined ? (
-                <span
-                  style={{
-                    marginLeft: 8,
-                    fontSize: "0.85em",
-                    padding: "2px 6px",
-                    borderRadius: 4,
-                    background: entry.report.isPlayerCorrect ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)",
-                    color: entry.report.isPlayerCorrect ? "#10b981" : "#ef4444",
-                  }}
-                >
-                  {entry.report.isPlayerCorrect ? "CORRECT" : "WRONG"}
-                </span>
-              ) : null}
-            </dd>
-          </>
-        ) : null}
-        <dt>Dispute Reason</dt>
-        <dd>{entry.report.reason || "—"}</dd>
-        <dt>Player Feedback</dt>
-        <dd>{entry.report.feedbackText || "—"}</dd>
-        <dt>Ombudsman Ruling</dt>
+        <dt>Player guess</dt>
         <dd>
-          {entry.report.ombudsmanRuling ? (
-            <div>
-              <div style={{ marginBottom: 4 }}>{entry.report.ombudsmanRuling}</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                {entry.report.ombudsmanArbiter ? (
-                  <span
-                    style={{
-                      fontSize: "0.8em",
-                      padding: "2px 6px",
-                      borderRadius: 4,
-                      background: entry.report.ombudsmanArbiter === "gemini" ? "rgba(147, 51, 234, 0.2)" : "rgba(107, 114, 128, 0.2)",
-                      color: entry.report.ombudsmanArbiter === "gemini" ? "#c084fc" : "#9ca3af",
-                    }}
-                  >
-                    Arbiter: {entry.report.ombudsmanArbiter === "gemini" ? "Gemini (Vertex AI Grounding)" : "Edge Worker (Fallback Review)"}
-                  </span>
-                ) : null}
-                {entry.report.ombudsmanAgreed !== null && entry.report.ombudsmanAgreed !== undefined ? (
-                  <span
-                    style={{
-                      fontSize: "0.8em",
-                      padding: "2px 6px",
-                      borderRadius: 4,
-                      background: entry.report.ombudsmanAgreed ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)",
-                      color: entry.report.ombudsmanAgreed ? "#10b981" : "#ef4444",
-                    }}
-                  >
-                    {entry.report.ombudsmanAgreed ? "Agreed with player" : "Rejected dispute"}
-                  </span>
-                ) : null}
-              </div>
-            </div>
+          <strong>{formatGuess(report.playerGuess)}</strong>
+          {outcome ? (
+            <>
+              {" "}
+              <Pill tone={outcome.tone}>{outcome.label}</Pill>
+            </>
+          ) : null}
+        </dd>
+        <dt>Dispute reason</dt>
+        <dd>{REASON_LABELS[report.reason] ?? displayOrMissing(report.reason)}</dd>
+        <dt>Player feedback</dt>
+        <dd>{displayOrMissing(report.feedbackText)}</dd>
+        <dt>Reveal text</dt>
+        <dd>{displayOrMissing(report.explanation)}</dd>
+        <dt>Ombudsman arbiter</dt>
+        <dd>
+          <Pill tone={arbiter === "gemini" ? "purple" : arbiter === "edge_worker" ? "muted" : "amber"}>
+            {arbiterLabel}
+          </Pill>
+        </dd>
+        <dt>Agreed with player</dt>
+        <dd>
+          {report.ombudsmanAgreed === true ? (
+            <Pill tone="lime">Yes, sided with the reporter</Pill>
+          ) : report.ombudsmanAgreed === false ? (
+            <Pill tone="red">No, upheld the fact</Pill>
           ) : (
-            "—"
+            "Not recorded"
           )}
         </dd>
-        {entry.report.ombudsmanSources && entry.report.ombudsmanSources.length > 0 ? (
-          <>
-            <dt>Grounding Sources</dt>
-            <dd>
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {entry.report.ombudsmanSources.map((source, idx) => (
-                  <li key={idx} style={{ fontSize: "0.9em", color: "var(--ds-arena-color-text-muted)" }}>
-                    {source}
-                  </li>
-                ))}
-              </ul>
-            </dd>
-          </>
-        ) : null}
+        <dt>Ombudsman verdict</dt>
+        <dd>{displayOrMissing(report.ombudsmanVerdict)}</dd>
+        <dt>Ombudsman ruling</dt>
+        <dd style={{ color: "var(--ds-arena-color-text)" }}>
+          {displayOrMissing(report.ombudsmanRuling)}
+        </dd>
+        <dt>Grounding citations</dt>
+        <dd>
+          <SourceList sources={report.ombudsmanSources} />
+        </dd>
         <dt>Reporter</dt>
-        <dd>{entry.report.reporterUid || "anonymous"}</dd>
+        <dd>{report.reporterUid || "anonymous"}</dd>
         <dt>Created</dt>
-        <dd>{entry.report.createdAt ?? "—"}</dd>
+        <dd>{report.createdAt ?? "Not recorded"}</dd>
         <dt>Matched fact</dt>
         <dd>
-          {entry.fact ? `${entry.fact.subject} — ${entry.fact.angle} (${entry.fact.id})` : "none found (AI-generated claim)"}
+          {entry.fact
+            ? `${entry.fact.subject} / ${entry.fact.angle} (${entry.fact.id})`
+            : "none found (AI-generated claim)"}
         </dd>
-        {entry.report.resolutionNote ? (
+        {report.resolutionNote ? (
           <>
             <dt>Resolution</dt>
-            <dd>{entry.report.resolutionNote}</dd>
+            <dd>{report.resolutionNote}</dd>
           </>
         ) : null}
       </dl>

@@ -518,15 +518,33 @@ export async function removeDailyLeaderboardEntry(
 /* --------------------------------- analytics ------------------------------- */
 
 export async function getGameAnalytics(input: { since?: string }) {
+  // game_history lives under users/{uid}/game_history/{id}. Collection-group
+  // queries on playedAt need COLLECTION_GROUP indexes (ASC ready; DESC may still
+  // be building after deploy). Prefer newest-first; fall back without orderBy.
   const filters = input.since
     ? [{ field: "playedAt" as const, op: "GREATER_THAN_OR_EQUAL" as const, value: input.since }]
     : [];
-  const docs = await runQuery({
-    collection: "game_history",
-    allDescendants: true,
-    filters,
-    limit: 500,
-  });
+
+  async function load(orderBy?: { field: string; direction: "ASCENDING" | "DESCENDING" }) {
+    return runQuery({
+      collection: "game_history",
+      allDescendants: true,
+      filters,
+      ...(orderBy ? { orderBy } : {}),
+      limit: 500,
+    });
+  }
+
+  let docs: Awaited<ReturnType<typeof load>>;
+  let orderedNewestFirst = true;
+  try {
+    docs = await load({ field: "playedAt", direction: "DESCENDING" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/index|FAILED_PRECONDITION|COLLECTION_GROUP/i.test(message)) throw error;
+    docs = await load();
+    orderedNewestFirst = false;
+  }
 
   const tally = (key: string) => {
     const counts = new Map<string, number>();
@@ -539,12 +557,27 @@ export async function getGameAnalytics(input: { since?: string }) {
       .sort((a, b) => b.count - a.count);
   };
 
+  const tallyBool = (key: string, trueLabel: string, falseLabel: string) => {
+    let yes = 0;
+    let no = 0;
+    for (const doc of docs) {
+      if (doc.data[key] === true) yes += 1;
+      else no += 1;
+    }
+    return [
+      { name: trueLabel, count: yes },
+      { name: falseLabel, count: no },
+    ].filter((row) => row.count > 0);
+  };
+
   return {
     total: docs.length,
     windowed: docs.length >= 500,
+    orderedNewestFirst,
     byMode: tally("gameMode"),
     byCategory: tally("category"),
     byDifficulty: tally("difficulty"),
-    byPace: tally("pace"),
+    byMatchSource: tally("matchSource"),
+    byVerified: tallyBool("verified", "verified", "unverified"),
   };
 }

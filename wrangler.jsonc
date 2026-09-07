@@ -4,6 +4,9 @@
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
+  "observability": {
+    "enabled": true
+  },
   "vars": {
     "FIREBASE_PROJECT_ID": "more-or-less-505908",
     "GOOGLE_CLOUD_PROJECT": "more-or-less-505908",
