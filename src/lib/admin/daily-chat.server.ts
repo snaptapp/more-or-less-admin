@@ -19,7 +19,7 @@ import {
   type EditableRound,
 } from "./daily-blitz";
 import { generatePackViaGoAgent, goAgentConfigured } from "./goagent.server";
-import { isAbortError, responseSnippet } from "./http";
+import { isAbortError, responseSnippet, asJsonObject } from "./http";
 import { getDailyPack } from "./ops.server";
 
 const MODEL_ID = "gemini-3.8-flash";
@@ -425,7 +425,9 @@ async function generateContent(contents: GeminiContent[], system: string): Promi
     error?: { message?: string };
   };
   try {
-    payload = (await response.json()) as typeof payload;
+    const parsed = asJsonObject(await response.json());
+    if (!parsed) throw new Error("not an object");
+    payload = parsed;
   } catch {
     throw new Error("Gemini chat returned invalid JSON.");
   }

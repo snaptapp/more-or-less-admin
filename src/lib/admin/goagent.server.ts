@@ -8,7 +8,7 @@
  */
 import { getOidcIdToken } from "../firebase/credentials.server";
 import { DAILY_BLITZ_ROUNDS, mapPackRounds, type EditableRound } from "./daily-blitz";
-import { isAbortError, responseSnippet } from "./http";
+import { isAbortError, responseSnippet, asJsonObject } from "./http";
 
 const ADMIN_PACK_TIMEOUT_MS = 170_000;
 const ADMIN_PACK_BUDGET_HEADER = "X-Mol-Pack-Budget";
@@ -92,7 +92,9 @@ export async function generatePackViaGoAgent(input: GoPackRequest): Promise<GoPa
 
   let raw: Record<string, unknown>;
   try {
-    raw = (await response.json()) as Record<string, unknown>;
+    const parsed = asJsonObject(await response.json());
+    if (!parsed) throw new Error("not an object");
+    raw = parsed;
   } catch {
     throw new Error("Go agent /pack returned invalid JSON");
   }

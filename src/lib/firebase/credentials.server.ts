@@ -170,7 +170,12 @@ export async function getOidcIdToken(audience: string, accountJson?: string): Pr
     }),
   });
   if (!response.ok) {
-    const detail = (await response.text()).slice(0, 200);
+    let detail = "response body unavailable";
+    try {
+      detail = (await response.text()).slice(0, 200);
+    } catch {
+      // Body unreadable after a dropped or truncated OIDC response.
+    }
     throw new Error(`OIDC token exchange failed (${response.status}): ${detail}`);
   }
   const payload = (await response.json()) as { id_token?: string; expires_in?: number };

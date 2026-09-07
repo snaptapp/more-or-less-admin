@@ -12,3 +12,8 @@ export function isAbortError(err: unknown): boolean {
   const name = "name" in err ? String(err.name) : "";
   return name === "TimeoutError" || name === "AbortError";
 }
+
+export function asJsonObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
