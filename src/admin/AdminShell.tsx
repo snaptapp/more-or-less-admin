@@ -9,7 +9,7 @@ const NAV = [
   { to: "/admin/facts", label: "Content" },
   { to: "/admin/reports", label: "Moderation" },
   { to: "/admin/players", label: "Players" },
-  { to: "/admin/daily", label: "Daily challenge" },
+  { to: "/admin/daily", label: "Daily Blitz" },
   { to: "/admin/analytics", label: "Game analytics" },
   { to: "/admin/roles", label: "Roles & access" },
   { to: "/admin/audit", label: "Audit log" },

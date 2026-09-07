@@ -8,9 +8,17 @@
     "enabled": true
   },
   "vars": {
+    // Project ids and the Firebase *web* API key are publishable (the key is
+    // also served by /api/public/firebase-config for browser Auth). Real
+    // credentials stay in Worker secrets: FIREBASE_SERVICE_ACCOUNT_JSON and
+    // optional GO_AGENT_SERVICE_ACCOUNT_JSON.
     "FIREBASE_PROJECT_ID": "more-or-less-505908",
     "GOOGLE_CLOUD_PROJECT": "more-or-less-505908",
     "FIREBASE_WEB_API_KEY": "AIzaSyBLNZLQZkus4CutqPTS7LmfVDD0rao2qwo",
-    "ADMIN_EMAIL_ALLOWLIST": "michael.anderson@trackdub.com,mta1124@gmail.com"
+    // Prefer `npx wrangler secret put ADMIN_EMAIL_ALLOWLIST` so a secret of
+    // the same name overrides this bootstrap var without locking ops out.
+    "ADMIN_EMAIL_ALLOWLIST": "michael.anderson@trackdub.com,mta1124@gmail.com",
+    "GO_AGENT_URL": "https://agent-go-213137202876.us-central1.run.app",
+    "VERTEX_LOCATION": "global"
   }
 }
