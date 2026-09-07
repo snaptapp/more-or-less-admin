@@ -18,6 +18,7 @@ import {
   factToBlitzRound,
   formatDateLabel,
   mapPackRounds,
+  roundReadyToSchedule,
   schedulePayload,
   utcToday,
   type EditableRound,
@@ -215,6 +216,14 @@ function BlitzEditor({
         return;
       }
     }
+    const incomplete = draft.rounds.findIndex((r) => !roundReadyToSchedule(r));
+    if (incomplete >= 0) {
+      setGenerateError(
+        `Round ${incomplete + 1} needs a claim, unit, explanation, and unequal true/presented numbers.`,
+      );
+      return;
+    }
+    setGenerateError(null);
     scheduleMutation.mutate();
   };
 
@@ -331,13 +340,17 @@ function BlitzEditor({
                 const open = expanded === i;
                 return (
                   <Fragment key={r.round_number || i}>
-                    <tr
-                      key={`row-${i}`}
-                      className={open ? "is-editing" : undefined}
-                      onClick={() => setExpanded(open ? null : i)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <td>{i + 1}</td>
+                    <tr key={`row-${i}`} className={open ? "is-editing" : undefined}>
+                      <td>
+                        <button
+                          type="button"
+                          className="admin-reset-link"
+                          aria-expanded={open}
+                          onClick={() => setExpanded(open ? null : i)}
+                        >
+                          {i + 1}
+                        </button>
+                      </td>
                       <td>
                         <strong>{r.claim_statement || "(empty)"}</strong>
                       </td>

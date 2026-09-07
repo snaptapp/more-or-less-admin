@@ -33,22 +33,29 @@ export function DailyBlitzChat({
   }, [date]);
 
   const mutation = useMutation({
-    mutationFn: (next: ChatMessage[]) =>
+    mutationFn: (vars: {
+      date: string;
+      topic: string;
+      brief: string;
+      rounds: EditableRound[];
+      unfilledDates: string[];
+      next: ChatMessage[];
+    }) =>
       chat({
         data: {
-          date,
-          topic,
-          brief,
-          rounds,
-          unfilledDates,
-          messages: next.map(({ role, text }) => ({ role, text })),
+          date: vars.date,
+          topic: vars.topic,
+          brief: vars.brief,
+          rounds: vars.rounds,
+          unfilledDates: vars.unfilledDates,
+          messages: vars.next.map(({ role, text }) => ({ role, text })),
         },
       }),
-    onSuccess: (res, next) => {
+    onSuccess: (res, vars) => {
       setThreads((prev) => ({
         ...prev,
-        [date]: [
-          ...next,
+        [vars.date]: [
+          ...vars.next,
           {
             role: "assistant",
             text: res.text,
@@ -66,7 +73,7 @@ export function DailyBlitzChat({
     const next: ChatMessage[] = [...messages, { role: "user", text }];
     setThreads((prev) => ({ ...prev, [date]: next }));
     setInput("");
-    mutation.mutate(next);
+    mutation.mutate({ date, topic, brief, rounds, unfilledDates, next });
   };
 
   const applyCard = (card: ChatCard) => {

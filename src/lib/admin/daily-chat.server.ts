@@ -20,7 +20,7 @@ import {
 } from "./daily-blitz";
 import { generatePackViaGoAgent, goAgentConfigured } from "./goagent.server";
 import { isAbortError, responseSnippet } from "./http";
-import { listDailyPacks } from "./ops.server";
+import { getDailyPack } from "./ops.server";
 
 const MODEL_ID = "gemini-3.8-flash";
 const MAX_TOOL_TURNS = 6;
@@ -149,9 +149,9 @@ function newCardId(prefix: string): string {
 }
 
 async function listUnfilledDates(): Promise<string[]> {
-  const packs = await listDailyPacks(200);
-  const have = new Set(packs.map((p) => p.date));
-  return calendarStripDates().filter((d) => !have.has(d));
+  const dates = calendarStripDates();
+  const found = await Promise.all(dates.map((d) => getDailyPack(d)));
+  return dates.filter((_, i) => !found[i]);
 }
 
 async function searchFacts(query: string) {
@@ -341,7 +341,11 @@ async function executeTool(
     }
     case "propose_swap": {
       const roundNumber = Number(args.round);
+      if (!Number.isInteger(roundNumber) || roundNumber < 1 || roundNumber > DAILY_BLITZ_ROUNDS) {
+        return { result: { error: `round must be 1-${DAILY_BLITZ_ROUNDS}.` } };
+      }
       const factId = String(args.factId ?? "");
+      if (!factId) return { result: { error: "factId is required." } };
       const preferred: "MORE" | "LESS" | undefined = roundNumber % 2 === 0 ? "LESS" : "MORE";
       const swapped = await proposeSwap(roundNumber, factId, preferred);
       if ("error" in swapped && swapped.error) {

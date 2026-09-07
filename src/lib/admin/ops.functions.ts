@@ -257,12 +257,12 @@ export const chatDailyBlitz = createServerFn({ method: "POST" }).middleware([aut
         topic: z.string().optional().default(""),
         brief: z.string().optional().default(""),
         unfilledDates: z.array(z.string()).optional().default([]),
-        rounds: z.array(z.any()).optional().default([]),
+        rounds: z.array(z.any()).max(15).optional().default([]),
         messages: z
           .array(
             z.object({
               role: z.enum(["user", "assistant"]),
-              text: z.string(),
+              text: z.string().max(4000),
             }),
           )
           .max(24),

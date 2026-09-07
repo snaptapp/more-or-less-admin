@@ -633,6 +633,20 @@ export async function scheduleDailyPack(
   },
   adminUser?: AdminUser,
 ): Promise<DailyPack> {
+  const { roundReadyToSchedule } = await import("./daily-blitz");
+  if (!Array.isArray(input.rounds) || input.rounds.length === 0) {
+    throw new Error("A Daily Blitz pack needs at least one complete round.");
+  }
+  const incomplete = input.rounds.findIndex((raw) => {
+    const rec = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    return !roundReadyToSchedule(rec);
+  });
+  if (incomplete >= 0) {
+    throw new Error(
+      `Round ${incomplete + 1} needs a claim, unit, explanation, and unequal true/presented numbers.`,
+    );
+  }
+
   const payload = {
     date: input.date,
     seed: `admin_scheduled_${input.date}`,

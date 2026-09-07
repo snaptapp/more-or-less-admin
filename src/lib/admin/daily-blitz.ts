@@ -88,7 +88,12 @@ export function formatDateLabel(dateStr: string): string {
   if (dateStr === addUtcDays(t, 1)) return "Tomorrow";
   if (dateStr === addUtcDays(t, -1)) return "Yesterday";
   const d = new Date(dateStr + "T00:00:00Z");
-  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return d.toLocaleDateString(undefined, {
+    timeZone: "UTC",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 /** Calendar strip: yesterday through 14 days ahead. */
@@ -115,6 +120,31 @@ export function emptyRound(roundNumber: number, topic = ""): EditableRound {
 
 export function directionFromNumbers(trueNumber: number, presentedNumber: number): "MORE" | "LESS" {
   return trueNumber > presentedNumber ? "MORE" : "LESS";
+}
+
+export function clampSurprise(raw: unknown): number {
+  const s = Number(raw ?? 2);
+  if (!Number.isFinite(s)) return 2;
+  return Math.min(3, Math.max(0, Math.round(s)));
+}
+
+export function roundReadyToSchedule(round: {
+  claim_statement?: unknown;
+  unit?: unknown;
+  explanation?: unknown;
+  true_number?: unknown;
+  presented_number?: unknown;
+}): boolean {
+  const trueNum = Number(round.true_number);
+  const presented = Number(round.presented_number);
+  return Boolean(
+    String(round.claim_statement ?? "").trim() &&
+      String(round.unit ?? "").trim() &&
+      String(round.explanation ?? "").trim() &&
+      Number.isFinite(trueNum) &&
+      Number.isFinite(presented) &&
+      trueNum !== presented,
+  );
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -338,7 +368,7 @@ export function mapPackRounds(rawRounds: unknown[], fallbackTopic: string): Edit
       unit: String(rec.unit ?? ""),
       correct_direction: direction,
       explanation: String(rec.explanation ?? ""),
-      surprise_factor: Number(rec.surprise_factor ?? 2),
+      surprise_factor: clampSurprise(rec.surprise_factor),
       difficulty: rec.difficulty === "medium" || rec.difficulty === "hard" ? rec.difficulty : "casual",
       quantity_kind: typeof rec.quantity_kind === "string" ? rec.quantity_kind : undefined,
       trap_direction: typeof rec.trap_direction === "string" ? rec.trap_direction : undefined,
@@ -364,7 +394,7 @@ export function schedulePayload(rounds: EditableRound[], category: string) {
         ? directionFromNumbers(trueNum, presented)
         : r.correct_direction,
       explanation: r.explanation.trim(),
-      surprise_factor: Number(r.surprise_factor),
+      surprise_factor: clampSurprise(r.surprise_factor),
       difficulty: r.difficulty || "casual",
       ...(r.quantity_kind ? { quantity_kind: r.quantity_kind } : {}),
       ...(r.trap_direction ? { trap_direction: r.trap_direction } : {}),
