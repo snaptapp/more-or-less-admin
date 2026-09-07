@@ -10,7 +10,7 @@ export const Route = createFileRoute("/admin/analytics")({
   head: () => ({
     meta: [
       { title: "Game Analytics — More or Less Admin" },
-      { name: "description", content: "Breakdown of recent game_history by mode, category, and source." },
+      { name: "description", content: "Breakdown of recent game_history by mode and category." },
     ],
   }),
   component: AnalyticsPage,
@@ -130,11 +130,6 @@ function CategoryBreakdown({
             ))}
           </select>
         </label>
-        {hiddenRows.length > 0 ? (
-          <Button size="sm" variant="ghost" onClick={onShowAll}>
-            Restore all
-          </Button>
-        ) : null}
       </div>
       <div style={{ marginTop: "var(--ds-arena-space-3)" }}>
         {visible.length === 0 ? (
@@ -178,21 +173,34 @@ function CategoryBreakdown({
         ))}
       </div>
       {hiddenRows.length > 0 ? (
-        <>
-          <CardLabel style={{ marginTop: "var(--ds-arena-space-4)" }}>Hidden</CardLabel>
+        <details className="admin-hidden-fold">
+          <summary>
+            {hiddenRows.length} hidden
+          </summary>
           <div className="admin-hidden-list">
             {hiddenRows.map((row) => (
               <span key={row.name} className="admin-hidden-chip">
                 <span title={row.name}>
-                  {row.name} ({row.count})
+                  {row.name}
+                  <span className="admin-hidden-chip__count">{row.count}</span>
                 </span>
-                <Button size="sm" variant="ghost" onClick={() => onShow(row.name)}>
-                  Restore
-                </Button>
+                <button
+                  type="button"
+                  className="admin-hidden-restore"
+                  aria-label={`Restore ${row.name}`}
+                  onClick={() => onShow(row.name)}
+                >
+                  undo
+                </button>
               </span>
             ))}
+            {hiddenRows.length > 1 ? (
+              <button type="button" className="admin-hidden-restore" onClick={onShowAll}>
+                undo all
+              </button>
+            ) : null}
           </div>
-        </>
+        </details>
       ) : null}
     </Card>
   );
@@ -272,21 +280,15 @@ function AnalyticsPage() {
           </Card>
           <div className="admin-two-col">
             <Breakdown title="By mode" rows={data.byMode} total={data.total} />
-            <Breakdown title="By match source" rows={data.byMatchSource} total={data.total} />
-          </div>
-          <div className="admin-two-col">
-            <CategoryBreakdown
-              rows={data.byCategory}
-              hidden={hiddenCategories}
-              onHide={hideCategory}
-              onShow={showCategory}
-              onShowAll={() => setHiddenCategories([])}
-            />
-            <Breakdown title="By difficulty" rows={data.byDifficulty} total={data.total} />
-          </div>
-          <div className="admin-two-col">
             <Breakdown title="Verified vs unverified" rows={data.byVerified} total={data.total} />
           </div>
+          <CategoryBreakdown
+            rows={data.byCategory}
+            hidden={hiddenCategories}
+            onHide={hideCategory}
+            onShow={showCategory}
+            onShowAll={() => setHiddenCategories([])}
+          />
         </>
       ) : null}
     </>

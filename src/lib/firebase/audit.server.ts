@@ -8,7 +8,7 @@ export interface AuditLogEntry {
   adminUid: string;
   adminEmail: string | null;
   action: string;
-  targetType: "fact" | "report" | "user" | "subject" | "crawl_job" | "daily_pack" | "leaderboard" | "system";
+  targetType: "fact" | "report" | "user" | "subject" | "playlist" | "crawl_job" | "daily_pack" | "leaderboard" | "system";
   targetId: string;
   details?: string;
   before?: Record<string, unknown> | null;

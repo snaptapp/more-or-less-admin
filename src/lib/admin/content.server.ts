@@ -13,24 +13,13 @@ import {
   type Json,
   type QueryFilter,
 } from "../firebase/firestore.server";
+import { GENRES } from "./taxonomy";
 
 export const FACT_STATUSES = ["active", "disputed", "retired"] as const;
 export const CONTENT_RATINGS = ["standard", "after_dark"] as const;
 export const REPORT_STATUSES = ["pending_review", "resolved", "rejected"] as const;
 
-export const CATEGORIES = [
-  "Animals & Nature",
-  "Science & Space",
-  "Sports",
-  "Music",
-  "Movies & TV",
-  "Pop Culture & Records",
-  "History & World",
-  "Food & Drink",
-  "Technology",
-  "Money & Business",
-  "General",
-] as const;
+export const CATEGORIES = GENRES;
 
 export interface FactRecord {
   id: string;
@@ -104,6 +93,8 @@ export function toFact(doc: FirestoreDoc): FactRecord {
 export interface FactListInput {
   search?: string;
   category?: string;
+  family?: string;
+  playlistId?: string;
   subject?: string;
   angle?: string;
   status?: string;
@@ -115,6 +106,50 @@ export interface FactListInput {
   sortOrder?: "asc" | "desc";
   page?: number;
   pageSize?: number;
+}
+
+async function applyTaxonomyFilters(
+  facts: FactRecord[],
+  input: Pick<FactListInput, "category" | "family" | "playlistId">,
+): Promise<FactRecord[]> {
+  let next = facts;
+  if (input.category?.trim()) {
+    const cat = input.category.trim().toLowerCase();
+    const matchingSubjectDocs = await runQuery({
+      collection: "fact_subjects",
+      filters: [{ field: "category", op: "EQUAL", value: input.category.trim() }],
+      limit: 1000,
+    });
+    const subjectMap = new Set(
+      matchingSubjectDocs.map((d) => String(d.data.subject ?? d.id).toLowerCase()),
+    );
+    next = next.filter(
+      (f) => (f.category && f.category.toLowerCase() === cat) || subjectMap.has(f.subject.toLowerCase()),
+    );
+  }
+  if (input.family?.trim()) {
+    const family = input.family.trim().toLowerCase();
+    const matchingSubjectDocs = await runQuery({
+      collection: "fact_subjects",
+      filters: [{ field: "sub_category", op: "EQUAL", value: input.family.trim() }],
+      limit: 1000,
+    });
+    const subjectMap = new Set(
+      matchingSubjectDocs.map((d) => String(d.data.subject ?? d.id).toLowerCase()),
+    );
+    next = next.filter((f) => subjectMap.has(f.subject.toLowerCase()));
+  }
+  if (input.playlistId?.trim()) {
+    const playlist = await getDoc(`fact_playlists/${input.playlistId.trim()}`);
+    const keys = Array.isArray(playlist?.data["topic_keys"])
+      ? playlist.data["topic_keys"].filter((v): v is string => typeof v === "string")
+      : [];
+    const keySet = new Set(keys.map((k) => k.toLowerCase()));
+    next = next.filter(
+      (f) => keySet.has(f.subject_key.toLowerCase()) || keySet.has(normalizeKey(f.subject)),
+    );
+  }
+  return next;
 }
 
 /**
@@ -141,21 +176,7 @@ export async function listFacts(input: FactListInput) {
   });
 
   let facts = window.map(toFact);
-  if (input.category?.trim()) {
-    const cat = input.category.trim().toLowerCase();
-    const matchingSubjectDocs = await runQuery({
-      collection: "fact_subjects",
-      filters: [{ field: "category", op: "EQUAL", value: input.category.trim() }],
-      limit: 1000,
-    });
-    const subjectMap = new Set(
-      matchingSubjectDocs.map((d) => String(d.data.subject ?? d.id).toLowerCase())
-    );
-    facts = facts.filter((f) =>
-      (f.category && f.category.toLowerCase() === cat) ||
-      subjectMap.has(f.subject.toLowerCase())
-    );
-  }
+  facts = await applyTaxonomyFilters(facts, input);
   if (input.subject?.trim()) {
     const sub = input.subject.trim().toLowerCase();
     facts = facts.filter((f) => f.subject.toLowerCase().includes(sub));
@@ -226,6 +247,7 @@ export async function exportFacts(input: FactListInput): Promise<FactRecord[]> {
   });
 
   let facts = window.map(toFact);
+  facts = await applyTaxonomyFilters(facts, input);
   if (input.subject?.trim()) {
     const sub = input.subject.trim().toLowerCase();
     facts = facts.filter((f) => f.subject.toLowerCase().includes(sub));
@@ -405,8 +427,9 @@ export async function updateFact(input: FactEditInput): Promise<FactRecord> {
         subject: subj,
         subject_key: subjectKey,
         category: input.category,
-        sub_category: input.sub_category || subj,
+        ...(input.sub_category ? { sub_category: input.sub_category } : {}),
         aliases: [],
+        playlist_ids: [],
         fact_count: 1,
         createdAt: new Date().toISOString(),
       });
@@ -500,8 +523,9 @@ export async function createFact(input: {
         subject: input.subject.trim(),
         subject_key,
         category: input.category,
-        sub_category: input.sub_category || input.subject.trim(),
+        ...(input.sub_category ? { sub_category: input.sub_category } : {}),
         aliases: [],
+        playlist_ids: [],
         fact_count: 1,
         createdAt: new Date().toISOString(),
       });

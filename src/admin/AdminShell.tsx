@@ -6,9 +6,8 @@ import "./admin.css";
 
 const NAV = [
   { to: "/admin", label: "Overview", exact: true },
-  { to: "/admin/facts", label: "Fact bank" },
+  { to: "/admin/facts", label: "Content" },
   { to: "/admin/reports", label: "Moderation" },
-  { to: "/admin/taxonomy", label: "Taxonomy & crawl" },
   { to: "/admin/players", label: "Players" },
   { to: "/admin/daily", label: "Daily challenge" },
   { to: "/admin/analytics", label: "Game analytics" },

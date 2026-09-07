@@ -32,6 +32,7 @@ export interface SubjectRecord {
   category: string;
   sub_category: string;
   aliases: string[];
+  playlist_ids: string[];
   fact_count: number;
   last_crawled_at: string | null;
   crawl_notes: string;
@@ -45,16 +46,37 @@ function toSubject(doc: FirestoreDoc): SubjectRecord {
     category: str(d["category"]),
     sub_category: str(d["sub_category"]),
     aliases: strArray(d["aliases"]),
+    playlist_ids: strArray(d["playlist_ids"]),
     fact_count: num(d["fact_count"]) ?? 0,
     last_crawled_at: typeof d["last_crawled_at"] === "string" ? d["last_crawled_at"] : null,
     crawl_notes: str(d["crawl_notes"]),
   };
 }
 
-export async function listSubjects(input: { search?: string; category?: string }) {
-  const { docs } = await listDocs("fact_subjects", { pageSize: 300 });
+async function listAllDocs(collection: string) {
+  const docs: FirestoreDoc[] = [];
+  let pageToken: string | undefined;
+  do {
+    const page = await listDocs(collection, { pageSize: 300, pageToken });
+    docs.push(...page.docs);
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+  return docs;
+}
+
+export async function listSubjects(input: {
+  search?: string;
+  category?: string;
+  family?: string;
+  playlistId?: string;
+}) {
+  const docs = await listAllDocs("fact_subjects");
   let subjects = docs.map(toSubject);
   if (input.category) subjects = subjects.filter((s) => s.category === input.category);
+  if (input.family) subjects = subjects.filter((s) => s.sub_category === input.family);
+  if (input.playlistId) {
+    subjects = subjects.filter((s) => s.playlist_ids.includes(input.playlistId!));
+  }
   const term = input.search?.trim().toLowerCase();
   if (term) {
     subjects = subjects.filter((s) =>
@@ -76,19 +98,196 @@ export async function listSubjects(input: { search?: string; category?: string }
   };
 }
 
+async function assertNameNotTaken(key: string, kind: "topic" | "playlist") {
+  const other = kind === "topic" ? await getDoc(`fact_playlists/${key}`) : await getDoc(`fact_subjects/${key}`);
+  if (other) {
+    throw new Error(
+      kind === "topic"
+        ? "A playlist already uses this name. Pick a different topic name."
+        : "A topic already uses this name. Pick a different playlist name.",
+    );
+  }
+}
+
+export async function createSubject(input: {
+  subject: string;
+  category: string;
+  sub_category?: string;
+  aliases?: string[];
+  playlist_ids?: string[];
+}): Promise<SubjectRecord> {
+  const subjectKey = normalizeKey(input.subject);
+  if (!subjectKey) throw new Error("Topic name is required");
+  if (await getDoc(`fact_subjects/${subjectKey}`)) throw new Error("A topic with this name already exists");
+  await assertNameNotTaken(subjectKey, "topic");
+  const playlist_ids = [...new Set(input.playlist_ids ?? [])];
+  const created = toSubject(
+    await createDoc("fact_subjects", subjectKey, {
+      subject: input.subject.trim(),
+      subject_key: subjectKey,
+      category: input.category,
+      ...(input.sub_category ? { sub_category: input.sub_category } : {}),
+      aliases: input.aliases ?? [],
+      playlist_ids: [],
+      fact_count: 0,
+      crawl_notes: "",
+      createdAt: new Date().toISOString(),
+    }),
+  );
+  if (!playlist_ids.length) return created;
+  await syncTopicPlaylists(subjectKey, playlist_ids);
+  const updated = await getDoc(`fact_subjects/${subjectKey}`);
+  return updated ? toSubject(updated) : created;
+}
+
 export async function updateSubject(input: {
   id: string;
   category?: string;
   sub_category?: string;
   aliases?: string[];
   crawl_notes?: string;
+  playlist_ids?: string[];
 }): Promise<SubjectRecord> {
   const patch: Record<string, unknown> = {};
   if (input.category !== undefined) patch["category"] = input.category;
   if (input.sub_category !== undefined) patch["sub_category"] = input.sub_category;
   if (input.aliases !== undefined) patch["aliases"] = input.aliases;
   if (input.crawl_notes !== undefined) patch["crawl_notes"] = input.crawl_notes;
-  return toSubject(await patchDoc(`fact_subjects/${input.id}`, patch));
+  if (Object.keys(patch).length > 0) await patchDoc(`fact_subjects/${input.id}`, patch);
+  if (input.playlist_ids) await syncTopicPlaylists(input.id, input.playlist_ids);
+  const updated = await getDoc(`fact_subjects/${input.id}`);
+  if (!updated) throw new Error(`Topic ${input.id} not found`);
+  return toSubject(updated);
+}
+
+export interface PlaylistRecord {
+  id: string;
+  name: string;
+  aliases: string[];
+  topic_keys: string[];
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+function toPlaylist(doc: FirestoreDoc): PlaylistRecord {
+  const d = doc.data;
+  return {
+    id: doc.id,
+    name: str(d["name"]),
+    aliases: strArray(d["aliases"]),
+    topic_keys: strArray(d["topic_keys"]),
+    createdAt: typeof d["createdAt"] === "string" ? d["createdAt"] : null,
+    updatedAt: typeof d["updatedAt"] === "string" ? d["updatedAt"] : null,
+  };
+}
+
+export async function listPlaylists() {
+  const docs = await listAllDocs("fact_playlists");
+  const playlists = docs.map(toPlaylist);
+  playlists.sort((a, b) => a.name.localeCompare(b.name));
+  return playlists;
+}
+
+async function syncTopicPlaylists(subjectKey: string, playlistIds: string[]) {
+  const subject = await getDoc(`fact_subjects/${subjectKey}`);
+  const prev = subject ? strArray(subject.data["playlist_ids"]) : [];
+  const next = [...new Set(playlistIds)];
+  if (subject) {
+    await patchDoc(`fact_subjects/${subjectKey}`, { playlist_ids: next });
+  }
+  const add = next.filter((id) => !prev.includes(id));
+  const remove = prev.filter((id) => !next.includes(id));
+  const now = new Date().toISOString();
+  for (const id of add) {
+    const playlist = await getDoc(`fact_playlists/${id}`);
+    if (!playlist) continue;
+    const keys = strArray(playlist.data["topic_keys"]);
+    if (!keys.includes(subjectKey)) {
+      await patchDoc(`fact_playlists/${id}`, { topic_keys: [...keys, subjectKey], updatedAt: now });
+    }
+  }
+  for (const id of remove) {
+    const playlist = await getDoc(`fact_playlists/${id}`);
+    if (!playlist) continue;
+    await patchDoc(`fact_playlists/${id}`, {
+      topic_keys: strArray(playlist.data["topic_keys"]).filter((key) => key !== subjectKey),
+      updatedAt: now,
+    });
+  }
+}
+
+async function syncPlaylistTopics(playlistId: string, topicKeys: string[]) {
+  const playlist = await getDoc(`fact_playlists/${playlistId}`);
+  const prev = playlist ? strArray(playlist.data["topic_keys"]) : [];
+  const next = [...new Set(topicKeys)];
+  const now = new Date().toISOString();
+  if (playlist) {
+    await patchDoc(`fact_playlists/${playlistId}`, { topic_keys: next, updatedAt: now });
+  }
+  const add = next.filter((key) => !prev.includes(key));
+  const remove = prev.filter((key) => !next.includes(key));
+  for (const key of add) {
+    const subject = await getDoc(`fact_subjects/${key}`);
+    if (!subject) continue;
+    const ids = strArray(subject.data["playlist_ids"]);
+    if (!ids.includes(playlistId)) {
+      await patchDoc(`fact_subjects/${key}`, { playlist_ids: [...ids, playlistId] });
+    }
+  }
+  for (const key of remove) {
+    const subject = await getDoc(`fact_subjects/${key}`);
+    if (!subject) continue;
+    await patchDoc(`fact_subjects/${key}`, {
+      playlist_ids: strArray(subject.data["playlist_ids"]).filter((id) => id !== playlistId),
+    });
+  }
+}
+
+export async function createPlaylist(input: {
+  name: string;
+  aliases?: string[];
+  topic_keys?: string[];
+}): Promise<PlaylistRecord> {
+  const playlistKey = normalizeKey(input.name);
+  if (!playlistKey) throw new Error("Playlist name is required");
+  if (await getDoc(`fact_playlists/${playlistKey}`)) throw new Error("A playlist with this name already exists");
+  await assertNameNotTaken(playlistKey, "playlist");
+  const topic_keys = [...new Set(input.topic_keys ?? [])];
+  const now = new Date().toISOString();
+  const created = toPlaylist(
+    await createDoc("fact_playlists", playlistKey, {
+      name: input.name.trim(),
+      playlist_key: playlistKey,
+      aliases: input.aliases ?? [],
+      topic_keys: [],
+      createdAt: now,
+      updatedAt: now,
+    }),
+  );
+  if (topic_keys.length) {
+    await syncPlaylistTopics(playlistKey, topic_keys);
+    const updated = await getDoc(`fact_playlists/${playlistKey}`);
+    return updated ? toPlaylist(updated) : created;
+  }
+  return created;
+}
+
+export async function updatePlaylist(input: {
+  id: string;
+  name?: string;
+  aliases?: string[];
+  topic_keys?: string[];
+}): Promise<PlaylistRecord> {
+  const existing = await getDoc(`fact_playlists/${input.id}`);
+  if (!existing) throw new Error(`Playlist ${input.id} not found`);
+  const patch: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+  if (input.name !== undefined) patch["name"] = input.name;
+  if (input.aliases !== undefined) patch["aliases"] = input.aliases;
+  if (Object.keys(patch).length > 1) await patchDoc(`fact_playlists/${input.id}`, patch);
+  if (input.topic_keys) await syncPlaylistTopics(input.id, input.topic_keys);
+  const updated = await getDoc(`fact_playlists/${input.id}`);
+  if (!updated) throw new Error(`Playlist ${input.id} not found`);
+  return toPlaylist(updated);
 }
 
 /* ------------------------------- crawl queue ------------------------------- */
@@ -137,14 +336,33 @@ export async function enqueueCrawl(input: {
   subject: string;
   priority: number;
   refresh: boolean;
-}): Promise<CrawlRecord> {
-  const subjectKey = normalizeKey(input.subject);
+}): Promise<{ items: CrawlRecord[]; expandedFrom: string | null }> {
+  const playlists = await listPlaylists();
+  const needle = input.subject.trim().toLowerCase();
+  const playlist = playlists.find(
+    (item) =>
+      item.name.toLowerCase() === needle || item.aliases.some((alias) => alias.toLowerCase() === needle),
+  );
+  if (playlist?.topic_keys.length) {
+    const items: CrawlRecord[] = [];
+    for (const key of playlist.topic_keys) {
+      const topic = await getDoc(`fact_subjects/${key}`);
+      const name = topic ? str(topic.data["subject"]) || key : key;
+      items.push(await enqueueOneTopic(name, input.priority, input.refresh));
+    }
+    return { items, expandedFrom: playlist.name };
+  }
+  return { items: [await enqueueOneTopic(input.subject, input.priority, input.refresh)], expandedFrom: null };
+}
+
+async function enqueueOneTopic(subject: string, priority: number, refresh: boolean): Promise<CrawlRecord> {
+  const subjectKey = normalizeKey(subject);
   const payload = {
-    subject: input.subject,
-    priority: input.priority,
+    subject,
+    priority,
     status: "queued",
     requested_by: "manual",
-    refresh: input.refresh,
+    refresh,
     enqueued_at: new Date().toISOString(),
     completed_at: null,
   };
@@ -517,27 +735,26 @@ export async function removeDailyLeaderboardEntry(
 
 /* --------------------------------- analytics ------------------------------- */
 
-// Live game_history docs often omit matchSource (added later). Infer it the
-// same way the game backend does: stored field, else mode contract / aliases.
-const MATCH_SOURCE_BY_MODE: Record<string, "client" | "server" | "party"> = {
-  standard: "client",
-  standard3Round: "client",
-  cutthroat: "client",
-  blitz: "client",
-  blitz60s: "client",
-  daily: "server",
-  dailyChallenge: "server",
-  versus: "server",
-  versus1v1: "server",
-  party: "party",
-  partyRoom: "party",
+// Wire labels in game_history still include pre-contract aliases
+// (standard3Round, versus1v1, …). Fold those into product modes.
+const CANONICAL_MODE_LABEL: Record<string, string> = {
+  standard: "Standard",
+  standard3round: "Standard",
+  cutthroat: "Cutthroat",
+  blitz: "Blitz",
+  blitz60s: "Blitz",
+  versus: "Versus",
+  versus1v1: "Versus",
+  party: "Party",
+  partyroom: "Party",
+  daily: "Daily",
+  dailychallenge: "Daily",
 };
 
-function matchSourceOf(data: Record<string, Json>): string {
-  const stored = str(data["matchSource"]) || str(data["match_source"]);
-  if (stored) return stored;
-  const mode = str(data["gameMode"]);
-  return MATCH_SOURCE_BY_MODE[mode] ?? MATCH_SOURCE_BY_MODE[mode.toLowerCase()] ?? "unknown";
+function canonicalModeOf(data: Record<string, Json>): string {
+  const raw = str(data["gameMode"]);
+  if (!raw) return "Unknown";
+  return CANONICAL_MODE_LABEL[raw.toLowerCase()] ?? "Unknown";
 }
 
 export async function getGameAnalytics(input: { since?: string }) {
@@ -580,10 +797,10 @@ export async function getGameAnalytics(input: { since?: string }) {
       .sort((a, b) => b.count - a.count);
   };
 
-  const tallyMatchSource = () => {
+  const tallyMode = () => {
     const counts = new Map<string, number>();
     for (const doc of docs) {
-      const value = matchSourceOf(doc.data);
+      const value = canonicalModeOf(doc.data);
       counts.set(value, (counts.get(value) ?? 0) + 1);
     }
     return [...counts.entries()]
@@ -608,10 +825,8 @@ export async function getGameAnalytics(input: { since?: string }) {
     total: docs.length,
     windowed: docs.length >= 500,
     orderedNewestFirst,
-    byMode: tally("gameMode"),
+    byMode: tallyMode(),
     byCategory: tally("category"),
-    byDifficulty: tally("difficulty"),
-    byMatchSource: tallyMatchSource(),
     byVerified: tallyBool("verified", "verified", "unverified"),
   };
 }

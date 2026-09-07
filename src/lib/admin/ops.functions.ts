@@ -4,11 +4,45 @@ import { authMiddleware } from "./middleware";
 
 export const fetchSubjects = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
-    z.object({ search: z.string().optional(), category: z.string().optional() }).parse(data),
+    z
+      .object({
+        search: z.string().optional(),
+        category: z.string().optional(),
+        family: z.string().optional(),
+        playlistId: z.string().optional(),
+      })
+      .parse(data),
   )
   .handler(async ({ data }) => {
     const { listSubjects } = await import("./ops.server");
     return listSubjects(data);
+  });
+
+export const createTopic = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        subject: z.string().min(1),
+        category: z.string().min(1),
+        sub_category: z.string().optional(),
+        aliases: z.array(z.string()).optional(),
+        playlist_ids: z.array(z.string()).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
+    const { createSubject } = await import("./ops.server");
+    const created = await createSubject(data);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: "subject.create",
+      targetType: "subject",
+      targetId: created.id,
+      details: `Created topic ${data.subject}`,
+      after: data as Record<string, unknown>,
+    });
+    return created;
   });
 
 export const saveSubject = createServerFn({ method: "POST" }).middleware([authMiddleware])
@@ -20,6 +54,7 @@ export const saveSubject = createServerFn({ method: "POST" }).middleware([authMi
         sub_category: z.string().optional(),
         aliases: z.array(z.string()).optional(),
         crawl_notes: z.string().optional(),
+        playlist_ids: z.array(z.string()).optional(),
       })
       .parse(data),
   )
@@ -33,6 +68,62 @@ export const saveSubject = createServerFn({ method: "POST" }).middleware([authMi
       targetType: "subject",
       targetId: data.id,
       details: `Updated subject ${data.id}`,
+      after: data as Record<string, unknown>,
+    });
+    return updated;
+  });
+
+export const fetchPlaylists = createServerFn({ method: "POST" }).middleware([authMiddleware]).handler(async () => {
+  const { listPlaylists } = await import("./ops.server");
+  return listPlaylists();
+});
+
+export const createPlaylistAction = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        name: z.string().min(1),
+        aliases: z.array(z.string()).optional(),
+        topic_keys: z.array(z.string()).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
+    const { createPlaylist } = await import("./ops.server");
+    const created = await createPlaylist(data);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: "playlist.create",
+      targetType: "playlist",
+      targetId: created.id,
+      details: `Created playlist ${data.name}`,
+      after: data as Record<string, unknown>,
+    });
+    return created;
+  });
+
+export const savePlaylist = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        id: z.string().min(1),
+        name: z.string().optional(),
+        aliases: z.array(z.string()).optional(),
+        topic_keys: z.array(z.string()).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
+    const { updatePlaylist } = await import("./ops.server");
+    const updated = await updatePlaylist(data);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: "playlist.update",
+      targetType: "playlist",
+      targetId: data.id,
+      details: `Updated playlist ${data.id}`,
       after: data as Record<string, unknown>,
     });
     return updated;
@@ -63,8 +154,10 @@ export const queueCrawl = createServerFn({ method: "POST" }).middleware([authMid
     await logAdminAction(caller, {
       action: "crawl.enqueue",
       targetType: "crawl_job",
-      targetId: enqueued.id,
-      details: `Enqueued crawl for ${data.subject} with priority ${data.priority}`,
+      targetId: enqueued.expandedFrom ?? enqueued.items[0]?.id ?? data.subject,
+      details: enqueued.expandedFrom
+        ? `Enqueued ${enqueued.items.length} topics from playlist ${enqueued.expandedFrom}`
+        : `Enqueued crawl for ${data.subject} with priority ${data.priority}`,
       after: data as Record<string, unknown>,
     });
     return enqueued;

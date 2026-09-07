@@ -1,26 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "./middleware";
+import { GENRES } from "./taxonomy";
 
-export const CANONICAL_CATEGORIES = [
-  "Animals & Nature",
-  "Science & Space",
-  "Sports",
-  "Music",
-  "Movies & TV",
-  "Pop Culture & Records",
-  "History & World",
-  "Food & Drink",
-  "Technology",
-  "Money & Business",
-  "General",
-] as const;
-
+export const CANONICAL_CATEGORIES = GENRES;
 export type CanonicalCategory = (typeof CANONICAL_CATEGORIES)[number];
 
 const listInput = z.object({
   search: z.string().optional(),
   category: z.union([z.enum(CANONICAL_CATEGORIES), z.literal(""), z.string()]).optional(),
+  family: z.string().optional(),
+  playlistId: z.string().optional(),
   subject: z.string().optional(),
   angle: z.string().optional(),
   status: z.string().optional(),

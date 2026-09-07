@@ -1,28 +1,33 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState, Fragment, type FormEvent } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, InfoTip, InlineEditorRow, PageHead, statusTone } from "@/admin/AdminShell";
+import { CrawlQueue, PlaylistsPanel, TopicsPanel } from "@/admin/taxonomyPanels";
 import {
   addFact,
   bulkImportFacts,
-  CANONICAL_CATEGORIES,
   changeFactStatus,
   exportFactsData,
   fetchFacts,
   saveFact,
 } from "@/lib/admin/content.functions";
-import { fetchSubjects } from "@/lib/admin/ops.functions";
+import { fetchPlaylists, fetchSubjects } from "@/lib/admin/ops.functions";
+import { CONTENT_VIEWS, GENRES, familiesForGenre, isContentView, type ContentView } from "@/lib/admin/taxonomy";
 
 export const Route = createFileRoute("/admin/facts")({
+  validateSearch: (search: Record<string, unknown>): { view?: ContentView } => {
+    if (isContentView(search.view)) return { view: search.view };
+    return {};
+  },
   head: () => ({
     meta: [
-      { title: "Fact Bank — More or Less Admin" },
-      { name: "description", content: "Search, edit and verify curated trivia facts." },
+      { title: "Content — More or Less Admin" },
+      { name: "description", content: "Facts, topics, playlists, and crawl intake." },
     ],
   }),
-  component: FactsPage,
+  component: ContentPage,
 });
 
 type Fact = Awaited<ReturnType<typeof fetchFacts>>["facts"][number];
@@ -207,7 +212,7 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
 
         <div className="admin-grid">
           <label className="admin-field">
-            <span>Subject</span>
+            <span>Topic</span>
             <input
               className="admin-input"
               list="taxonomy-subjects-datalist"
@@ -227,14 +232,14 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
           </label>
           <label className="admin-field">
             <span>
-              Category <InfoTip text="Taxonomic category for this trivia question." />
+              Genre <InfoTip text="Genre for this trivia question. Family and playlists live on the topic." />
             </span>
             <select
               className="admin-select"
               value={effectiveCategory}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
             >
-              {CANONICAL_CATEGORIES.map((cat) => (
+              {GENRES.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>
@@ -446,7 +451,7 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
         <CardTitle>New fact</CardTitle>
         <div className="admin-grid">
           <label className="admin-field">
-            <span>Subject</span>
+            <span>Topic</span>
             <input
               className="admin-input"
               list="taxonomy-subjects-datalist"
@@ -467,14 +472,14 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
           </label>
           <label className="admin-field">
             <span>
-              Category <InfoTip text="Taxonomic category for this trivia question." />
+              Genre <InfoTip text="Genre for this trivia question. Family and playlists live on the topic." />
             </span>
             <select
               className="admin-select"
               value={effectiveCategory}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
             >
-              {CANONICAL_CATEGORIES.map((cat) => (
+              {GENRES.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>
@@ -583,12 +588,18 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function FactsPage() {
+function ContentPage() {
+  const { view: viewParam } = Route.useSearch();
+  const view: ContentView = viewParam ?? "facts";
   const list = useServerFn(fetchFacts);
   const exportFn = useServerFn(exportFactsData);
+  const getSubjects = useServerFn(fetchSubjects);
+  const getPlaylists = useServerFn(fetchPlaylists);
   const [filters, setFilters] = useState({
     search: "",
     category: "",
+    family: "",
+    playlistId: "",
     subject: "",
     angle: "",
     status: "active",
@@ -616,6 +627,8 @@ function FactsPage() {
         data: {
           search: filters.search || undefined,
           category: filters.category || undefined,
+          family: filters.family || undefined,
+          playlistId: filters.playlistId || undefined,
           subject: filters.subject || undefined,
           angle: filters.angle || undefined,
           status: filters.status || undefined,
@@ -627,8 +640,39 @@ function FactsPage() {
           pageSize,
         },
       }),
+    enabled: view === "facts",
     retry: false,
   });
+
+  const subjectsQuery = useQuery({
+    queryKey: ["subjects", "content-join"],
+    queryFn: () => getSubjects({ data: {} }),
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const playlistsQuery = useQuery({
+    queryKey: ["playlists"],
+    queryFn: () => getPlaylists(),
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const subjectsByName = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof subjectsQuery.data>["subjects"][number]>();
+    for (const subject of subjectsQuery.data?.subjects ?? []) {
+      map.set(subject.subject.toLowerCase(), subject);
+      for (const alias of subject.aliases) map.set(alias.toLowerCase(), subject);
+    }
+    return map;
+  }, [subjectsQuery.data?.subjects]);
+
+  const familyOptions = familiesForGenre(
+    filters.category,
+    (subjectsQuery.data?.subjects ?? [])
+      .filter((s) => !filters.category || s.category === filters.category)
+      .map((s) => s.sub_category),
+  );
 
   const toggleSort = (field: typeof sort.field) => {
     setPage(1);
@@ -651,6 +695,8 @@ function FactsPage() {
   const hasActiveFilters = Boolean(
     filters.search ||
       filters.category ||
+      filters.family ||
+      filters.playlistId ||
       filters.subject ||
       filters.angle ||
       filters.status !== "active" ||
@@ -663,6 +709,8 @@ function FactsPage() {
     setFilters({
       search: "",
       category: "",
+      family: "",
+      playlistId: "",
       subject: "",
       angle: "",
       status: "active",
@@ -678,6 +726,8 @@ function FactsPage() {
         data: {
           search: filters.search || undefined,
           category: filters.category || undefined,
+          family: filters.family || undefined,
+          playlistId: filters.playlistId || undefined,
           subject: filters.subject || undefined,
           angle: filters.angle || undefined,
           status: filters.status || undefined,
@@ -733,12 +783,30 @@ function FactsPage() {
     [query.data],
   );
 
+  const viewLabel = (item: ContentView) => {
+    switch (item) {
+      case "facts":
+        return "Facts";
+      case "topics":
+        return "Topics";
+      case "playlists":
+        return "Playlists";
+      case "crawl":
+        return "Crawl";
+      default: {
+        const _never: never = item;
+        return _never;
+      }
+    }
+  };
+
   return (
     <>
       <PageHead
-        title="Fact bank"
-        description="The curated trivia master list in Cloud Firestore."
+        title="Content"
+        description="Facts attach to topics. Topics sit in a genre and family. Playlists are optional theme mixes."
         actions={
+          view === "facts" ? (
           <div style={{ display: "flex", gap: "8px" }}>
             <Button
               variant="ghost"
@@ -767,8 +835,28 @@ function FactsPage() {
               {creating ? "Close" : "New fact"}
             </Button>
           </div>
+          ) : undefined
         }
       />
+
+      <nav className="admin-tabs" aria-label="Content sections">
+        {CONTENT_VIEWS.map((item) => (
+          <Link
+            key={item}
+            to="/admin/facts"
+            search={{ view: item }}
+            className={view === item ? "is-active" : undefined}
+          >
+            {viewLabel(item)}
+          </Link>
+        ))}
+      </nav>
+
+      {view === "topics" ? <TopicsPanel /> : null}
+      {view === "playlists" ? <PlaylistsPanel /> : null}
+      {view === "crawl" ? <CrawlQueue /> : null}
+      {view === "facts" ? (
+        <>
 
       <div className="admin-toolbar">
         <label className="admin-field" style={{ flex: "1 1 240px" }}>
@@ -784,19 +872,55 @@ function FactsPage() {
           />
         </label>
         <label className="admin-field" style={{ flex: "0 1 200px" }}>
-          <span>Category</span>
+          <span>Genre</span>
           <select
             className="admin-select"
             value={filters.category}
             onChange={(e) => {
               setPage(1);
-              setFilters({ ...filters, category: e.target.value });
+              setFilters({ ...filters, category: e.target.value, family: "" });
             }}
           >
-            <option value="">All categories</option>
-            {CANONICAL_CATEGORIES.map((cat) => (
+            <option value="">All genres</option>
+            {GENRES.map((cat) => (
               <option key={cat} value={cat}>
                 {cat}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="admin-field" style={{ flex: "0 1 180px" }}>
+          <span>Family</span>
+          <select
+            className="admin-select"
+            value={filters.family}
+            onChange={(e) => {
+              setPage(1);
+              setFilters({ ...filters, family: e.target.value });
+            }}
+          >
+            <option value="">All families</option>
+            {familyOptions.map((family) => (
+              <option key={family} value={family}>
+                {family}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="admin-field" style={{ flex: "0 1 180px" }}>
+          <span>Playlist</span>
+          <select
+            className="admin-select"
+            value={filters.playlistId}
+            onChange={(e) => {
+              setPage(1);
+              setFilters({ ...filters, playlistId: e.target.value });
+            }}
+          >
+            <option value="">All playlists</option>
+            {(playlistsQuery.data ?? []).map((playlist) => (
+              <option key={playlist.id} value={playlist.id}>
+                {playlist.name}
               </option>
             ))}
           </select>
@@ -837,7 +961,7 @@ function FactsPage() {
           <thead>
             <tr>
               <th className="admin-th-sortable" onClick={() => toggleSort("subject")}>
-                Subject {renderSortIcon("subject")}
+                Topic {renderSortIcon("subject")}
               </th>
               <th className="admin-th-sortable" onClick={() => toggleSort("angle")}>
                 Angle {renderSortIcon("angle")}{" "}
@@ -861,7 +985,7 @@ function FactsPage() {
               <th>
                 <input
                   className="admin-header-input"
-                  placeholder="Filter subject…"
+                  placeholder="Filter topic…"
                   value={filters.subject}
                   onChange={(e) => {
                     setPage(1);
@@ -949,6 +1073,19 @@ function FactsPage() {
                   <tr className={isEditing ? "is-editing" : undefined}>
                     <td>
                       <strong>{fact.subject}</strong>
+                      {(() => {
+                        const topic = subjectsByName.get(fact.subject.toLowerCase());
+                        if (!topic) return null;
+                        const playlistNames = topic.playlist_ids
+                          .map((id) => (playlistsQuery.data ?? []).find((p) => p.id === id)?.name)
+                          .filter(Boolean);
+                        return (
+                          <span className="admin-topic-meta">
+                            {[topic.category, topic.sub_category].filter(Boolean).join(" › ") || "Needs family"}
+                            {playlistNames.length ? ` · ${playlistNames.join(", ")}` : ""}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td>{fact.angle}</td>
                     <td>
@@ -1033,6 +1170,8 @@ function FactsPage() {
         <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13 }}>
           Showing the first 1,000 matching documents — narrow the filters for full coverage.
         </p>
+      ) : null}
+        </>
       ) : null}
     </>
   );

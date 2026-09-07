@@ -105,7 +105,7 @@ function OverviewPage() {
           <div className="admin-chart-grid">
             <StatusPie title="Fact bank status" rows={data.series.factStatus} />
             <StatusPie title="Active content rating" rows={data.series.contentRating} />
-            <CountBar title="Facts by category" rows={data.series.categories} layout="horizontal" />
+            <CountBar title="Facts by genre" rows={data.series.categories} layout="horizontal" />
             <StatusPie title="Moderation mix" rows={data.series.reports} />
             <CountBar title="Crawl queue" rows={data.series.crawl} />
             <StatusPie
