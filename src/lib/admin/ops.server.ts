@@ -549,19 +549,33 @@ export interface DailyPackSummary {
   seed: string;
   total_rounds: number;
   createdAt: string | null;
+  blitz_ready: boolean;
+}
+
+export interface DailyPack {
+  date: string;
+  seed: string;
+  category: string;
+  rounds: Json[];
+  createdAt: string | null;
+  total_rounds: number;
 }
 
 export async function listDailyPacks(limit = 100): Promise<DailyPackSummary[]> {
   const { docs } = await listDocs("daily_packs", { pageSize: limit });
-  const packs: DailyPackSummary[] = docs.map((doc) => ({
-    date: doc.id,
-    category: str(doc.data["category"]) || "mixed",
-    seed: str(doc.data["seed"]),
-    total_rounds: Array.isArray(doc.data["rounds"])
+  const packs: DailyPackSummary[] = docs.map((doc) => {
+    const total_rounds = Array.isArray(doc.data["rounds"])
       ? doc.data["rounds"].length
-      : (num(doc.data["total_rounds"]) ?? 0),
-    createdAt: typeof doc.data["createdAt"] === "string" ? doc.data["createdAt"] : null,
-  }));
+      : (num(doc.data["total_rounds"]) ?? 0);
+    return {
+      date: doc.id,
+      category: str(doc.data["category"]) || "mixed",
+      seed: str(doc.data["seed"]),
+      total_rounds,
+      createdAt: typeof doc.data["createdAt"] === "string" ? doc.data["createdAt"] : null,
+      blitz_ready: total_rounds >= 15,
+    };
+  });
   packs.sort((a, b) => b.date.localeCompare(a.date));
   return packs;
 }
@@ -575,6 +589,9 @@ export async function getDailyPack(date: string): Promise<DailyPack | null> {
     category: str(doc.data["category"]),
     rounds: Array.isArray(doc.data["rounds"]) ? (doc.data["rounds"] as Json[]) : [],
     createdAt: typeof doc.data["createdAt"] === "string" ? doc.data["createdAt"] : null,
+    total_rounds: Array.isArray(doc.data["rounds"])
+      ? doc.data["rounds"].length
+      : (num(doc.data["total_rounds"]) ?? 0),
   };
 }
 
@@ -593,62 +610,19 @@ export async function deleteDailyPack(date: string, adminUser?: AdminUser): Prom
   return { ok: true };
 }
 
-export async function generateDailyPackFromFactBank(input: {
-  category?: string;
-  subject?: string;
-}): Promise<{ category: string; rounds: any[] }> {
-  const { exportFacts } = await import("./content.server");
-  const allFacts = await exportFacts({
-    status: "active",
-    contentRating: "standard",
+export async function generateDailyPackFromGoAgent(input: {
+  topic: string;
+  brief?: string;
+  numRounds?: number;
+  excludeAngles?: string[];
+}) {
+  const { generatePackViaGoAgent } = await import("./goagent.server");
+  return generatePackViaGoAgent({
+    topic: input.topic,
+    guidance: input.brief,
+    numRounds: input.numRounds,
+    excludeAngles: input.excludeAngles,
   });
-
-  let candidates = allFacts;
-  if (input.subject?.trim()) {
-    const sub = input.subject.trim().toLowerCase();
-    candidates = candidates.filter((f) => f.subject.toLowerCase().includes(sub));
-  }
-
-  // Shuffle candidates
-  const shuffled = candidates.sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, 5);
-
-  const rounds = selected.map((f, index) => {
-    const trueNum = f.true_number;
-    const targetDirection = index % 2 === 0 ? "MORE" : "LESS";
-    const multiplier = 1.8 + Math.random() * 0.8;
-    let presentedNum: number;
-
-    if (targetDirection === "MORE") {
-      presentedNum = trueNum > 10 ? Math.round(trueNum / multiplier) : Number((trueNum / multiplier).toFixed(1));
-    } else {
-      presentedNum = trueNum > 10 ? Math.round(trueNum * multiplier) : Number((trueNum * multiplier).toFixed(1));
-    }
-
-    if (presentedNum === trueNum) {
-      presentedNum = targetDirection === "MORE" ? trueNum - 1 : trueNum + 1;
-    }
-
-    const actualDirection = trueNum > presentedNum ? "MORE" : "LESS";
-
-    return {
-      round_number: index + 1,
-      topic: f.subject,
-      claim_statement: f.question || `${f.subject} - ${f.angle}`,
-      presented_number: presentedNum,
-      true_number: trueNum,
-      unit: f.unit,
-      correct_direction: actualDirection,
-      explanation: f.context || `${f.subject}'s true value is ${trueNum} ${f.unit}.`,
-      difficulty: "casual",
-      surprise_factor: f.surprise_factor ?? 2,
-    };
-  });
-
-  return {
-    category: input.category || (selected[0]?.subject ?? "Curated Trivia"),
-    rounds,
-  };
 }
 
 export async function scheduleDailyPack(
@@ -659,6 +633,20 @@ export async function scheduleDailyPack(
   },
   adminUser?: AdminUser,
 ): Promise<DailyPack> {
+  const { roundReadyToSchedule } = await import("./daily-blitz");
+  if (!Array.isArray(input.rounds) || input.rounds.length === 0) {
+    throw new Error("A Daily Blitz pack needs at least one complete round.");
+  }
+  const incomplete = input.rounds.findIndex((raw) => {
+    const rec = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    return !roundReadyToSchedule(rec);
+  });
+  if (incomplete >= 0) {
+    throw new Error(
+      `Round ${incomplete + 1} needs a claim, unit, explanation, and unequal true/presented numbers.`,
+    );
+  }
+
   const payload = {
     date: input.date,
     seed: `admin_scheduled_${input.date}`,
@@ -693,6 +681,7 @@ export async function scheduleDailyPack(
     category: payload.category,
     rounds: payload.rounds as Json[],
     createdAt: payload.createdAt,
+    total_rounds: input.rounds.length,
   };
 }
 
