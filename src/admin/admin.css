@@ -250,6 +250,99 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   align-items: start;
 }
 
+.daily-blitz-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: var(--ds-arena-space-5);
+  align-items: start;
+}
+
+.daily-blitz-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-arena-space-5);
+  min-width: 0;
+}
+
+.daily-blitz-chat {
+  position: sticky;
+  top: var(--ds-arena-space-4);
+}
+
+.daily-blitz-chat-card {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 32px);
+  min-height: 480px;
+}
+
+.daily-blitz-chat-sub {
+  margin: 4px 0 0;
+  color: var(--ds-arena-color-text-muted);
+  font-size: 13px;
+}
+
+.daily-blitz-chat-log {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 200px;
+  max-height: calc(100vh - 280px);
+  padding-right: 4px;
+}
+
+.daily-blitz-msg p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.daily-blitz-msg-role {
+  font-family: var(--ds-arena-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ds-arena-color-text-muted);
+}
+
+.daily-blitz-msg--user p {
+  color: var(--ds-arena-color-text);
+}
+
+.daily-blitz-card {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--ds-arena-color-border);
+  border-radius: var(--ds-arena-radius-md, 8px);
+  background: var(--ds-arena-color-surface-raised, rgba(255, 255, 255, 0.03));
+  display: grid;
+  gap: 8px;
+}
+
+.daily-blitz-card p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ds-arena-color-text-muted);
+}
+
+.daily-blitz-chat-pending {
+  font-size: 13px;
+  color: var(--ds-arena-color-lime);
+  margin: 0;
+}
+
+.daily-blitz-chat-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.daily-blitz-round-table {
+  min-width: 560px;
+}
+
 .admin-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--ds-arena-color-border);
@@ -573,8 +666,18 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   }
 
   .admin-two-col,
-  .admin-chart-grid {
+  .admin-chart-grid,
+  .daily-blitz-layout {
     grid-template-columns: 1fr;
+  }
+
+  .daily-blitz-chat {
+    position: static;
+  }
+
+  .daily-blitz-chat-card,
+  .daily-blitz-chat-log {
+    max-height: none;
   }
 
   .admin-main {

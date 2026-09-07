@@ -238,13 +238,47 @@ export const fetchDaily = createServerFn({ method: "POST" }).middleware([authMid
 export const generateDailyPack = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z.object({
-      category: z.string().optional(),
-      subject: z.string().optional(),
+      topic: z.string().min(1),
+      brief: z.string().optional(),
+      numRounds: z.number().int().min(1).max(15).optional(),
+      excludeAngles: z.array(z.string()).optional(),
     }).parse(data),
   )
   .handler(async ({ data }) => {
-    const { generateDailyPackFromFactBank } = await import("./ops.server");
-    return generateDailyPackFromFactBank(data);
+    const { generateDailyPackFromGoAgent } = await import("./ops.server");
+    return generateDailyPackFromGoAgent(data);
+  });
+
+export const chatDailyBlitz = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        topic: z.string().optional().default(""),
+        brief: z.string().optional().default(""),
+        unfilledDates: z.array(z.string()).optional().default([]),
+        rounds: z.array(z.any()).optional().default([]),
+        messages: z
+          .array(
+            z.object({
+              role: z.enum(["user", "assistant"]),
+              text: z.string(),
+            }),
+          )
+          .max(24),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { runDailyBlitzChat } = await import("./daily-chat.server");
+    return runDailyBlitzChat({
+      date: data.date,
+      topic: data.topic,
+      brief: data.brief,
+      unfilledDates: data.unfilledDates,
+      rounds: data.rounds,
+      messages: data.messages,
+    });
   });
 
 export const preScheduleDailyPack = createServerFn({ method: "POST" }).middleware([authMiddleware])

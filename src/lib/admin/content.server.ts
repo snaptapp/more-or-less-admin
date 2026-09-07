@@ -14,6 +14,7 @@ import {
   type QueryFilter,
 } from "../firebase/firestore.server";
 import { GENRES } from "./taxonomy";
+import { parseDerivationBlock, type FactDerivationBlock } from "./daily-blitz";
 
 export const FACT_STATUSES = ["active", "disputed", "retired"] as const;
 export const CONTENT_RATINGS = ["standard", "after_dark"] as const;
@@ -43,6 +44,7 @@ export interface FactRecord {
   served_count: number;
   last_served_at: string | null;
   category: string | null;
+  derivation: FactDerivationBlock | null;
   updateTime?: string;
 }
 
@@ -86,6 +88,7 @@ export function toFact(doc: FirestoreDoc): FactRecord {
     served_count: num(d["served_count"]) ?? 0,
     last_served_at: typeof d["last_served_at"] === "string" ? d["last_served_at"] : null,
     category: typeof d["category"] === "string" ? d["category"] : null,
+    derivation: parseDerivationBlock(d["derivation"]),
     updateTime: doc.updateTime,
   };
 }
@@ -442,7 +445,7 @@ export async function updateFact(input: FactEditInput): Promise<FactRecord> {
   return toFact((await getDoc(`fact_bank/${input.id}`)) ?? {
     id: input.id,
     path: `fact_bank/${input.id}`,
-    data: { ...existing, ...patch },
+    data: { ...(existing as unknown as Record<string, Json>), ...(patch as Record<string, Json>) },
   });
 }
 

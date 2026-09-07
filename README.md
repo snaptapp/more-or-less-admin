@@ -44,7 +44,8 @@ Connect Git so every commit/PR merge to `main` builds and deploys with no CI run
 | Root directory | `/` (repo root) |
 
 5. Keep runtime secrets on the Worker (**Settings → Variables and Secrets**). Do not put `FIREBASE_SERVICE_ACCOUNT_JSON` in `wrangler.jsonc`.
-6. Push or merge to `main` to trigger a production deploy. Preview branches upload a version only.
+6. Daily Blitz authoring (`/admin/daily`) calls the Go pack factory on Cloud Run (`GO_AGENT_URL` var, already in `wrangler.jsonc`) and Vertex Gemini for the strategist chat. The ops service account needs `roles/run.invoker` on `agent-go` and `roles/aiplatform.user` on project `more-or-less-505908`. Optional secret `GO_AGENT_SERVICE_ACCOUNT_JSON` overrides the Firebase SA for Cloud Run OIDC if the Firebase SA is not an invoker.
+7. Push or merge to `main` to trigger a production deploy. Preview branches upload a version only.
 
 Alternatively: **Workers & Pages** → **Create** → **Import a repository** → same settings. Worker name must stay `tanstack-start-app` so it continues serving `ops.snaptapp.us`.
 
