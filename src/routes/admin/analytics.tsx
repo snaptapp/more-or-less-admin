@@ -22,21 +22,29 @@ const RANGES = [
   { label: "Last 90 days", days: 90 },
 ];
 
-const HIDDEN_CATEGORIES_KEY = "admin.analytics.hiddenCategories";
+const DELETED_CATEGORIES_KEY = "admin.analytics.deletedCategories";
+const LEGACY_HIDDEN_CATEGORIES_KEY = "admin.analytics.hiddenCategories";
 
 function since(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString();
 }
 
-function readHiddenCategories(): string[] {
-  if (typeof window === "undefined") return [];
+function readStringList(raw: string | null): string[] {
+  if (!raw) return [];
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(HIDDEN_CATEGORIES_KEY) ?? "[]");
+    const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return [...new Set(parsed.filter((value): value is string => typeof value === "string" && value.length > 0))];
+    return parsed.filter((value): value is string => typeof value === "string" && value.length > 0);
   } catch {
     return [];
   }
+}
+
+function readDeletedCategories(): string[] {
+  if (typeof window === "undefined") return [];
+  const current = readStringList(localStorage.getItem(DELETED_CATEGORIES_KEY));
+  const legacy = readStringList(localStorage.getItem(LEGACY_HIDDEN_CATEGORIES_KEY));
+  return [...new Set([...current, ...legacy])];
 }
 
 function Breakdown({
@@ -86,32 +94,34 @@ function Breakdown({
 
 function CategoryBreakdown({
   rows,
-  hidden,
-  onHide,
-  onShow,
-  onShowAll,
+  deleted,
+  onDelete,
+  onRestore,
+  onRestoreAll,
 }: {
   rows: { name: string; count: number }[];
-  hidden: string[];
-  onHide: (name: string) => void;
-  onShow: (name: string) => void;
-  onShowAll: () => void;
+  deleted: string[];
+  onDelete: (name: string) => void;
+  onRestore: (name: string) => void;
+  onRestoreAll: () => void;
 }) {
-  const hiddenSet = useMemo(() => new Set(hidden), [hidden]);
-  const visible = rows.filter((row) => !hiddenSet.has(row.name));
+  const deletedSet = useMemo(() => new Set(deleted), [deleted]);
+  const visible = rows.filter((row) => !deletedSet.has(row.name));
   const visibleTotal = visible.reduce((sum, row) => sum + row.count, 0);
-  const hiddenRows = hidden.map((name) => rows.find((row) => row.name === name) ?? { name, count: 0 });
+  const sampleTotal = rows.reduce((sum, row) => sum + row.count, 0);
+  const deletedRows = deleted.map((name) => rows.find((row) => row.name === name) ?? { name, count: 0 });
   const [pick, setPick] = useState("");
 
   return (
     <Card>
       <CardTitle>By category</CardTitle>
       <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: "8px 0 0" }}>
-        Hide noisy labels from this chart. Counts stay in the sample total above. Hidden list is saved in this browser.
+        Delete noisy labels from this chart. Stored game history is unchanged. Deleted labels stay off this chart in this
+        browser.
       </p>
       <div className="admin-toolbar" style={{ marginTop: "var(--ds-arena-space-3)" }}>
         <label className="admin-field">
-          <span>Hide category</span>
+          <span>Delete category</span>
           <select
             className="admin-select"
             value={pick}
@@ -119,7 +129,7 @@ function CategoryBreakdown({
             onChange={(event) => {
               const name = event.target.value;
               setPick("");
-              if (name) onHide(name);
+              if (name) onDelete(name);
             }}
           >
             <option value="">Select…</option>
@@ -134,7 +144,11 @@ function CategoryBreakdown({
       <div style={{ marginTop: "var(--ds-arena-space-3)" }}>
         {visible.length === 0 ? (
           <p style={{ color: "var(--ds-arena-color-text-muted)" }}>
-            {rows.length === 0 ? "No games in this window." : "All categories are hidden."}
+            {rows.length === 0 ? "No games in this window." : "All categories are deleted from this chart."}
+          </p>
+        ) : deletedRows.length > 0 ? (
+          <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: "0 0 8px" }}>
+            Showing {visibleTotal} of {sampleTotal} sampled games after {deletedRows.length} deleted.
           </p>
         ) : null}
         {visible.map((row) => (
@@ -163,22 +177,22 @@ function CategoryBreakdown({
             <span style={{ textAlign: "right" }}>{row.count}</span>
             <Button
               size="sm"
-              variant="ghost"
-              aria-label={`Hide ${row.name}`}
-              onClick={() => onHide(row.name)}
+              variant="danger"
+              aria-label={`Delete ${row.name} from this chart`}
+              onClick={() => onDelete(row.name)}
             >
-              Hide
+              Delete
             </Button>
           </div>
         ))}
       </div>
-      {hiddenRows.length > 0 ? (
+      {deletedRows.length > 0 ? (
         <details className="admin-hidden-fold">
           <summary>
-            {hiddenRows.length} hidden
+            {deletedRows.length} deleted
           </summary>
           <div className="admin-hidden-list">
-            {hiddenRows.map((row) => (
+            {deletedRows.map((row) => (
               <span key={row.name} className="admin-hidden-chip">
                 <span title={row.name}>
                   {row.name}
@@ -188,14 +202,14 @@ function CategoryBreakdown({
                   type="button"
                   className="admin-hidden-restore"
                   aria-label={`Restore ${row.name}`}
-                  onClick={() => onShow(row.name)}
+                  onClick={() => onRestore(row.name)}
                 >
                   undo
                 </button>
               </span>
             ))}
-            {hiddenRows.length > 1 ? (
-              <button type="button" className="admin-hidden-restore" onClick={onShowAll}>
+            {deletedRows.length > 1 ? (
+              <button type="button" className="admin-hidden-restore" onClick={onRestoreAll}>
                 undo all
               </button>
             ) : null}
@@ -209,18 +223,19 @@ function CategoryBreakdown({
 function AnalyticsPage() {
   const load = useServerFn(fetchGameAnalytics);
   const [days, setDays] = useState(7);
-  const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
-  const [hiddenReady, setHiddenReady] = useState(false);
+  const [deletedCategories, setDeletedCategories] = useState<string[]>([]);
+  const [deletedReady, setDeletedReady] = useState(false);
 
   useEffect(() => {
-    setHiddenCategories(readHiddenCategories());
-    setHiddenReady(true);
+    setDeletedCategories(readDeletedCategories());
+    setDeletedReady(true);
   }, []);
 
   useEffect(() => {
-    if (!hiddenReady) return;
-    localStorage.setItem(HIDDEN_CATEGORIES_KEY, JSON.stringify(hiddenCategories));
-  }, [hiddenCategories, hiddenReady]);
+    if (!deletedReady) return;
+    localStorage.setItem(DELETED_CATEGORIES_KEY, JSON.stringify(deletedCategories));
+    localStorage.removeItem(LEGACY_HIDDEN_CATEGORIES_KEY);
+  }, [deletedCategories, deletedReady]);
 
   const query = useQuery({
     queryKey: ["analytics", days],
@@ -230,19 +245,19 @@ function AnalyticsPage() {
 
   const data = query.data;
 
-  function hideCategory(name: string) {
-    setHiddenCategories((current) => (current.includes(name) ? current : [...current, name]));
+  function deleteCategory(name: string) {
+    setDeletedCategories((current) => (current.includes(name) ? current : [...current, name]));
   }
 
-  function showCategory(name: string) {
-    setHiddenCategories((current) => current.filter((value) => value !== name));
+  function restoreCategory(name: string) {
+    setDeletedCategories((current) => current.filter((value) => value !== name));
   }
 
   return (
     <>
       <PageHead
         title="Game analytics"
-        description="Sample of users/*/game_history (collection group). Hide categories locally without changing stored data."
+        description="Sample of users/*/game_history (collection group). Delete categories from the chart locally without changing stored data."
         actions={
           <label className="admin-field">
             <span>Window</span>
@@ -284,10 +299,10 @@ function AnalyticsPage() {
           </div>
           <CategoryBreakdown
             rows={data.byCategory}
-            hidden={hiddenCategories}
-            onHide={hideCategory}
-            onShow={showCategory}
-            onShowAll={() => setHiddenCategories([])}
+            deleted={deletedCategories}
+            onDelete={deleteCategory}
+            onRestore={restoreCategory}
+            onRestoreAll={() => setDeletedCategories([])}
           />
         </>
       ) : null}
