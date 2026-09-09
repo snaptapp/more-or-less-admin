@@ -16,7 +16,11 @@ import {
 import { isAbortError, responseSnippet, asJsonObject } from "./http";
 
 function strategistUrl(): string {
-  return (process.env["OPS_STRATEGIST_URL"] ?? "").trim().replace(/\/+$/, "");
+  const url = (process.env["OPS_STRATEGIST_URL"] ?? "").trim().replace(/\/+$/, "");
+  if (url && !url.startsWith("https://")) {
+    throw new Error("OPS_STRATEGIST_URL must use HTTPS");
+  }
+  return url;
 }
 
 export const adkChatBackend: ChatBackend = {
