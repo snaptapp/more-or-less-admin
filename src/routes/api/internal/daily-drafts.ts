@@ -23,13 +23,12 @@ export const Route = createFileRoute("/api/internal/daily-drafts")({
         }
 
         let lookahead = 5;
-let lookahead = 5;
-try {
-  const body = (await request.json()) as { lookahead?: unknown };
-  lookahead = clampLookahead(body?.lookahead);
-} catch (err) {
-  return Response.json({ error: "Invalid request body" }, { status: 400 });
-}
+        try {
+          const body = (await request.json()) as { lookahead?: unknown };
+          lookahead = clampLookahead(body?.lookahead);
+        } catch {
+          lookahead = 5;
+        }
 
         const result = await fillUnfilledDailyDrafts(lookahead);
         return Response.json(result);
