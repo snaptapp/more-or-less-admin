@@ -3,34 +3,34 @@ import { createFileRoute } from "@tanstack/react-router";
 /**
  * Secret-gated cron for autonomous Daily Blitz drafts.
  *
- * Writes daily_pack_drafts only. Never publishes daily_packs.
- * Authorization: Authorization: Bearer $OPS_CRON_SECRET
+ * GitHub Actions posts here with OPS_CRON_SECRET. Writes daily_pack_drafts
+ * only. Live daily_packs stay on the Sports bank cycle until Save & Schedule.
  */
 export const Route = createFileRoute("/api/internal/daily-drafts")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const expected = (process.env["OPS_CRON_SECRET"] ?? "").trim();
-        if (!expected) {
-          return Response.json({ error: "OPS_CRON_SECRET is not configured." }, { status: 503 });
+        const { clampLookahead, cronSecretMatches, fillUnfilledDailyDrafts } =
+          await import("@/lib/admin/daily-drafts.server");
+
+        if (!(process.env["OPS_CRON_SECRET"] ?? "").trim()) {
+          return Response.json(
+            { error: "OPS_CRON_SECRET is not configured." },
+            { status: 503 },
+          );
         }
-        const header = request.headers.get("authorization") ?? "";
-        const got = header.replace(/^Bearer\s+/i, "").trim();
-        const crypto = await import("node:crypto");
-        const expectedBuffer = Buffer.from(expected);
-        const gotBuffer = Buffer.from(got);
-        if (gotBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(gotBuffer, expectedBuffer)) {
+        if (!cronSecretMatches(request.headers.get("authorization"))) {
           return Response.json({ error: "Unauthorized." }, { status: 401 });
         }
+
         let lookahead = 5;
         try {
           const body = (await request.json()) as { lookahead?: unknown };
-          const n = Number(body?.lookahead);
-          if (Number.isInteger(n) && n >= 1 && n <= 14) lookahead = n;
+          lookahead = clampLookahead(body?.lookahead);
         } catch {
-          /* empty body is fine */
+          lookahead = 5;
         }
-        const { fillUnfilledDailyDrafts } = await import("@/lib/admin/daily-drafts.server");
+
         const result = await fillUnfilledDailyDrafts(lookahead);
         return Response.json({ ok: true, lookahead, ...result });
       },

@@ -1,6 +1,7 @@
 /**
  * Autonomous Daily Blitz drafts. Writes daily_pack_drafts only.
- * Live daily_packs still require Save & Schedule.
+ * Live daily_packs still require Save & Schedule. Unfilled live dates
+ * keep the Sports bank cycle until then.
  */
 import {
   BLITZ_CATEGORIES,
@@ -12,6 +13,8 @@ import {
 import { generatePackViaGoAgent, goAgentConfigured } from "./goagent.server";
 import { getDailyDraft, getDailyPack, writeDailyDraft } from "./ops.server";
 
+export const DEFAULT_DRAFT_LOOKAHEAD = 5;
+
 /**
  * Generates UTC date strings for a bounded lookahead period.
  *
@@ -20,10 +23,25 @@ import { getDailyDraft, getDailyPack, writeDailyDraft } from "./ops.server";
  * @returns An array of consecutive UTC date strings
  */
 export function draftTargets(lookahead: number, from = utcToday()): string[] {
-  const n = Math.min(14, Math.max(1, lookahead));
+  const n = Math.min(14, Math.max(1, Math.round(lookahead) || 1));
   const dates: string[] = [];
   for (let i = 0; i < n; i++) dates.push(addUtcDays(from, i));
   return dates;
+}
+
+/** @deprecated Use draftTargets. Kept for callers from the merged main branch. */
+export const lookaheadDates = draftTargets;
+
+/**
+ * Normalizes a draft lookahead value to an integer between 1 and 14 days.
+ *
+ * @param raw - The value to normalize
+ * @returns The integer lookahead when valid; otherwise, the default draft lookahead
+ */
+export function clampLookahead(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > 14) return DEFAULT_DRAFT_LOOKAHEAD;
+  return n;
 }
 
 /**
@@ -43,12 +61,11 @@ export function rotateCategory(offset: number): string {
  * @param lookahead - The number of upcoming days to consider, clamped to the supported range.
  * @returns Drafted dates and dates skipped with the reason for each skip.
  */
-export async function fillUnfilledDailyDrafts(lookahead = 5): Promise<{
-  drafted: string[];
-  skipped: Array<{ date: string; reason: string }>;
-}> {
+export async function fillUnfilledDailyDrafts(
+  lookahead: number = DEFAULT_DRAFT_LOOKAHEAD,
+): Promise<{ drafted: string[]; skipped: { date: string; reason: string }[] }> {
   const drafted: string[] = [];
-  const skipped: Array<{ date: string; reason: string }> = [];
+  const skipped: { date: string; reason: string }[] = [];
   if (!goAgentConfigured()) {
     return {
       drafted,
@@ -77,6 +94,13 @@ export async function fillUnfilledDailyDrafts(lookahead = 5): Promise<{
         guidance: brief,
         numRounds: DAILY_BLITZ_ROUNDS,
       });
+      if (!pack.is_valid || pack.rounds.length === 0) {
+        skipped.push({
+          date,
+          reason: pack.status_message || "Go agent returned no rounds.",
+        });
+        continue;
+      }
       await writeDailyDraft({
         date,
         category: pack.category || category,
@@ -93,4 +117,23 @@ export async function fillUnfilledDailyDrafts(lookahead = 5): Promise<{
     }
   }
   return { drafted, skipped };
+}
+
+/**
+ * Validates an authorization header against the configured operations cron secret.
+ *
+ * @param authorization - The authorization header containing the bearer token
+ * @returns `true` if the token matches the configured secret, `false` otherwise.
+ */
+export function cronSecretMatches(authorization: string | null): boolean {
+  const expected = (process.env["OPS_CRON_SECRET"] ?? "").trim();
+  if (!expected) return false;
+  const provided = (authorization ?? "").replace(/^Bearer\s+/i, "").trim();
+  if (!provided) return false;
+  const max = Math.max(expected.length, provided.length);
+  let mismatch = expected.length ^ provided.length;
+  for (let i = 0; i < max; i++) {
+    mismatch |= (expected.charCodeAt(i) || 0) ^ (provided.charCodeAt(i) || 0);
+  }
+  return mismatch === 0;
 }

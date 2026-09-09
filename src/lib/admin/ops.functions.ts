@@ -320,6 +320,15 @@ export const preScheduleDailyPack = createServerFn({ method: "POST" }).middlewar
     return scheduleDailyPack(data, caller);
   });
 
+export const fillDailyDraftsAction = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) =>
+    z.object({ lookahead: z.number().int().min(1).max(14).optional() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { fillUnfilledDailyDrafts } = await import("./daily-drafts.server");
+    return fillUnfilledDailyDrafts(data?.lookahead ?? 5);
+  });
+
 export const deleteDailyPackAction = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z
