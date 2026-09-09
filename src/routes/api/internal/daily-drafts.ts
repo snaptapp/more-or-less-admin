@@ -22,8 +22,6 @@ export const Route = createFileRoute("/api/internal/daily-drafts")({
         if (gotBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(gotBuffer, expectedBuffer)) {
           return Response.json({ error: "Unauthorized." }, { status: 401 });
         }
-          return Response.json({ error: "Unauthorized." }, { status: 401 });
-        }
         let lookahead = 5;
         try {
           const body = (await request.json()) as { lookahead?: unknown };
