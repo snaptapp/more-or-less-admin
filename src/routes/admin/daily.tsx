@@ -667,6 +667,17 @@ function DailyPage() {
 
         <ErrorNote error={scheduleQuery.error || dailyQuery.error || fillMutation.error} />
 
+        {fillMutation.data ? (
+          <p className="admin-empty">
+            Drafted: {fillMutation.data.drafted.join(", ") || "none"}
+            {fillMutation.data.skipped.length
+              ? ` · Skipped: ${fillMutation.data.skipped
+                  .map((s) => `${s.date} (${s.reason})`)
+                  .join("; ")}`
+              : ""}
+          </p>
+        ) : null}
+
         <Card>
           <div className="admin-page-head">
             <CardTitle>Upcoming &amp; scheduled</CardTitle>
