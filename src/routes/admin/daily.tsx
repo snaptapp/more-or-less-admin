@@ -651,7 +651,7 @@ function DailyPage() {
                 disabled={fillMutation.isPending}
                 onClick={() => fillMutation.mutate()}
               >
-                {fillMutation.isPending ? "Filling drafts…" : "Fill 5 unfilled drafts"}
+                {fillMutation.isPending ? "Filling drafts…" : "Draft next 5 open dates"}
               </Button>
               <Button
                 onClick={() => {
