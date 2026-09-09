@@ -452,16 +452,25 @@ export async function executeTool(
     case "explain_round": {
       const n = Number(args.n);
       const explained = explainRound(n, ctx.rounds);
+      if ("error" in explained) {
+        return {
+          result: explained,
+          card: {
+            id: newCardId("explain"),
+            tool: name,
+            title: `Round ${n}`,
+            summary: String(explained.error),
+            applyKind: "none",
+          },
+        };
+      }
       return {
         result: explained,
         card: {
           id: newCardId("explain"),
           tool: name,
           title: `Round ${n}`,
-          summary:
-            "error" in explained && explained.error
-              ? String(explained.error)
-              : `${explained.correct_direction}: presented ${explained.presented_number} vs true ${explained.true_number} ${explained.unit} (surprise ${explained.surprise_factor}, ${explained.source})`,
+          summary: `${explained.correct_direction}: presented ${explained.presented_number} vs true ${explained.true_number} ${explained.unit} (surprise ${explained.surprise_factor}, ${explained.source})`,
           applyKind: "none",
         },
       };

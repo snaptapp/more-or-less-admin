@@ -84,6 +84,7 @@ export function OpsChatRail({
         <textarea
           className="admin-textarea"
           rows={3}
+          aria-label={`${title} message`}
           value={input}
           placeholder={placeholder}
           onChange={(e) => setInput(e.target.value)}

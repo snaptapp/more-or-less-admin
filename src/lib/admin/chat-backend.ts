@@ -91,7 +91,12 @@ export function historyToContents(
   fallbackUser: string,
 ): ChatContent[] {
   const contents: ChatContent[] = [];
-  for (const msg of messages.slice(-12)) {
+  const trimmed = messages.slice(-12);
+  // Find first user message to ensure history starts with user role
+  const firstUserIndex = trimmed.findIndex((m) => m.role === "user");
+  const validMessages = firstUserIndex >= 0 ? trimmed.slice(firstUserIndex) : trimmed;
+  
+  for (const msg of validMessages) {
     contents.push({
       role: msg.role === "assistant" ? "model" : "user",
       parts: [{ text: msg.text }],
