@@ -515,7 +515,9 @@ function BlitzEditor({
 }
 
 /**
- * Manages Daily Blitz scheduling, draft editing, publishing, and leaderboard moderation.
+ * Manages Daily Blitz packs, drafts, schedules, and leaderboards for the selected date.
+ *
+ * @returns The Daily Blitz administration interface.
  */
 function DailyPage() {
   const loadDaily = useServerFn(fetchDaily);
@@ -541,6 +543,7 @@ function DailyPage() {
 
   const pack = dailyQuery.data?.pack;
   const leaderboard = dailyQuery.data?.leaderboard;
+  const reviewDraft = dailyQuery.data?.draft;
 
   useEffect(() => {
     if (drafts[date]) return;
@@ -556,6 +559,20 @@ function DailyPage() {
       }));
       return;
     }
+    if (reviewDraft?.rounds?.length) {
+      setDrafts((prev) => ({
+        ...prev,
+        [date]: {
+          category: reviewDraft.category || DAILY_BLITZ_FALLBACK_CATEGORY,
+          brief: reviewDraft.brief || "",
+          rounds: mapPackRounds(
+            reviewDraft.rounds,
+            reviewDraft.category || DAILY_BLITZ_FALLBACK_CATEGORY,
+          ),
+        },
+      }));
+      return;
+    }
     setDrafts((prev) => ({
       ...prev,
       [date]: {
@@ -564,7 +581,7 @@ function DailyPage() {
         rounds: [emptyRound(1, DAILY_BLITZ_FALLBACK_CATEGORY)],
       },
     }));
-  }, [date, drafts, dailyQuery.isLoading, pack]);
+  }, [date, drafts, dailyQuery.isLoading, pack, reviewDraft]);
 
   const draft = drafts[date] ?? {
     category: DAILY_BLITZ_FALLBACK_CATEGORY,
@@ -607,13 +624,16 @@ function DailyPage() {
 
   const upcomingTimeline = useMemo(() => {
     const packsMap = new Map((scheduleQuery.data?.packs || []).map((p) => [p.date, p]));
+    const draftsMap = new Map((scheduleQuery.data?.drafts || []).map((d) => [d.date, d]));
     return calendarStripDates().map((d) => {
       const itemPack = packsMap.get(d) ?? null;
+      const itemDraft = draftsMap.get(d) ?? null;
       const t = utcToday();
       return {
         date: d,
         label: formatDateLabel(d),
         pack: itemPack,
+        draft: itemDraft,
         isToday: d === t,
         isPast: d < t,
       };
@@ -707,6 +727,7 @@ function DailyPage() {
                   const isScheduled = Boolean(item.pack);
                   const ready = Boolean(item.pack?.blitz_ready);
                   const undersized = isScheduled && !ready;
+                  const awaitingReview = !isScheduled && Boolean(item.draft);
                   return (
                     <tr
                       key={item.date}
@@ -738,6 +759,8 @@ function DailyPage() {
                       <td>
                         {item.pack ? (
                           <Badge tone="purple">{item.pack.category}</Badge>
+                        ) : item.draft ? (
+                          <Badge tone="amber">{item.draft.category || "Draft"}</Badge>
                         ) : (
                           <span
                             style={{
@@ -755,6 +778,8 @@ function DailyPage() {
                           <Badge tone="lime">Blitz-ready</Badge>
                         ) : undersized ? (
                           <Badge tone="amber">Undersized</Badge>
+                        ) : awaitingReview ? (
+                          <Badge tone="amber">Draft awaiting review</Badge>
                         ) : (
                           <Badge tone="amber">Unscheduled</Badge>
                         )}
@@ -762,10 +787,16 @@ function DailyPage() {
                       <td>
                         {item.pack
                           ? `${item.pack.total_rounds}/${DAILY_BLITZ_ROUNDS}`
-                          : "-"}
+                          : item.draft
+                            ? `${item.draft.total_rounds}/${DAILY_BLITZ_ROUNDS}`
+                            : "-"}
                       </td>
                       <td style={{ fontSize: 12 }}>
-                        {item.pack?.createdAt ? item.pack.createdAt.slice(0, 10) : "-"}
+                        {item.pack?.createdAt
+                          ? item.pack.createdAt.slice(0, 10)
+                          : item.draft?.draftedAt
+                            ? item.draft.draftedAt.slice(0, 10)
+                            : "-"}
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <div className="admin-row-actions" style={{ justifyContent: "flex-end" }}>
@@ -774,7 +805,7 @@ function DailyPage() {
                             variant={isSelected ? "primary" : "ghost"}
                             onClick={() => setDate(item.date)}
                           >
-                            {isSelected ? "Editing" : isScheduled ? "Edit pack" : "Schedule"}
+                            {isSelected ? "Editing" : isScheduled ? "Edit pack" : awaitingReview ? "Review draft" : "Schedule"}
                           </Button>
                           {isScheduled ? (
                             <Button
@@ -825,7 +856,17 @@ function DailyPage() {
 
         {dailyQuery.isLoading ? <p className="admin-empty">Loading pack details for {date}…</p> : null}
 
-        {dailyQuery.data && !pack ? (
+        {dailyQuery.data && !pack && reviewDraft ? (
+          <Card>
+            <CardLabel>Draft awaiting review</CardLabel>
+            <p style={{ color: "var(--ds-arena-color-text-muted)", marginTop: 4 }}>
+              Loaded daily_pack_drafts/{date} into the editor. Players still get the Sports bank
+              cycle until you Save &amp; Schedule. Chat cannot publish.
+            </p>
+          </Card>
+        ) : null}
+
+        {dailyQuery.data && !pack && !reviewDraft ? (
           <Card>
             <CardLabel>No published pack</CardLabel>
             <p style={{ color: "var(--ds-arena-color-text-muted)", marginTop: 4 }}>

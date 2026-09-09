@@ -10,10 +10,12 @@ import {
   normalizeKey,
   patchDoc,
   runQuery,
+  runTransaction,
   type FirestoreDoc,
   type Json,
 } from "../firebase/firestore.server";
 import type { AdminUser } from "../firebase/verify.server";
+import { sanitizeDraftRounds } from "./daily-blitz";
 
 function str(value: Json | undefined): string {
   return typeof value === "string" ? value : "";
@@ -580,6 +582,12 @@ export async function listDailyPacks(limit = 100): Promise<DailyPackSummary[]> {
   return packs;
 }
 
+/**
+ * Retrieves a published daily pack for the specified date.
+ *
+ * @param date - The daily pack date
+ * @returns The daily pack, or `null` if no pack exists for the date
+ */
 export async function getDailyPack(date: string): Promise<DailyPack | null> {
   const doc = await getDoc(`daily_packs/${date}`);
   if (!doc) return null;
@@ -595,6 +603,124 @@ export async function getDailyPack(date: string): Promise<DailyPack | null> {
   };
 }
 
+export interface DailyPackDraft {
+  date: string;
+  category: string;
+  brief: string;
+  rounds: Json[];
+  status: "awaiting_review";
+  source: string;
+  draftedAt: string | null;
+  total_rounds: number;
+}
+
+/**
+ * Converts stored daily-pack draft data into a normalized draft record.
+ *
+ * @param date - The draft's calendar date
+ * @param data - Stored draft fields
+ * @returns A normalized daily-pack draft with default status, source, and round count
+ */
+function toDailyDraft(date: string, data: Record<string, Json>): DailyPackDraft {
+  const rounds = Array.isArray(data["rounds"]) ? (data["rounds"] as Json[]) : [];
+  return {
+    date,
+    category: str(data["category"]),
+    brief: str(data["brief"]),
+    rounds,
+    status: "awaiting_review",
+    source: str(data["source"]) || "strategist",
+    draftedAt: typeof data["draftedAt"] === "string" ? data["draftedAt"] : null,
+    total_rounds: rounds.length || (num(data["total_rounds"]) ?? 0),
+  };
+}
+
+/**
+ * Retrieves a daily-pack draft by date.
+ *
+ * @param date - The draft date
+ * @returns The daily-pack draft, or `null` if no draft exists for the date
+ */
+export async function getDailyDraft(date: string): Promise<DailyPackDraft | null> {
+  const doc = await getDoc(`daily_pack_drafts/${date}`);
+  if (!doc) return null;
+  return toDailyDraft(date, doc.data);
+}
+
+/**
+ * Lists daily-pack drafts, ordered from newest to oldest date.
+ *
+ * @param limit - Maximum number of drafts to return
+ * @returns The matching daily-pack drafts
+ */
+export async function listDailyDrafts(limit = 60): Promise<DailyPackDraft[]> {
+  const { docs } = await listDocs("daily_pack_drafts", { pageSize: limit });
+  const drafts = docs.map((doc) => toDailyDraft(doc.id, doc.data));
+  drafts.sort((a, b) => b.date.localeCompare(a.date));
+  return drafts;
+}
+
+/**
+ * Creates or updates a daily-pack draft for review.
+ *
+ * @param input - The draft date, category, rounds, and optional brief and source metadata
+ * @returns The stored daily-pack draft with review status and round count
+ * @throws If a published daily pack already exists for the specified date
+ * @throws If no round survives schema validation
+ */
+export async function writeDailyDraft(input: {
+  date: string;
+  category: string;
+  brief?: string;
+  rounds: unknown[];
+  source?: string;
+}): Promise<DailyPackDraft> {
+  const rounds = sanitizeDraftRounds(
+    Array.isArray(input.rounds) ? input.rounds : [],
+    input.category,
+  );
+  if (!rounds.length) {
+    throw new Error("A daily draft needs at least one complete round.");
+  }
+  const payload = {
+    date: input.date,
+    category: input.category,
+    brief: input.brief ?? "",
+    rounds,
+    status: "awaiting_review",
+    source: input.source ?? "strategist",
+    draftedAt: new Date().toISOString(),
+    total_rounds: rounds.length,
+  };
+  await runTransaction(async (tx) => {
+    const live = await tx.get(`daily_packs/${input.date}`);
+    if (live) {
+      throw new Error(
+        `Live daily_packs/${input.date} already exists. Drafts cannot overwrite published packs.`,
+      );
+    }
+    await tx.get(`daily_pack_drafts/${input.date}`);
+    tx.set(`daily_pack_drafts/${input.date}`, payload);
+  });
+  return {
+    date: input.date,
+    category: input.category,
+    brief: input.brief ?? "",
+    rounds: rounds as unknown as Json[],
+    status: "awaiting_review",
+    source: input.source ?? "strategist",
+    draftedAt: payload.draftedAt,
+    total_rounds: rounds.length,
+  };
+}
+
+/**
+ * Deletes the published daily pack for a date.
+ *
+ * @param date - The daily pack date
+ * @param adminUser - The administrator performing the deletion, if applicable
+ * @returns An object indicating whether the deletion succeeded
+ */
 export async function deleteDailyPack(date: string, adminUser?: AdminUser): Promise<{ ok: boolean }> {
   const { deleteDoc } = await import("../firebase/firestore.server");
   await deleteDoc(`daily_packs/${date}`);
@@ -625,6 +751,13 @@ export async function generateDailyPackFromGoAgent(input: {
   });
 }
 
+/**
+ * Publishes a validated daily pack and removes any matching draft.
+ *
+ * @param input - The pack date, category, and rounds to publish.
+ * @returns The scheduled daily pack.
+ * @throws Error if the pack has no rounds or contains an incomplete round.
+ */
 export async function scheduleDailyPack(
   input: {
     date: string;
@@ -658,12 +791,12 @@ export async function scheduleDailyPack(
     createdAt: new Date().toISOString(),
   };
 
-  const existing = await getDoc(`daily_packs/${input.date}`);
-  if (existing) {
-    await patchDoc(`daily_packs/${input.date}`, payload);
-  } else {
-    await createDoc("daily_packs", input.date, payload);
-  }
+  await runTransaction(async (tx) => {
+    await tx.get(`daily_packs/${input.date}`);
+    const draftDoc = await tx.get(`daily_pack_drafts/${input.date}`);
+    tx.set(`daily_packs/${input.date}`, payload);
+    if (draftDoc) tx.delete(`daily_pack_drafts/${input.date}`);
+  });
 
   if (adminUser) {
     const { logAdminAction } = await import("@/lib/firebase/audit.server");

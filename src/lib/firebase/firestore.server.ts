@@ -33,8 +33,14 @@ const TIMESTAMP_KEYS = new Set([
   "updated_at",
   "resolved_at",
   "playedAt",
+  "draftedAt",
 ]);
 
+/**
+ * Builds the base URL for the configured Firestore database's document API.
+ *
+ * @returns The Firestore REST document endpoint URL.
+ */
 function baseUrl(): string {
   const { project_id } = getServiceAccount();
   return `https://firestore.googleapis.com/v1/projects/${project_id}/databases/(default)/documents`;
@@ -258,10 +264,126 @@ export async function createDoc(
   return toDoc(raw);
 }
 
-export async function deleteDoc(path: string): Promise<void> {
-  await request(`${baseUrl()}/${path.replace(/^\//, "")}`, {
+export async function deleteDoc(
+  path: string,
+  precondition?: { updateTime?: string; exists?: boolean },
+): Promise<void> {
+  const params = new URLSearchParams();
+  if (precondition?.updateTime) {
+    params.set("currentDocument.updateTime", precondition.updateTime);
+  }
+  if (precondition?.exists !== undefined) {
+    params.set("currentDocument.exists", String(precondition.exists));
+  }
+  const query = params.toString();
+  const suffix = query ? `?${query}` : "";
+  await request(`${baseUrl()}/${path.replace(/^\//, "")}${suffix}`, {
     method: "DELETE",
   });
+}
+
+function databaseResourceName(): string {
+  const { project_id } = getServiceAccount();
+  return `projects/${project_id}/databases/(default)`;
+}
+
+function documentResourceName(path: string): string {
+  return `${databaseResourceName()}/documents/${path.replace(/^\//, "")}`;
+}
+
+export interface FirestoreTransaction {
+  get: (path: string) => Promise<FirestoreDoc | null>;
+  set: (path: string, data: Record<string, unknown>) => void;
+  delete: (path: string) => void;
+}
+
+function isTransactionContention(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /ABORTED|too much contention|FAILED_PRECONDITION.*transaction/i.test(message);
+}
+
+async function rollbackTransaction(transaction: string): Promise<void> {
+  try {
+    await request(`${baseUrl()}:rollback`, {
+      method: "POST",
+      body: JSON.stringify({ transaction }),
+    });
+  } catch {
+    /* Transaction may already be closed. */
+  }
+}
+
+async function runTransactionOnce<T>(work: (tx: FirestoreTransaction) => Promise<T>): Promise<T> {
+  const started = await request<{ transaction: string }>(`${baseUrl()}:beginTransaction`, {
+    method: "POST",
+    body: JSON.stringify({ options: { readWrite: {} } }),
+  });
+  const transaction = started.transaction;
+  const writes: Record<string, unknown>[] = [];
+  try {
+    const tx: FirestoreTransaction = {
+      get: async (path: string) => {
+        const raw = await request<unknown>(`${baseUrl()}:batchGet`, {
+          method: "POST",
+          body: JSON.stringify({
+            documents: [documentResourceName(path)],
+            transaction,
+          }),
+        });
+        const rows = Array.isArray(raw) ? raw : raw ? [raw] : [];
+        for (const row of rows) {
+          if (!row || typeof row !== "object") continue;
+          const found = (row as { found?: Parameters<typeof toDoc>[0] }).found;
+          if (found) return toDoc(found);
+        }
+        return null;
+      },
+      set: (path: string, data: Record<string, unknown>) => {
+        writes.push({
+          update: {
+            name: documentResourceName(path),
+            fields: encodeFields(data),
+          },
+        });
+      },
+      delete: (path: string) => {
+        writes.push({ delete: documentResourceName(path) });
+      },
+    };
+    const result = await work(tx);
+    await request(`${baseUrl()}:commit`, {
+      method: "POST",
+      body: JSON.stringify({
+        database: databaseResourceName(),
+        transaction,
+        writes,
+      }),
+    });
+    return result;
+  } catch (error) {
+    await rollbackTransaction(transaction);
+    throw error;
+  }
+}
+
+/**
+ * Runs read/write work in a Firestore transaction, retrying on contention.
+ *
+ * @param work - Reads and queued writes against a single transaction
+ * @returns The value returned by `work`
+ */
+export async function runTransaction<T>(work: (tx: FirestoreTransaction) => Promise<T>): Promise<T> {
+  const attempts = 5;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await runTransactionOnce(work);
+    } catch (error) {
+      lastError = error;
+      if (!isTransactionContention(error) || attempt === attempts - 1) throw error;
+    }
+  }
+  throw lastError;
 }
 
 export async function countCollection(

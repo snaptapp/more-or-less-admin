@@ -5,6 +5,7 @@ import { useMemo, useState, Fragment, type FormEvent } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, InfoTip, InlineEditorRow, PageHead, statusTone } from "@/admin/AdminShell";
 import { CrawlQueue, PlaylistsPanel, TopicsPanel } from "@/admin/taxonomyPanels";
+import { FactsBankChat } from "@/admin/FactsBankChat";
 import {
   addFact,
   bulkImportFacts,
@@ -588,6 +589,9 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+/**
+ * Manages the content administration interface for facts, topics, playlists, and crawl intake.
+ */
 function ContentPage() {
   const { view: viewParam } = Route.useSearch();
   const view: ContentView = viewParam ?? "facts";
@@ -801,7 +805,8 @@ function ContentPage() {
   };
 
   return (
-    <>
+    <div className="daily-blitz-layout">
+      <div className="daily-blitz-main">
       <PageHead
         title="Content"
         description="Facts attach to topics. Topics sit in a genre and family. Playlists are optional theme mixes."
@@ -1173,7 +1178,11 @@ function ContentPage() {
       ) : null}
         </>
       ) : null}
-    </>
+      </div>
+      <aside className="daily-blitz-chat">
+        <FactsBankChat />
+      </aside>
+    </div>
   );
 }
 
