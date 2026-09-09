@@ -569,6 +569,9 @@ export async function executeTool(
       const category = String(args.category ?? ctx.topic ?? DAILY_BLITZ_FALLBACK_CATEGORY);
       const brief = String(args.brief ?? ctx.brief ?? "");
       const rounds = Array.isArray(args.rounds) ? args.rounds : ctx.rounds;
+      if (!rounds.length || rounds.length !== DAILY_BLITZ_ROUNDS) {
+        return { result: { error: `rounds must contain exactly ${DAILY_BLITZ_ROUNDS} rounds` } };
+      }
       const draft = await writeDailyDraft({
         date,
         category,
