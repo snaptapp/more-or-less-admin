@@ -88,9 +88,9 @@ export function cronSecretMatches(authorization: string | null): boolean {
   const provided = (authorization ?? "").replace(/^Bearer\s+/i, "").trim();
   if (!provided) return false;
   if (expected.length !== provided.length) return false;
-  if (expected.length !== provided.length) return false;
+
+  let mismatch = 0;
   for (let i = 0; i < expected.length; i++) {
-    mismatch |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
     mismatch |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
   }
   return mismatch === 0;
