@@ -264,8 +264,20 @@ export async function createDoc(
   return toDoc(raw);
 }
 
-export async function deleteDoc(path: string): Promise<void> {
-  await request(`${baseUrl()}/${path.replace(/^\//, "")}`, {
+export async function deleteDoc(
+  path: string,
+  precondition?: { updateTime?: string; exists?: boolean },
+): Promise<void> {
+  const params = new URLSearchParams();
+  if (precondition?.updateTime) {
+    params.set("currentDocument.updateTime", precondition.updateTime);
+  }
+  if (precondition?.exists !== undefined) {
+    params.set("currentDocument.exists", String(precondition.exists));
+  }
+  const query = params.toString();
+  const suffix = query ? `?${query}` : "";
+  await request(`${baseUrl()}/${path.replace(/^\//, "")}${suffix}`, {
     method: "DELETE",
   });
 }

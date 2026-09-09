@@ -3,6 +3,7 @@
  * Live daily_packs still require Save & Schedule. Unfilled live dates
  * keep the Sports bank cycle until then.
  */
+import { createDoc, deleteDoc, getDoc, patchDoc } from "../firebase/firestore.server";
 import {
   BLITZ_CATEGORIES,
   DAILY_BLITZ_FALLBACK_CATEGORY,
@@ -14,6 +15,9 @@ import { generatePackViaGoAgent, goAgentConfigured } from "./goagent.server";
 import { getDailyDraft, getDailyPack, writeDailyDraft } from "./ops.server";
 
 export const DEFAULT_DRAFT_LOOKAHEAD = 5;
+const DRAFT_CLAIM_COLLECTION = "daily_pack_draft_claims";
+/** Go pack generation can take minutes; expired claims may be reclaimed. */
+const DRAFT_CLAIM_LEASE_MS = 10 * 60 * 1000;
 
 /**
  * Generates UTC date strings for a bounded lookahead period.
@@ -55,6 +59,116 @@ export function rotateCategory(offset: number): string {
   return list[((offset % list.length) + list.length) % list.length];
 }
 
+function firestoreMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isAlreadyExistsError(error: unknown): boolean {
+  return /\(409\)|ALREADY_EXISTS/i.test(firestoreMessage(error));
+}
+
+function isLostClaimRaceError(error: unknown): boolean {
+  return /FAILED_PRECONDITION|\(400\)|\(404\)|ALREADY_EXISTS|\(409\)/i.test(firestoreMessage(error));
+}
+
+/**
+ * Whether a draft-date claim may be deleted and recreated.
+ *
+ * @param status - Stored claim status
+ * @param leaseExpiresAt - ISO lease expiry, if any
+ * @param now - Comparison instant in milliseconds
+ * @returns True when the claim is failed or the lease has elapsed
+ */
+export function shouldReclaimDraftClaim(
+  status: string,
+  leaseExpiresAt: string | null | undefined,
+  now = Date.now(),
+): boolean {
+  if (status === "failed") return true;
+  if (status !== "generating") return true;
+  if (!leaseExpiresAt) return true;
+  const expires = Date.parse(leaseExpiresAt);
+  return !Number.isFinite(expires) || expires <= now;
+}
+
+async function claimDraftDate(
+  date: string,
+): Promise<{ ok: true; claimId: string } | { ok: false; reason: string }> {
+  const claimId = crypto.randomUUID();
+  const now = Date.now();
+  const payload = {
+    date,
+    claimId,
+    status: "generating",
+    claimedAt: new Date(now).toISOString(),
+    leaseExpiresAt: new Date(now + DRAFT_CLAIM_LEASE_MS).toISOString(),
+    source: "cron",
+  };
+
+  const createClaim = async () => {
+    await createDoc(DRAFT_CLAIM_COLLECTION, date, payload);
+  };
+
+  try {
+    await createClaim();
+    return { ok: true, claimId };
+  } catch (error) {
+    if (!isAlreadyExistsError(error)) throw error;
+  }
+
+  const existing = await getDoc(`${DRAFT_CLAIM_COLLECTION}/${date}`);
+  if (!existing) {
+    try {
+      await createClaim();
+      return { ok: true, claimId };
+    } catch (error) {
+      if (isAlreadyExistsError(error)) {
+        return { ok: false, reason: "date already claimed" };
+      }
+      throw error;
+    }
+  }
+
+  const status = String(existing.data["status"] ?? "");
+  const leaseExpiresAt =
+    typeof existing.data["leaseExpiresAt"] === "string" ? existing.data["leaseExpiresAt"] : null;
+  if (!shouldReclaimDraftClaim(status, leaseExpiresAt, now)) {
+    return { ok: false, reason: "date already claimed" };
+  }
+
+  try {
+    await deleteDoc(
+      `${DRAFT_CLAIM_COLLECTION}/${date}`,
+      existing.updateTime ? { updateTime: existing.updateTime } : { exists: true },
+    );
+    await createClaim();
+    return { ok: true, claimId };
+  } catch (error) {
+    if (isLostClaimRaceError(error)) {
+      return { ok: false, reason: "date already claimed" };
+    }
+    throw error;
+  }
+}
+
+async function releaseDraftClaim(date: string, claimId: string): Promise<void> {
+  const existing = await getDoc(`${DRAFT_CLAIM_COLLECTION}/${date}`);
+  if (!existing) return;
+  if (String(existing.data["claimId"] ?? "") !== claimId) return;
+  await deleteDoc(`${DRAFT_CLAIM_COLLECTION}/${date}`);
+}
+
+async function markDraftClaimFailed(date: string, claimId: string, reason: string): Promise<void> {
+  const existing = await getDoc(`${DRAFT_CLAIM_COLLECTION}/${date}`);
+  if (!existing) return;
+  if (String(existing.data["claimId"] ?? "") !== claimId) return;
+  await patchDoc(`${DRAFT_CLAIM_COLLECTION}/${date}`, {
+    status: "failed",
+    error: reason.slice(0, 500),
+    failedAt: new Date().toISOString(),
+  });
+}
+
 /**
  * Creates daily Blitz drafts for upcoming dates that have no live pack or pending draft.
  *
@@ -86,19 +200,47 @@ export async function fillUnfilledDailyDrafts(
       skipped.push({ date, reason: "draft already awaiting review" });
       continue;
     }
+
+    let claimed: { ok: true; claimId: string } | { ok: false; reason: string };
+    try {
+      claimed = await claimDraftDate(date);
+    } catch (err) {
+      skipped.push({
+        date,
+        reason: err instanceof Error ? err.message : String(err),
+      });
+      continue;
+    }
+    if (!claimed.ok) {
+      skipped.push({ date, reason: claimed.reason });
+      continue;
+    }
+
     const category = rotateCategory(i);
     const brief = `Autonomous Daily Blitz draft for ${date}. Genre rotation: ${category}. Mix 15 grounded rounds.`;
+    let releaseClaim = true;
     try {
+      const liveAfterClaim = await getDailyPack(date);
+      if (liveAfterClaim) {
+        skipped.push({ date, reason: "live pack exists" });
+        continue;
+      }
+      const draftAfterClaim = await getDailyDraft(date);
+      if (draftAfterClaim) {
+        skipped.push({ date, reason: "draft already awaiting review" });
+        continue;
+      }
+
       const pack = await generatePackViaGoAgent({
         topic: category,
         guidance: brief,
         numRounds: DAILY_BLITZ_ROUNDS,
       });
       if (!pack.is_valid || pack.rounds.length === 0) {
-        skipped.push({
-          date,
-          reason: pack.status_message || "Go agent returned no rounds.",
-        });
+        const reason = pack.status_message || "Go agent returned no rounds.";
+        await markDraftClaimFailed(date, claimed.claimId, reason);
+        releaseClaim = false;
+        skipped.push({ date, reason });
         continue;
       }
       await writeDailyDraft({
@@ -110,10 +252,18 @@ export async function fillUnfilledDailyDrafts(
       });
       drafted.push(date);
     } catch (err) {
-      skipped.push({
-        date,
-        reason: err instanceof Error ? err.message : String(err),
-      });
+      const reason = err instanceof Error ? err.message : String(err);
+      await markDraftClaimFailed(date, claimed.claimId, reason);
+      releaseClaim = false;
+      skipped.push({ date, reason });
+    } finally {
+      if (releaseClaim) {
+        try {
+          await releaseDraftClaim(date, claimed.claimId);
+        } catch {
+          /* Lease expires and can be reclaimed. */
+        }
+      }
     }
   }
   return { drafted, skipped };
