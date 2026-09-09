@@ -30,7 +30,7 @@ export function OpsChatRail({
 }) {
   const [input, setInput] = useState("");
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = (event: { preventDefault(): void }) => {
     event.preventDefault();
     const text = input.trim();
     if (!text || pending) return;
