@@ -216,7 +216,9 @@ export async function fillUnfilledDailyDrafts(
       continue;
     }
 
-    const category = rotateCategory(i);
+    // Use date-derived offset for stable category rotation across daily invocations
+    const dayOfMonth = parseInt(date.split("-")[2], 10) || 1;
+    const category = rotateCategory(dayOfMonth - 1);
     const brief = `Autonomous Daily Blitz draft for ${date}. Genre rotation: ${category}. Mix 15 grounded rounds.`;
     let releaseClaim = true;
     try {

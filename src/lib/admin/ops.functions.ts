@@ -230,10 +230,12 @@ export const fetchDaily = createServerFn({ method: "POST" }).middleware([authMid
   )
   .handler(async ({ data }) => {
     const { getDailyPack, getDailyLeaderboard, getDailyDraft } = await import("./ops.server");
+    // Wrap getDailyDraft in try-catch to prevent Promise.all rejection
+    const draftPromise = getDailyDraft(data.date).catch(() => null);
     const [pack, leaderboard, draft] = await Promise.all([
       getDailyPack(data.date),
       getDailyLeaderboard(data.date),
-      getDailyDraft(data.date),
+      draftPromise,
     ]);
     return { pack, leaderboard, draft };
   });

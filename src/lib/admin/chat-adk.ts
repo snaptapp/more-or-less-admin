@@ -75,12 +75,23 @@ export const adkChatBackend: ChatBackend = {
           : {},
       });
     }
-    const assistantParts = Array.isArray(parsed.parts)
-      ? (parsed.parts as ChatContent["parts"])
-      : [
+    let assistantParts: ChatContent["parts"];
+    if (Array.isArray(parsed.parts)) {
+      // Validate parsed.parts elements to ensure valid structure
+      assistantParts = (parsed.parts as ChatContent["parts"]).filter((part) => {
+        if (!part || typeof part !== "object") return false;
+        // Accept parts with text, functionCall, or functionResponse
+        return "text" in part || "functionCall" in part || "functionResponse" in part;
+      });
+      // Derive tool calls from validated parts to ensure consistency
+      const partsToolCalls = functionCalls(assistantParts);
+      toolCalls.push(...partsToolCalls.filter(call => !toolCalls.some(tc => tc.name === call.name)));
+    } else {
+      assistantParts = [
           ...(text ? [{ text }] : []),
           ...toolCalls.map((call) => ({ functionCall: { name: call.name, args: call.args } })),
-        ];
+      ];
+    }
     const assistantMessage: ChatContent = { role: "model", parts: assistantParts };
     return {
       text: text || visibleText(assistantMessage.parts),

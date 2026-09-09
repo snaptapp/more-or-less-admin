@@ -32,7 +32,20 @@ export const Route = createFileRoute("/api/internal/daily-drafts")({
         }
 
         const result = await fillUnfilledDailyDrafts(lookahead);
-        return Response.json({ ok: true, lookahead, ...result });
+        
+        // Return HTTP 503 when GO_AGENT_URL is unavailable and no drafts created
+        const hasGoAgentError = result.skipped.some(s => s.date === "*" && s.reason.includes("GO_AGENT_URL"));
+        if (hasGoAgentError && result.drafted.length === 0) {
+          return Response.json({ ok: false, lookahead, ...result }, { status: 503 });
+        }
+        
+        // Sanitize error messages to avoid exposing internal details
+        const sanitizedSkipped = result.skipped.map(({ date, reason }) => ({
+          date,
+          reason: reason.length > 200 ? "Generation failed" : reason,
+        }));
+        
+        return Response.json({ ok: true, lookahead, drafted: result.drafted, skipped: sanitizedSkipped });
       },
     },
   },

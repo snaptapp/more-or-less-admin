@@ -673,7 +673,28 @@ export async function writeDailyDraft(input: {
   rounds: unknown[];
   source?: string;
 }): Promise<DailyPackDraft> {
-  const rounds = Array.isArray(input.rounds) ? input.rounds : [];
+  // Validate and filter rounds for required fields
+  const rawRounds = Array.isArray(input.rounds) ? input.rounds : [];
+  const rounds = rawRounds.filter((r) => {
+    if (!r || typeof r !== "object") return false;
+    const round = r as Record<string, unknown>;
+    // Require essential round fields: claim_statement, true_number, presented_number, unit
+    if (typeof round["claim_statement"] !== "string" || !round["claim_statement"]) return false;
+    if (typeof round["unit"] !== "string" || !round["unit"]) return false;
+    // Ensure numeric fields are present (can be numbers or numeric strings)
+    const trueNum = round["true_number"];
+    const presentedNum = round["presented_number"];
+    if (trueNum === null || trueNum === undefined || trueNum === "") return false;
+    if (presentedNum === null || presentedNum === undefined || presentedNum === "") return false;
+    // Validate round_number if present
+    const roundNum = round["round_number"];
+    if (roundNum !== undefined && roundNum !== null) {
+      const n = Number(roundNum);
+      if (!Number.isFinite(n) || n < 1) return false;
+    }
+    return true;
+  });
+  
   const payload = {
     date: input.date,
     category: input.category,
