@@ -21,6 +21,7 @@ import { Route as AdminDailyRouteImport } from './routes/admin/daily'
 import { Route as AdminAuditRouteImport } from './routes/admin/audit'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin/analytics'
 import { Route as ApiPublicFirebaseConfigRouteImport } from './routes/api/public/firebase-config'
+import { Route as ApiInternalDailyDraftsRouteImport } from './routes/api/internal/daily-drafts'
 
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
@@ -82,6 +83,11 @@ const ApiPublicFirebaseConfigRoute = ApiPublicFirebaseConfigRouteImport.update({
   path: '/api/public/firebase-config',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInternalDailyDraftsRoute = ApiInternalDailyDraftsRouteImport.update({
+  id: '/api/internal/daily-drafts',
+  path: '/api/internal/daily-drafts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin/': typeof AdminIndexRoute
   '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
+  '/api/internal/daily-drafts': typeof ApiInternalDailyDraftsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin': typeof AdminIndexRoute
   '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
+  '/api/internal/daily-drafts': typeof ApiInternalDailyDraftsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin/': typeof AdminIndexRoute
   '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
+  '/api/internal/daily-drafts': typeof ApiInternalDailyDraftsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
     | '/admin/taxonomy'
     | '/admin/'
     | '/api/public/firebase-config'
+    | '/api/internal/daily-drafts'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -153,6 +163,7 @@ export interface FileRouteTypes {
     | '/admin/taxonomy'
     | '/admin'
     | '/api/public/firebase-config'
+    | '/api/internal/daily-drafts'
   id:
     | '__root__'
     | '/'
@@ -167,12 +178,14 @@ export interface FileRouteTypes {
     | '/admin/taxonomy'
     | '/admin/'
     | '/api/public/firebase-config'
+    | '/api/internal/daily-drafts'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   ApiPublicFirebaseConfigRoute: typeof ApiPublicFirebaseConfigRoute
+  ApiInternalDailyDraftsRoute: typeof ApiInternalDailyDraftsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -261,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFirebaseConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/daily-drafts': {
+      id: '/api/internal/daily-drafts'
+      path: '/api/internal/daily-drafts'
+      fullPath: '/api/internal/daily-drafts'
+      preLoaderRoute: typeof ApiInternalDailyDraftsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -294,6 +314,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   ApiPublicFirebaseConfigRoute: ApiPublicFirebaseConfigRoute,
+  ApiInternalDailyDraftsRoute: ApiInternalDailyDraftsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

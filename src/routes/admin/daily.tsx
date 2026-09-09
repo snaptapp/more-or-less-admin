@@ -27,6 +27,7 @@ import {
   deleteDailyPackAction,
   fetchDaily,
   fetchDailySchedule,
+  fillDailyDraftsAction,
   generateDailyPack,
   moderateLeaderboardEntry,
   preScheduleDailyPack,
@@ -517,6 +518,7 @@ function DailyPage() {
   const loadDaily = useServerFn(fetchDaily);
   const loadSchedule = useServerFn(fetchDailySchedule);
   const deletePack = useServerFn(deleteDailyPackAction);
+  const fillDrafts = useServerFn(fillDailyDraftsAction);
   const removeEntry = useServerFn(moderateLeaderboardEntry);
   const queryClient = useQueryClient();
 
@@ -573,6 +575,11 @@ function DailyPage() {
       [date]: { ...(prev[date] ?? draft), ...patch },
     }));
   };
+
+  const fillMutation = useMutation({
+    mutationFn: () => fillDrafts({ data: { lookahead: 5 } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["daily_schedule"] }),
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (d: string) => deletePack({ data: { date: d } }),
@@ -639,18 +646,26 @@ function DailyPage() {
           title="Daily Blitz"
           description={`15 questions, ${DAILY_BLITZ_SECONDS} seconds. Chat plans, Go writes DDM-gated rounds, Save publishes. Unscheduled dates still play the Sports bank cycle.`}
           actions={
-            <Button
-              onClick={() => {
-                const target = addUtcDays(utcToday(), 1);
-                setDate(target);
-              }}
-            >
-              Open tomorrow
-            </Button>
+            <>
+              <Button
+                disabled={fillMutation.isPending}
+                onClick={() => fillMutation.mutate()}
+              >
+                {fillMutation.isPending ? "Filling drafts…" : "Fill 5 unfilled drafts"}
+              </Button>
+              <Button
+                onClick={() => {
+                  const target = addUtcDays(utcToday(), 1);
+                  setDate(target);
+                }}
+              >
+                Open tomorrow
+              </Button>
+            </>
           }
         />
 
-        <ErrorNote error={scheduleQuery.error || dailyQuery.error} />
+        <ErrorNote error={scheduleQuery.error || dailyQuery.error || fillMutation.error} />
 
         <Card>
           <div className="admin-page-head">
