@@ -15,6 +15,7 @@ import {
   type Json,
 } from "../firebase/firestore.server";
 import type { AdminUser } from "../firebase/verify.server";
+import { sanitizeDraftRounds } from "./daily-blitz";
 
 function str(value: Json | undefined): string {
   return typeof value === "string" ? value : "";
@@ -665,6 +666,7 @@ export async function listDailyDrafts(limit = 60): Promise<DailyPackDraft[]> {
  * @param input - The draft date, category, rounds, and optional brief and source metadata
  * @returns The stored daily-pack draft with review status and round count
  * @throws If a published daily pack already exists for the specified date
+ * @throws If no round survives schema validation
  */
 export async function writeDailyDraft(input: {
   date: string;
@@ -673,28 +675,13 @@ export async function writeDailyDraft(input: {
   rounds: unknown[];
   source?: string;
 }): Promise<DailyPackDraft> {
-  // Validate and filter rounds for required fields
-  const rawRounds = Array.isArray(input.rounds) ? input.rounds : [];
-  const rounds = rawRounds.filter((r) => {
-    if (!r || typeof r !== "object") return false;
-    const round = r as Record<string, unknown>;
-    // Require essential round fields: claim_statement, true_number, presented_number, unit
-    if (typeof round["claim_statement"] !== "string" || !round["claim_statement"]) return false;
-    if (typeof round["unit"] !== "string" || !round["unit"]) return false;
-    // Ensure numeric fields are present (can be numbers or numeric strings)
-    const trueNum = round["true_number"];
-    const presentedNum = round["presented_number"];
-    if (trueNum === null || trueNum === undefined || trueNum === "") return false;
-    if (presentedNum === null || presentedNum === undefined || presentedNum === "") return false;
-    // Validate round_number if present
-    const roundNum = round["round_number"];
-    if (roundNum !== undefined && roundNum !== null) {
-      const n = Number(roundNum);
-      if (!Number.isFinite(n) || n < 1) return false;
-    }
-    return true;
-  });
-  
+  const rounds = sanitizeDraftRounds(
+    Array.isArray(input.rounds) ? input.rounds : [],
+    input.category,
+  );
+  if (!rounds.length) {
+    throw new Error("A daily draft needs at least one complete round.");
+  }
   const payload = {
     date: input.date,
     category: input.category,
@@ -719,7 +706,7 @@ export async function writeDailyDraft(input: {
     date: input.date,
     category: input.category,
     brief: input.brief ?? "",
-    rounds: rounds as Json[],
+    rounds: rounds as unknown as Json[],
     status: "awaiting_review",
     source: input.source ?? "strategist",
     draftedAt: payload.draftedAt,

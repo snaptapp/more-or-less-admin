@@ -11,6 +11,7 @@ import {
   DAILY_BLITZ_FALLBACK_CATEGORY,
   calendarStripDates,
   factToBlitzRound,
+  sanitizeDraftRounds,
   type ChatCard,
   type EditableRound,
 } from "./daily-blitz";
@@ -168,20 +169,6 @@ const FACTS_TOOLS: ChatToolDeclaration[] = [
       type: "object",
       properties: { query: { type: "string" } },
       required: ["query"],
-    },
-  },
-  {
-    name: "draft_pack",
-    description:
-      "Ask the Go agent for a 15-round pack as an Apply card (for filling Daily from a topic or playlist). Does not publish.",
-    parameters: {
-      type: "object",
-      properties: {
-        date: { type: "string" },
-        topic: { type: "string" },
-        brief: { type: "string" },
-      },
-      required: ["topic"],
     },
   },
 ];
@@ -630,9 +617,17 @@ export async function executeTool(
       }
       const category = String(args.category ?? ctx.topic ?? DAILY_BLITZ_FALLBACK_CATEGORY);
       const brief = String(args.brief ?? ctx.brief ?? "");
-      const rounds = Array.isArray(args.rounds) ? args.rounds : ctx.rounds;
-      if (!rounds.length || rounds.length !== DAILY_BLITZ_ROUNDS) {
-        return { result: { error: `rounds must contain exactly ${DAILY_BLITZ_ROUNDS} rounds` } };
+      const rawRounds = Array.isArray(args.rounds) ? args.rounds : ctx.rounds;
+      const rounds = sanitizeDraftRounds(rawRounds, category);
+      if (!rounds.length) {
+        return { result: { error: "rounds contained no valid EditableRound entries" } };
+      }
+      if (rounds.length !== DAILY_BLITZ_ROUNDS) {
+        return {
+          result: {
+            error: `rounds must contain exactly ${DAILY_BLITZ_ROUNDS} valid rounds`,
+          },
+        };
       }
       const draft = await writeDailyDraft({
         date,

@@ -1,5 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+const PUBLIC_SKIP_REASONS = new Set([
+  "live pack exists",
+  "draft already awaiting review",
+  "date already claimed",
+]);
+
+/**
+ * Maps fill skip reasons to a cron-safe string with no internal error text.
+ *
+ * @param reason - The internal skip reason from draft fill
+ * @returns A stable, non-sensitive reason for the API response
+ */
+function publicSkipReason(reason: string): string {
+  if (PUBLIC_SKIP_REASONS.has(reason)) return reason;
+  if (reason.includes("GO_AGENT_URL is not configured")) return "Go agent is not configured.";
+  if (/returned no rounds/i.test(reason)) return "Go agent returned no rounds.";
+  return "generation failed";
+}
+
 /**
  * Secret-gated cron for autonomous Daily Blitz drafts.
  *
@@ -32,20 +51,25 @@ export const Route = createFileRoute("/api/internal/daily-drafts")({
         }
 
         const result = await fillUnfilledDailyDrafts(lookahead);
-        
-        // Return HTTP 503 when GO_AGENT_URL is unavailable and no drafts created
-        const hasGoAgentError = result.skipped.some(s => s.date === "*" && s.reason.includes("GO_AGENT_URL"));
-        if (hasGoAgentError && result.drafted.length === 0) {
-          return Response.json({ ok: false, lookahead, ...result }, { status: 503 });
-        }
-        
-        // Sanitize error messages to avoid exposing internal details
-        const sanitizedSkipped = result.skipped.map(({ date, reason }) => ({
-          date,
-          reason: reason.length > 200 ? "Generation failed" : reason,
+        const skipped = result.skipped.map((item) => ({
+          date: item.date,
+          reason: publicSkipReason(item.reason),
         }));
-        
-        return Response.json({ ok: true, lookahead, drafted: result.drafted, skipped: sanitizedSkipped });
+        const goAgentDown = result.skipped.some(
+          (item) => item.date === "*" && item.reason.includes("GO_AGENT_URL"),
+        );
+        if (goAgentDown && result.drafted.length === 0) {
+          return Response.json(
+            { ok: false, lookahead, drafted: result.drafted, skipped },
+            { status: 503 },
+          );
+        }
+        return Response.json({
+          ok: true,
+          lookahead,
+          drafted: result.drafted,
+          skipped,
+        });
       },
     },
   },

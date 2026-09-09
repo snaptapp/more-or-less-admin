@@ -379,6 +379,21 @@ export function mapPackRounds(rawRounds: unknown[], fallbackTopic: string): Edit
   });
 }
 
+/**
+ * Coerces raw pack rows into complete EditableRound entries.
+ * Drops objects that lack a claim, unit, explanation, or unequal true/presented numbers.
+ *
+ * @param rawRounds - Untrusted round payloads
+ * @param fallbackTopic - Topic used when a row omits one
+ * @returns Validated rounds, re-numbered from 1
+ */
+export function sanitizeDraftRounds(rawRounds: unknown[], fallbackTopic: string): EditableRound[] {
+  const source = Array.isArray(rawRounds) ? rawRounds : [];
+  return mapPackRounds(source, fallbackTopic)
+    .filter((round) => roundReadyToSchedule(round))
+    .map((round, i) => ({ ...round, round_number: i + 1 }));
+}
+
 export function schedulePayload(rounds: EditableRound[], category: string) {
   return rounds.map((r, i) => {
     const trueNum = Number(r.true_number);

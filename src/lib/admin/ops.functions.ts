@@ -217,10 +217,11 @@ export const fetchDailySchedule = createServerFn({ method: "POST" }).middleware(
     z.object({ limit: z.number().optional() }).parse(data),
   )
   .handler(async ({ data }) => {
-    const { listDailyPacks } = await import("./ops.server");
-    const packs = await listDailyPacks(data?.limit ?? 100);
-    const { listDailyDrafts } = await import("./ops.server");
-    const drafts = await listDailyDrafts(60);
+    const { listDailyPacks, listDailyDrafts } = await import("./ops.server");
+    const [packs, drafts] = await Promise.all([
+      listDailyPacks(data?.limit ?? 100),
+      listDailyDrafts(60),
+    ]);
     return { packs, drafts };
   });
 
@@ -230,12 +231,10 @@ export const fetchDaily = createServerFn({ method: "POST" }).middleware([authMid
   )
   .handler(async ({ data }) => {
     const { getDailyPack, getDailyLeaderboard, getDailyDraft } = await import("./ops.server");
-    // Wrap getDailyDraft in try-catch to prevent Promise.all rejection
-    const draftPromise = getDailyDraft(data.date).catch(() => null);
     const [pack, leaderboard, draft] = await Promise.all([
       getDailyPack(data.date),
       getDailyLeaderboard(data.date),
-      draftPromise,
+      getDailyDraft(data.date).catch(() => null),
     ]);
     return { pack, leaderboard, draft };
   });
