@@ -17,6 +17,12 @@ export interface FactsChatInput {
   messages: ChatMessage[];
 }
 
+/**
+ * Runs a facts chat session to identify coverage gaps and suggest items for the crawl queue.
+ *
+ * @param input - The chat messages to provide to the facts strategist
+ * @returns The response text and generated chat cards
+ */
 export async function runFactsBankChat(input: FactsChatInput): Promise<{
   text: string;
   cards: ChatCard[];

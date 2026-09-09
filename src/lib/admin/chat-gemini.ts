@@ -16,6 +16,12 @@ import { isAbortError, responseSnippet, asJsonObject } from "./http";
 
 const MODEL_ID = "gemini-3.8-flash";
 
+/**
+ * Retrieves the configured Google Cloud project ID.
+ *
+ * @returns The trimmed project ID from `GOOGLE_CLOUD_PROJECT` or `FIREBASE_PROJECT_ID`
+ * @throws If neither project ID environment variable is configured
+ */
 function projectId(): string {
   const id = process.env["GOOGLE_CLOUD_PROJECT"]?.trim() || process.env["FIREBASE_PROJECT_ID"]?.trim();
   if (!id) {
@@ -24,11 +30,22 @@ function projectId(): string {
   return id;
 }
 
+/**
+ * Builds the Vertex AI endpoint URL for the configured Gemini model and location.
+ *
+ * @returns The fully qualified Vertex AI `generateContent` endpoint URL.
+ */
 function vertexUrl(): string {
   const loc = (process.env["VERTEX_LOCATION"] ?? "global").trim() || "global";
   return `https://aiplatform.googleapis.com/v1/projects/${projectId()}/locations/${loc}/publishers/google/models/${MODEL_ID}:generateContent`;
 }
 
+/**
+ * Converts chat tool declarations to the Gemini function-declaration format.
+ *
+ * @param tools - Tool declarations to convert
+ * @returns Gemini-compatible function declarations
+ */
 function geminiTools(tools: ChatToolDeclaration[]) {
   return [
     {
@@ -41,6 +58,15 @@ function geminiTools(tools: ChatToolDeclaration[]) {
   ];
 }
 
+/**
+ * Generates a Gemini response for the supplied conversation, system instruction, and tools.
+ *
+ * @param contents - The conversation content to send to Gemini
+ * @param system - The system instruction guiding the response
+ * @param tools - The tools available to Gemini
+ * @returns The model-generated content
+ * @throws An error if the request times out, fails, returns invalid JSON, or contains no content
+ */
 async function generateContent(
   contents: ChatContent[],
   system: string,

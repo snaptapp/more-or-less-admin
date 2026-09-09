@@ -34,6 +34,12 @@ export interface DailyChatInput {
   messages: ChatMessage[];
 }
 
+/**
+ * Generates a Daily Blitz strategist response using the current editor context.
+ *
+ * @param input - The selected date, topic, brief, rounds, unfilled dates, and chat history.
+ * @returns The generated chat text and editor action cards.
+ */
 export async function runDailyBlitzChat(input: DailyChatInput): Promise<{
   text: string;
   cards: ChatCard[];

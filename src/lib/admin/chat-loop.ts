@@ -13,6 +13,12 @@ import type { ChatCard, ChatMessage } from "./daily-blitz";
 
 const MAX_TOOL_TURNS = 6;
 
+/**
+ * Runs a chat completion loop with surface-specific tools and collects generated cards.
+ *
+ * @param input - Chat configuration, message history, execution context, and fallback user identity
+ * @returns The final model text and any cards produced by executed tools
+ */
 export async function runChatLoop(input: {
   surface: ChatSurface;
   system: string;

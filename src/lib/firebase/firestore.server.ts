@@ -36,6 +36,11 @@ const TIMESTAMP_KEYS = new Set([
   "draftedAt",
 ]);
 
+/**
+ * Builds the base URL for the configured Firestore database's document API.
+ *
+ * @returns The Firestore REST document endpoint URL.
+ */
 function baseUrl(): string {
   const { project_id } = getServiceAccount();
   return `https://firestore.googleapis.com/v1/projects/${project_id}/databases/(default)/documents`;

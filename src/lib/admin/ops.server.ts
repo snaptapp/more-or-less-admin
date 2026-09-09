@@ -580,6 +580,12 @@ export async function listDailyPacks(limit = 100): Promise<DailyPackSummary[]> {
   return packs;
 }
 
+/**
+ * Retrieves a published daily pack for the specified date.
+ *
+ * @param date - The daily pack date
+ * @returns The daily pack, or `null` if no pack exists for the date
+ */
 export async function getDailyPack(date: string): Promise<DailyPack | null> {
   const doc = await getDoc(`daily_packs/${date}`);
   if (!doc) return null;
@@ -606,6 +612,13 @@ export interface DailyPackDraft {
   total_rounds: number;
 }
 
+/**
+ * Converts stored daily-pack draft data into a normalized draft record.
+ *
+ * @param date - The draft's calendar date
+ * @param data - Stored draft fields
+ * @returns A normalized daily-pack draft with default status, source, and round count
+ */
 function toDailyDraft(date: string, data: Record<string, Json>): DailyPackDraft {
   const rounds = Array.isArray(data["rounds"]) ? (data["rounds"] as Json[]) : [];
   return {
@@ -620,12 +633,24 @@ function toDailyDraft(date: string, data: Record<string, Json>): DailyPackDraft 
   };
 }
 
+/**
+ * Retrieves a daily-pack draft by date.
+ *
+ * @param date - The draft date
+ * @returns The daily-pack draft, or `null` if no draft exists for the date
+ */
 export async function getDailyDraft(date: string): Promise<DailyPackDraft | null> {
   const doc = await getDoc(`daily_pack_drafts/${date}`);
   if (!doc) return null;
   return toDailyDraft(date, doc.data);
 }
 
+/**
+ * Lists daily-pack drafts, ordered from newest to oldest date.
+ *
+ * @param limit - Maximum number of drafts to return
+ * @returns The matching daily-pack drafts
+ */
 export async function listDailyDrafts(limit = 60): Promise<DailyPackDraft[]> {
   const { docs } = await listDocs("daily_pack_drafts", { pageSize: limit });
   const drafts = docs.map((doc) => toDailyDraft(doc.id, doc.data));
@@ -633,6 +658,13 @@ export async function listDailyDrafts(limit = 60): Promise<DailyPackDraft[]> {
   return drafts;
 }
 
+/**
+ * Creates or updates a daily-pack draft for review.
+ *
+ * @param input - The draft date, category, rounds, and optional brief and source metadata
+ * @returns The stored daily-pack draft with review status and round count
+ * @throws If a published daily pack already exists for the specified date
+ */
 export async function writeDailyDraft(input: {
   date: string;
   category: string;
@@ -674,6 +706,13 @@ export async function writeDailyDraft(input: {
   };
 }
 
+/**
+ * Deletes the published daily pack for a date.
+ *
+ * @param date - The daily pack date
+ * @param adminUser - The administrator performing the deletion, if applicable
+ * @returns An object indicating whether the deletion succeeded
+ */
 export async function deleteDailyPack(date: string, adminUser?: AdminUser): Promise<{ ok: boolean }> {
   const { deleteDoc } = await import("../firebase/firestore.server");
   await deleteDoc(`daily_packs/${date}`);
@@ -704,6 +743,13 @@ export async function generateDailyPackFromGoAgent(input: {
   });
 }
 
+/**
+ * Publishes a validated daily pack and removes any matching draft.
+ *
+ * @param input - The pack date, category, and rounds to publish.
+ * @returns The scheduled daily pack.
+ * @throws Error if the pack has no rounds or contains an incomplete round.
+ */
 export async function scheduleDailyPack(
   input: {
     date: string;

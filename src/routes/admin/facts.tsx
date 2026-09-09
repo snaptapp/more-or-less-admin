@@ -589,6 +589,9 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+/**
+ * Manages the content administration interface for facts, topics, playlists, and crawl intake.
+ */
 function ContentPage() {
   const { view: viewParam } = Route.useSearch();
   const view: ContentView = viewParam ?? "facts";

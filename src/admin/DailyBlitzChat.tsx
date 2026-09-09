@@ -6,6 +6,17 @@ import { OpsChatRail } from "@/admin/OpsChatRail";
 import { chatDailyBlitz } from "@/lib/admin/ops.functions";
 import type { ChatCard, ChatMessage, EditableRound } from "@/lib/admin/daily-blitz";
 
+/**
+ * Provides a date-specific chat interface for planning and applying daily blitz rounds.
+ *
+ * @param date - The date associated with the active conversation and round plan
+ * @param topic - The current planning topic
+ * @param brief - The planning brief supplied to the chat
+ * @param rounds - The editable rounds currently in the plan
+ * @param unfilledDates - Dates that still have unfilled rounds
+ * @param onApplyPack - Handles applying a complete pack returned by the chat
+ * @param onApplyRound - Handles applying an individual round returned by the chat
+ */
 export function DailyBlitzChat({
   date,
   topic,

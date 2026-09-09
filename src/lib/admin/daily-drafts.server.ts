@@ -12,6 +12,13 @@ import {
 import { generatePackViaGoAgent, goAgentConfigured } from "./goagent.server";
 import { getDailyDraft, getDailyPack, writeDailyDraft } from "./ops.server";
 
+/**
+ * Generates UTC date strings for a bounded lookahead period.
+ *
+ * @param lookahead - The number of dates to generate, clamped to 1 through 14
+ * @param from - The UTC date from which to start
+ * @returns An array of consecutive UTC date strings
+ */
 export function draftTargets(lookahead: number, from = utcToday()): string[] {
   const n = Math.min(14, Math.max(1, lookahead));
   const dates: string[] = [];
@@ -19,11 +26,23 @@ export function draftTargets(lookahead: number, from = utcToday()): string[] {
   return dates;
 }
 
+/**
+ * Selects a Blitz category using a cyclic offset.
+ *
+ * @param offset - The category index offset, which may be negative
+ * @returns The category at the normalized offset, or the fallback category when no categories are configured
+ */
 export function rotateCategory(offset: number): string {
   const list = BLITZ_CATEGORIES.length ? BLITZ_CATEGORIES : [DAILY_BLITZ_FALLBACK_CATEGORY];
   return list[((offset % list.length) + list.length) % list.length];
 }
 
+/**
+ * Creates daily Blitz drafts for upcoming dates that have no live pack or pending draft.
+ *
+ * @param lookahead - The number of upcoming days to consider, clamped to the supported range.
+ * @returns Drafted dates and dates skipped with the reason for each skip.
+ */
 export async function fillUnfilledDailyDrafts(lookahead = 5): Promise<{
   drafted: string[];
   skipped: Array<{ date: string; reason: string }>;

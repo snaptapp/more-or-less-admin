@@ -3,6 +3,12 @@ import { Button, Card, CardTitle } from "@/index";
 import { ErrorNote } from "@/admin/AdminShell";
 import type { ChatCard, ChatMessage } from "@/lib/admin/daily-blitz";
 
+/**
+ * Renders a chat interface with message history, submission controls, status feedback, and actionable cards.
+ *
+ * @param onApplyCard - Handles applying supported cards from chat messages.
+ * @returns The rendered chat interface.
+ */
 export function OpsChatRail({
   title = "Strategist",
   subtitle,

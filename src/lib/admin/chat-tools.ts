@@ -205,22 +205,45 @@ const AUTONOMOUS_TOOLS: ChatToolDeclaration[] = [
   },
 ];
 
+/**
+ * Selects the tool declarations available for a chat surface.
+ *
+ * @param surface - The chat surface whose tools should be selected
+ * @returns The tool declarations available for the specified surface
+ */
 export function toolsForSurface(surface: ChatSurface): ChatToolDeclaration[] {
   if (surface === "facts") return FACTS_TOOLS;
   if (surface === "autonomous") return AUTONOMOUS_TOOLS;
   return DAILY_TOOLS;
 }
 
+/**
+ * Creates a unique identifier for a chat card using the specified prefix.
+ *
+ * @param prefix - The identifier prefix
+ * @returns A generated card identifier
+ */
 function newCardId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/**
+ * Identifies calendar dates without authored daily packs.
+ *
+ * @returns Dates that do not have a daily pack
+ */
 export async function listUnfilledDates(): Promise<string[]> {
   const dates = calendarStripDates();
   const found = await Promise.all(dates.map((d) => getDailyPack(d)));
   return dates.filter((_, i) => !found[i]);
 }
 
+/**
+ * Searches the verified fact bank for facts matching a query.
+ *
+ * @param query - The search text used to find matching facts
+ * @returns Up to 12 active, standard-rated facts with their identifiers, subjects, questions, values, units, and DDM availability
+ */
 async function searchFacts(query: string) {
   const facts = await exportFacts({
     status: "active",
@@ -238,6 +261,14 @@ async function searchFacts(query: string) {
   }));
 }
 
+/**
+ * Creates a proposed fact-based round swap for the specified round.
+ *
+ * @param roundNumber - The round number to replace
+ * @param factId - The identifier of the fact used to create the round
+ * @param preferredSide - The preferred comparison direction for the round
+ * @returns An error when the fact is unavailable, lacks a numeric value, or cannot produce a valid round; otherwise, the proposed round and its fact identifier
+ */
 async function proposeSwap(roundNumber: number, factId: string, preferredSide?: "MORE" | "LESS") {
   const fact = await getFact(factId);
   if (!fact) return { error: `Fact ${factId} not found.` };
@@ -259,6 +290,13 @@ async function proposeSwap(roundNumber: number, factId: string, preferredSide?: 
   return { round: result.round, factId: fact.id };
 }
 
+/**
+ * Explains a round from the current draft, including its values, direction, metadata, source, and DDM constraint.
+ *
+ * @param n - The round number to explain
+ * @param rounds - The current draft rounds
+ * @returns The round explanation, or an error when the requested round is unavailable
+ */
 function explainRound(n: number, rounds: EditableRound[]) {
   const round = rounds.find((r) => r.round_number === n) ?? rounds[n - 1];
   if (!round) return { error: `No round ${n} in the current draft.` };
@@ -286,6 +324,13 @@ function explainRound(n: number, rounds: EditableRound[]) {
   };
 }
 
+/**
+ * Identifies subjects and genres with the lowest fact coverage.
+ *
+ * @param minFacts - Maximum fact count for a subject to be considered thin
+ * @param limit - Maximum number of thin subjects to include
+ * @returns Coverage results containing thin subjects, the eight least-covered genres, and the applied fact threshold
+ */
 async function coverageGaps(minFacts: number, limit: number) {
   const { subjects, coverage } = await listSubjects({});
   const thinSubjects = subjects
@@ -305,6 +350,14 @@ async function coverageGaps(minFacts: number, limit: number) {
   return { thinSubjects, thinGenres, minFacts };
 }
 
+/**
+ * Executes a chat tool and returns its structured result with an optional UI card.
+ *
+ * @param name - The tool to execute
+ * @param args - Arguments supplied to the tool
+ * @param ctx - Current chat surface and editing context
+ * @returns The tool result and, when applicable, a UI card representing the outcome
+ */
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,

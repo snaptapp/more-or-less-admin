@@ -513,6 +513,11 @@ function BlitzEditor({
   );
 }
 
+/**
+ * Manages Daily Blitz packs, drafts, schedules, and leaderboards for the selected date.
+ *
+ * @returns The Daily Blitz administration interface.
+ */
 function DailyPage() {
   const loadDaily = useServerFn(fetchDaily);
   const loadSchedule = useServerFn(fetchDailySchedule);

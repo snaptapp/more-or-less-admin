@@ -6,6 +6,11 @@ import { OpsChatRail } from "@/admin/OpsChatRail";
 import { chatFactsBank } from "@/lib/admin/ops.functions";
 import type { ChatCard, ChatMessage, EditableRound } from "@/lib/admin/daily-blitz";
 
+/**
+ * Provides an operations chat interface for querying fact-bank coverage and managing crawl queues.
+ *
+ * @param onApplyPack - Callback for applying generated editable rounds and their optional topic.
+ */
 export function FactsBankChat({
   onApplyPack,
 }: {

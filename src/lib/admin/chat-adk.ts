@@ -15,6 +15,11 @@ import {
 } from "./chat-backend";
 import { isAbortError, responseSnippet, asJsonObject } from "./http";
 
+/**
+ * Reads and validates the configured strategist endpoint URL.
+ *
+ * @returns The trimmed HTTPS URL without trailing slashes, or an empty string when unconfigured
+ */
 function strategistUrl(): string {
   const url = (process.env["OPS_STRATEGIST_URL"] ?? "").trim().replace(/\/+$/, "");
   if (url && !url.startsWith("https://")) {
