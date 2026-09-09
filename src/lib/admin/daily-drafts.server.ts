@@ -87,10 +87,10 @@ export function cronSecretMatches(authorization: string | null): boolean {
   if (!expected) return false;
   const provided = (authorization ?? "").replace(/^Bearer\s+/i, "").trim();
   if (!provided) return false;
-  const max = Math.max(expected.length, provided.length);
-  let mismatch = expected.length ^ provided.length;
-  for (let i = 0; i < max; i++) {
-    mismatch |= (expected.charCodeAt(i) || 0) ^ (provided.charCodeAt(i) || 0);
+  if (expected.length !== provided.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < expected.length; i++) {
+    mismatch |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
   }
   return mismatch === 0;
 }
