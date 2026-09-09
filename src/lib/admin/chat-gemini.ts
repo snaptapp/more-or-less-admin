@@ -17,11 +17,11 @@ import { isAbortError, responseSnippet, asJsonObject } from "./http";
 const MODEL_ID = "gemini-3.8-flash";
 
 function projectId(): string {
-  return (
-    process.env["GOOGLE_CLOUD_PROJECT"]?.trim() ||
-    process.env["FIREBASE_PROJECT_ID"]?.trim() ||
-    "more-or-less-505908"
-  );
+  const id = process.env["GOOGLE_CLOUD_PROJECT"]?.trim() || process.env["FIREBASE_PROJECT_ID"]?.trim();
+  if (!id) {
+    throw new Error("GOOGLE_CLOUD_PROJECT or FIREBASE_PROJECT_ID must be configured");
+  }
+  return id;
 }
 
 function vertexUrl(): string {
