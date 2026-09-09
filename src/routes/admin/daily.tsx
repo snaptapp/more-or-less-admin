@@ -514,6 +514,9 @@ function BlitzEditor({
   );
 }
 
+/**
+ * Manages Daily Blitz scheduling, draft editing, publishing, and leaderboard moderation.
+ */
 function DailyPage() {
   const loadDaily = useServerFn(fetchDaily);
   const loadSchedule = useServerFn(fetchDailySchedule);

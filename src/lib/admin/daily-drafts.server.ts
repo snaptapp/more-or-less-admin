@@ -8,17 +8,36 @@ import { createDoc, getDoc } from "../firebase/firestore.server";
 
 export const DEFAULT_DRAFT_LOOKAHEAD = 5;
 
+/**
+ * Generates consecutive UTC dates for a bounded lookahead period.
+ *
+ * @param lookahead - The number of dates to generate, limited to 1 through 14.
+ * @param from - The UTC date from which to start.
+ * @returns An array of consecutive UTC date strings.
+ */
 export function lookaheadDates(lookahead: number, from = utcToday()): string[] {
   const n = Math.min(14, Math.max(1, Math.round(lookahead) || 1));
   return Array.from({ length: n }, (_, i) => addUtcDays(from, i));
 }
 
+/**
+ * Normalizes a draft lookahead value to an integer between 1 and 14 days.
+ *
+ * @param raw - The value to normalize
+ * @returns The integer lookahead when valid; otherwise, the default draft lookahead
+ */
 export function clampLookahead(raw: unknown): number {
   const n = typeof raw === "number" ? raw : Number(raw);
   if (!Number.isInteger(n) || n < 1 || n > 14) return DEFAULT_DRAFT_LOOKAHEAD;
   return n;
 }
 
+/**
+ * Fills missing daily pack drafts for the requested date range.
+ *
+ * @param lookahead - The number of consecutive days to process.
+ * @returns The dates with newly created drafts and the dates skipped with reasons.
+ */
 export async function fillUnfilledDailyDrafts(
   lookahead: number = DEFAULT_DRAFT_LOOKAHEAD,
 ): Promise<{ drafted: string[]; skipped: { date: string; reason: string }[] }> {
@@ -82,6 +101,12 @@ export async function fillUnfilledDailyDrafts(
   return { drafted, skipped };
 }
 
+/**
+ * Validates an authorization header against the configured operations cron secret.
+ *
+ * @param authorization - The authorization header containing the bearer token
+ * @returns `true` if the token matches the configured secret, `false` otherwise.
+ */
 export function cronSecretMatches(authorization: string | null): boolean {
   const expected = (process.env["OPS_CRON_SECRET"] ?? "").trim();
   if (!expected) return false;
