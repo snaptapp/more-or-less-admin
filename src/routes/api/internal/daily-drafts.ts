@@ -16,7 +16,12 @@ export const Route = createFileRoute("/api/internal/daily-drafts")({
         }
         const header = request.headers.get("authorization") ?? "";
         const got = header.replace(/^Bearer\s+/i, "").trim();
-        if (got.length !== expected.length || got !== expected) {
+        const crypto = await import("node:crypto");
+        const expectedBuffer = Buffer.from(expected);
+        const gotBuffer = Buffer.from(got);
+        if (gotBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(gotBuffer, expectedBuffer)) {
+          return Response.json({ error: "Unauthorized." }, { status: 401 });
+        }
           return Response.json({ error: "Unauthorized." }, { status: 401 });
         }
         let lookahead = 5;
