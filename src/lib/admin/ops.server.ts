@@ -10,6 +10,7 @@ import {
   normalizeKey,
   patchDoc,
   runQuery,
+  runTransaction,
   type FirestoreDoc,
   type Json,
 } from "../firebase/firestore.server";
@@ -672,10 +673,6 @@ export async function writeDailyDraft(input: {
   rounds: unknown[];
   source?: string;
 }): Promise<DailyPackDraft> {
-  const live = await getDailyPack(input.date);
-  if (live) {
-    throw new Error(`Live daily_packs/${input.date} already exists. Drafts cannot overwrite published packs.`);
-  }
   const rounds = Array.isArray(input.rounds) ? input.rounds : [];
   const payload = {
     date: input.date,
@@ -687,13 +684,16 @@ export async function writeDailyDraft(input: {
     draftedAt: new Date().toISOString(),
     total_rounds: rounds.length,
   };
-  const path = `daily_pack_drafts/${input.date}`;
-  const existing = await getDoc(path);
-  if (existing) {
-    await patchDoc(path, payload);
-  } else {
-    await createDoc("daily_pack_drafts", input.date, payload);
-  }
+  await runTransaction(async (tx) => {
+    const live = await tx.get(`daily_packs/${input.date}`);
+    if (live) {
+      throw new Error(
+        `Live daily_packs/${input.date} already exists. Drafts cannot overwrite published packs.`,
+      );
+    }
+    await tx.get(`daily_pack_drafts/${input.date}`);
+    tx.set(`daily_pack_drafts/${input.date}`, payload);
+  });
   return {
     date: input.date,
     category: input.category,
@@ -783,18 +783,12 @@ export async function scheduleDailyPack(
     createdAt: new Date().toISOString(),
   };
 
-  const existing = await getDoc(`daily_packs/${input.date}`);
-  if (existing) {
-    await patchDoc(`daily_packs/${input.date}`, payload);
-  } else {
-    await createDoc("daily_packs", input.date, payload);
-  }
-
-  const draftDoc = await getDoc(`daily_pack_drafts/${input.date}`);
-  if (draftDoc) {
-    const { deleteDoc } = await import("../firebase/firestore.server");
-    await deleteDoc(`daily_pack_drafts/${input.date}`);
-  }
+  await runTransaction(async (tx) => {
+    await tx.get(`daily_packs/${input.date}`);
+    const draftDoc = await tx.get(`daily_pack_drafts/${input.date}`);
+    tx.set(`daily_packs/${input.date}`, payload);
+    if (draftDoc) tx.delete(`daily_pack_drafts/${input.date}`);
+  });
 
   if (adminUser) {
     const { logAdminAction } = await import("@/lib/firebase/audit.server");
