@@ -33,7 +33,7 @@ const PRESET_CONDITIONS = [
   {
     label: "iOS Platform Target",
     name: "ios_players",
-    expression: "device.os == 'ios'",
+    expression: "device.os == 'iOS'", 
     color: "lime",
   },
   {
