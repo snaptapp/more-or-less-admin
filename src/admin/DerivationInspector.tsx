@@ -184,7 +184,7 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
           <Button
             type="button"
             size="sm"
-            variant={subTab === "simulator" ? "primary" : "secondary"}
+            variant={subTab === "simulator" ? "primary" : "ghost"}
             onClick={() => setSubTab("simulator")}
           >
             📐 DDM Derivation Simulator
