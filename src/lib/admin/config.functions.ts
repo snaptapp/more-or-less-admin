@@ -24,7 +24,7 @@ export const fetchRemoteConfigTopics = createServerFn({ method: "GET" })
 
 export const saveRemoteConfigTopics = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((data) => SaveConfigInputSchema.parse(data))
+.inputValidator((data) => SaveConfigInputSchema.parse(data))
   .handler(async ({ data, context }) => {
     const caller = context.user;
     const { publishTopicSuggestionsConfig } = await import("@/lib/firebase/remote_config.server");
