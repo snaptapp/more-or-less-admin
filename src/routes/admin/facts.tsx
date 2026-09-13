@@ -118,6 +118,9 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
         ? rawSurprise >= 8 ? 3 : rawSurprise >= 5 ? 2 : rawSurprise >= 3 ? 1 : 0
         : Math.min(3, Math.max(0, Math.round(rawSurprise)))
       : 2;
+  const selectedDistractor =
+    fact.derivation?.distractors.find((d) => d.surprise_factor === normalizedSurprise)
+    ?? fact.derivation?.distractors[0];
 
   const [form, setForm] = useState({
     subject: fact.subject,
@@ -349,6 +352,42 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
           <dt>Retired reason</dt>
           <dd>{fact.retired_reason ?? "—"}</dd>
         </dl>
+
+        {fact.true_number !== null ? (
+          <div style={{ background: "var(--ds-arena-color-surface)", padding: 12, borderRadius: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <strong style={{ fontSize: 13 }}>DDM Derivation</strong>
+                <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--ds-arena-color-text-muted)" }}>
+                  {fact.derivation?.distractors?.length
+                    ? `${fact.derivation.distractors.length} precomputed distractors (${fact.derivation.quantity_kind})`
+                    : "Live derivation"}
+                </p>
+              </div>
+              <Link
+                to="/admin/audit"
+                search={{
+                  tab: "derivation",
+                  true: String(fact.true_number),
+                  unit: fact.unit ?? "",
+                  surprise: String(fact.surprise_factor ?? 2),
+                  kind: fact.derivation?.quantity_kind,
+                  side: selectedDistractor?.side,
+                  trap: fact.derivation?.trap_direction,
+                  pmin: fact.derivation?.plausible_min,
+                  pmax: fact.derivation?.plausible_max,
+                  presented: selectedDistractor?.presented_number,
+                  topic: fact.subject,
+                }}
+                style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 4 }}
+                target="_blank"
+                rel="noreferrer"
+              >
+                🔬 Inspect in DDM Auditor ↗
+              </Link>
+            </div>
+          </div>
+        ) : null}
 
         <ErrorNote error={saveMutation.error ?? statusMutation.error} />
         <div className="admin-row-actions">

@@ -96,11 +96,25 @@
 }
 
 .admin-page-head h1 {
-  font-family: var(--ds-arena-font-display);
-  font-size: 32px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-family: var(--ds-arena-font-body);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-transform: none;
   margin: 0;
+  color: var(--ds-arena-color-text);
+}
+
+.admin-shell .ds-card__title,
+.ds-card__title {
+  font-family: var(--ds-arena-font-body);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  text-transform: none;
+  color: var(--ds-arena-color-text);
 }
 
 .admin-page-head p {

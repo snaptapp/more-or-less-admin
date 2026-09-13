@@ -9,28 +9,29 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as AdminTaxonomyRouteImport } from './routes/admin/taxonomy'
-import { Route as AdminRolesRouteImport } from './routes/admin/roles'
-import { Route as AdminReportsRouteImport } from './routes/admin/reports'
-import { Route as AdminPlayersRouteImport } from './routes/admin/players'
-import { Route as AdminFactsRouteImport } from './routes/admin/facts'
-import { Route as AdminDailyRouteImport } from './routes/admin/daily'
-import { Route as AdminAuditRouteImport } from './routes/admin/audit'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin/analytics'
-import { Route as ApiPublicFirebaseConfigRouteImport } from './routes/api/public/firebase-config'
+import { Route as AdminAuditRouteImport } from './routes/admin/audit'
+import { Route as AdminConfigRouteImport } from './routes/admin/config'
+import { Route as AdminDailyRouteImport } from './routes/admin/daily'
+import { Route as AdminFactsRouteImport } from './routes/admin/facts'
+import { Route as AdminPlayersRouteImport } from './routes/admin/players'
+import { Route as AdminReportsRouteImport } from './routes/admin/reports'
+import { Route as AdminRolesRouteImport } from './routes/admin/roles'
+import { Route as AdminTaxonomyRouteImport } from './routes/admin/taxonomy'
 import { Route as ApiInternalDailyDraftsRouteImport } from './routes/api/internal/daily-drafts'
+import { Route as ApiPublicFirebaseConfigRouteImport } from './routes/api/public/firebase-config'
 
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -38,34 +39,9 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminTaxonomyRoute = AdminTaxonomyRouteImport.update({
-  id: '/taxonomy',
-  path: '/taxonomy',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminRolesRoute = AdminRolesRouteImport.update({
-  id: '/roles',
-  path: '/roles',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminReportsRoute = AdminReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminPlayersRoute = AdminPlayersRouteImport.update({
-  id: '/players',
-  path: '/players',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminFactsRoute = AdminFactsRouteImport.update({
-  id: '/facts',
-  path: '/facts',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminDailyRoute = AdminDailyRouteImport.update({
-  id: '/daily',
-  path: '/daily',
+const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminAuditRoute = AdminAuditRouteImport.update({
@@ -73,19 +49,49 @@ const AdminAuditRoute = AdminAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
-  id: '/analytics',
-  path: '/analytics',
+const AdminConfigRoute = AdminConfigRouteImport.update({
+  id: '/config',
+  path: '/config',
   getParentRoute: () => AdminRoute,
 } as any)
-const ApiPublicFirebaseConfigRoute = ApiPublicFirebaseConfigRouteImport.update({
-  id: '/api/public/firebase-config',
-  path: '/api/public/firebase-config',
-  getParentRoute: () => rootRouteImport,
+const AdminDailyRoute = AdminDailyRouteImport.update({
+  id: '/daily',
+  path: '/daily',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminFactsRoute = AdminFactsRouteImport.update({
+  id: '/facts',
+  path: '/facts',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPlayersRoute = AdminPlayersRouteImport.update({
+  id: '/players',
+  path: '/players',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminReportsRoute = AdminReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminRolesRoute = AdminRolesRouteImport.update({
+  id: '/roles',
+  path: '/roles',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminTaxonomyRoute = AdminTaxonomyRouteImport.update({
+  id: '/taxonomy',
+  path: '/taxonomy',
+  getParentRoute: () => AdminRoute,
 } as any)
 const ApiInternalDailyDraftsRoute = ApiInternalDailyDraftsRouteImport.update({
   id: '/api/internal/daily-drafts',
   path: '/api/internal/daily-drafts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicFirebaseConfigRoute = ApiPublicFirebaseConfigRouteImport.update({
+  id: '/api/public/firebase-config',
+  path: '/api/public/firebase-config',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/config': typeof AdminConfigRoute
   '/admin/daily': typeof AdminDailyRoute
   '/admin/facts': typeof AdminFactsRoute
   '/admin/players': typeof AdminPlayersRoute
@@ -101,13 +108,14 @@ export interface FileRoutesByFullPath {
   '/admin/roles': typeof AdminRolesRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin/': typeof AdminIndexRoute
-  '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
   '/api/internal/daily-drafts': typeof ApiInternalDailyDraftsRoute
+  '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/config': typeof AdminConfigRoute
   '/admin/daily': typeof AdminDailyRoute
   '/admin/facts': typeof AdminFactsRoute
   '/admin/players': typeof AdminPlayersRoute
@@ -115,8 +123,8 @@ export interface FileRoutesByTo {
   '/admin/roles': typeof AdminRolesRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin': typeof AdminIndexRoute
-  '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
   '/api/internal/daily-drafts': typeof ApiInternalDailyDraftsRoute
+  '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/config': typeof AdminConfigRoute
   '/admin/daily': typeof AdminDailyRoute
   '/admin/facts': typeof AdminFactsRoute
   '/admin/players': typeof AdminPlayersRoute
@@ -131,8 +140,8 @@ export interface FileRoutesById {
   '/admin/roles': typeof AdminRolesRoute
   '/admin/taxonomy': typeof AdminTaxonomyRoute
   '/admin/': typeof AdminIndexRoute
-  '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
   '/api/internal/daily-drafts': typeof ApiInternalDailyDraftsRoute
+  '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/admin/analytics'
     | '/admin/audit'
+    | '/admin/config'
     | '/admin/daily'
     | '/admin/facts'
     | '/admin/players'
@@ -148,13 +158,14 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/taxonomy'
     | '/admin/'
-    | '/api/public/firebase-config'
     | '/api/internal/daily-drafts'
+    | '/api/public/firebase-config'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin/analytics'
     | '/admin/audit'
+    | '/admin/config'
     | '/admin/daily'
     | '/admin/facts'
     | '/admin/players'
@@ -162,14 +173,15 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/taxonomy'
     | '/admin'
-    | '/api/public/firebase-config'
     | '/api/internal/daily-drafts'
+    | '/api/public/firebase-config'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/admin/analytics'
     | '/admin/audit'
+    | '/admin/config'
     | '/admin/daily'
     | '/admin/facts'
     | '/admin/players'
@@ -177,31 +189,31 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/taxonomy'
     | '/admin/'
-    | '/api/public/firebase-config'
     | '/api/internal/daily-drafts'
+    | '/api/public/firebase-config'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
-  ApiPublicFirebaseConfigRoute: typeof ApiPublicFirebaseConfigRoute
   ApiInternalDailyDraftsRoute: typeof ApiInternalDailyDraftsRoute
+  ApiPublicFirebaseConfigRoute: typeof ApiPublicFirebaseConfigRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -211,46 +223,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/taxonomy': {
-      id: '/admin/taxonomy'
-      path: '/taxonomy'
-      fullPath: '/admin/taxonomy'
-      preLoaderRoute: typeof AdminTaxonomyRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/roles': {
-      id: '/admin/roles'
-      path: '/roles'
-      fullPath: '/admin/roles'
-      preLoaderRoute: typeof AdminRolesRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/reports': {
-      id: '/admin/reports'
-      path: '/reports'
-      fullPath: '/admin/reports'
-      preLoaderRoute: typeof AdminReportsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/players': {
-      id: '/admin/players'
-      path: '/players'
-      fullPath: '/admin/players'
-      preLoaderRoute: typeof AdminPlayersRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/facts': {
-      id: '/admin/facts'
-      path: '/facts'
-      fullPath: '/admin/facts'
-      preLoaderRoute: typeof AdminFactsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/daily': {
-      id: '/admin/daily'
-      path: '/daily'
-      fullPath: '/admin/daily'
-      preLoaderRoute: typeof AdminDailyRouteImport
+    '/admin/analytics': {
+      id: '/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AdminAnalyticsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/audit': {
@@ -260,19 +237,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAuditRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/analytics': {
-      id: '/admin/analytics'
-      path: '/analytics'
-      fullPath: '/admin/analytics'
-      preLoaderRoute: typeof AdminAnalyticsRouteImport
+    '/admin/config': {
+      id: '/admin/config'
+      path: '/config'
+      fullPath: '/admin/config'
+      preLoaderRoute: typeof AdminConfigRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/api/public/firebase-config': {
-      id: '/api/public/firebase-config'
-      path: '/api/public/firebase-config'
-      fullPath: '/api/public/firebase-config'
-      preLoaderRoute: typeof ApiPublicFirebaseConfigRouteImport
-      parentRoute: typeof rootRouteImport
+    '/admin/daily': {
+      id: '/admin/daily'
+      path: '/daily'
+      fullPath: '/admin/daily'
+      preLoaderRoute: typeof AdminDailyRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/facts': {
+      id: '/admin/facts'
+      path: '/facts'
+      fullPath: '/admin/facts'
+      preLoaderRoute: typeof AdminFactsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/players': {
+      id: '/admin/players'
+      path: '/players'
+      fullPath: '/admin/players'
+      preLoaderRoute: typeof AdminPlayersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/reports': {
+      id: '/admin/reports'
+      path: '/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AdminReportsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/roles': {
+      id: '/admin/roles'
+      path: '/roles'
+      fullPath: '/admin/roles'
+      preLoaderRoute: typeof AdminRolesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/taxonomy': {
+      id: '/admin/taxonomy'
+      path: '/taxonomy'
+      fullPath: '/admin/taxonomy'
+      preLoaderRoute: typeof AdminTaxonomyRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/api/internal/daily-drafts': {
       id: '/api/internal/daily-drafts'
@@ -281,12 +293,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalDailyDraftsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/firebase-config': {
+      id: '/api/public/firebase-config'
+      path: '/api/public/firebase-config'
+      fullPath: '/api/public/firebase-config'
+      preLoaderRoute: typeof ApiPublicFirebaseConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface AdminRouteChildren {
   AdminAnalyticsRoute: typeof AdminAnalyticsRoute
   AdminAuditRoute: typeof AdminAuditRoute
+  AdminConfigRoute: typeof AdminConfigRoute
   AdminDailyRoute: typeof AdminDailyRoute
   AdminFactsRoute: typeof AdminFactsRoute
   AdminPlayersRoute: typeof AdminPlayersRoute
@@ -299,6 +319,7 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAnalyticsRoute: AdminAnalyticsRoute,
   AdminAuditRoute: AdminAuditRoute,
+  AdminConfigRoute: AdminConfigRoute,
   AdminDailyRoute: AdminDailyRoute,
   AdminFactsRoute: AdminFactsRoute,
   AdminPlayersRoute: AdminPlayersRoute,
@@ -313,8 +334,8 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
-  ApiPublicFirebaseConfigRoute: ApiPublicFirebaseConfigRoute,
   ApiInternalDailyDraftsRoute: ApiInternalDailyDraftsRoute,
+  ApiPublicFirebaseConfigRoute: ApiPublicFirebaseConfigRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

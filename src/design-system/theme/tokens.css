@@ -239,10 +239,14 @@
   opacity: 0.6;
 }
 .ds-card__title {
-  font-family: var(--ds-arena-font-display);
-  text-transform: uppercase;
-  font-size: var(--ds-arena-text-xl);
+  font-family: var(--ds-arena-font-body);
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  text-transform: none;
   margin: var(--ds-arena-space-1) 0;
+  color: var(--ds-arena-color-text);
 }
 
 /* ---------- input ---------- */

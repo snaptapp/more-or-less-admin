@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
@@ -367,18 +367,44 @@ function BlitzEditor({
                         </Badge>
                       </td>
                       <td>
-                        {draft.rounds.length > 1 ? (
-                          <button
-                            type="button"
-                            className="admin-reset-link"
-                            onClick={(ev) => {
-                              ev.stopPropagation();
-                              removeRound(i);
-                            }}
-                          >
-                            Remove
-                          </button>
-                        ) : null}
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          {r.true_number !== "" ? (
+                            <Link
+                              to="/admin/audit"
+                              search={{
+                                tab: "derivation",
+                                true: String(r.true_number),
+                                unit: r.unit,
+                                surprise: String(r.surprise_factor ?? 2),
+                                kind: r.quantity_kind,
+                                side: r.correct_direction,
+                                trap: r.trap_direction,
+                                pmin: r.plausible_min !== undefined ? String(r.plausible_min) : undefined,
+                                pmax: r.plausible_max !== undefined ? String(r.plausible_max) : undefined,
+                                presented: r.presented_number !== "" ? String(r.presented_number) : undefined,
+                                topic: r.topic,
+                              }}
+                              title="Audit DDM decision"
+                              style={{ fontSize: 12 }}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Audit
+                            </Link>
+                          ) : null}
+                          {draft.rounds.length > 1 ? (
+                            <button
+                              type="button"
+                              className="admin-reset-link"
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                removeRound(i);
+                              }}
+                            >
+                              Remove
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                     {open ? (
@@ -493,6 +519,31 @@ function BlitzEditor({
                                 onChange={(e) => updateRound(i, { explanation: e.target.value })}
                               />
                             </label>
+                            {r.true_number !== "" ? (
+                              <div style={{ marginTop: 4 }}>
+                                <Link
+                                  to="/admin/audit"
+                                  search={{
+                                    tab: "derivation",
+                                    true: String(r.true_number),
+                                    unit: r.unit,
+                                    surprise: String(r.surprise_factor ?? 2),
+                                    kind: r.quantity_kind,
+                                    side: r.correct_direction,
+                                    trap: r.trap_direction,
+                                    pmin: r.plausible_min !== undefined ? String(r.plausible_min) : undefined,
+                                    pmax: r.plausible_max !== undefined ? String(r.plausible_max) : undefined,
+                                    presented: r.presented_number !== "" ? String(r.presented_number) : undefined,
+                                    topic: r.topic,
+                                  }}
+                                  style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 4 }}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  🔬 Audit DDM Decision for this round ↗
+                                </Link>
+                              </div>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
