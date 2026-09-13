@@ -378,6 +378,10 @@ function BlitzEditor({
                                 surprise: String(r.surprise_factor ?? 2),
                                 kind: r.quantity_kind,
                                 side: r.correct_direction,
+                                trap: r.trap_direction,
+                                pmin: r.plausible_min !== undefined ? String(r.plausible_min) : undefined,
+                                pmax: r.plausible_max !== undefined ? String(r.plausible_max) : undefined,
+                                presented: r.presented_number !== "" ? String(r.presented_number) : undefined,
                                 topic: r.topic,
                               }}
                               title="Audit DDM decision"
@@ -526,6 +530,10 @@ function BlitzEditor({
                                     surprise: String(r.surprise_factor ?? 2),
                                     kind: r.quantity_kind,
                                     side: r.correct_direction,
+                                    trap: r.trap_direction,
+                                    pmin: r.plausible_min !== undefined ? String(r.plausible_min) : undefined,
+                                    pmax: r.plausible_max !== undefined ? String(r.plausible_max) : undefined,
+                                    presented: r.presented_number !== "" ? String(r.presented_number) : undefined,
                                     topic: r.topic,
                                   }}
                                   style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 4 }}

@@ -105,6 +105,9 @@ export interface DerivationInspectorProps {
     quantityKind?: string;
     trapDirection?: TrapDirection;
     forcedSide?: CandidateSide;
+    plausibleMin?: number | string;
+    plausibleMax?: number | string;
+    presentedNumber?: number | string;
     topic?: string;
   };
 }
@@ -125,8 +128,12 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
     initialValues?.trapDirection ?? "OVERESTIMATE",
   );
   const [forcedSide, setForcedSide] = useState<string>(initialValues?.forcedSide ?? "");
-  const [plausibleMin, setPlausibleMin] = useState<string>("");
-  const [plausibleMax, setPlausibleMax] = useState<string>("");
+  const [plausibleMin, setPlausibleMin] = useState<string>(
+    initialValues?.plausibleMin !== undefined ? String(initialValues.plausibleMin) : "",
+  );
+  const [plausibleMax, setPlausibleMax] = useState<string>(
+    initialValues?.plausibleMax !== undefined ? String(initialValues.plausibleMax) : "",
+  );
 
   // Live Agent Probe State
   const [probeTopic, setProbeTopic] = useState(initialValues?.topic ?? "Mount Everest");

@@ -54,6 +54,30 @@ export interface TopicSuggestionConfig {
 
 const PARAM_KEY = "custom_topic_suggestions";
 
+const VALID_TAG_COLORS = new Set([
+  "BLUE",
+  "BROWN",
+  "CYAN",
+  "DEEP_ORANGE",
+  "GREEN",
+  "INDIGO",
+  "LIME",
+  "ORANGE",
+  "PINK",
+  "PURPLE",
+  "TEAL",
+  "GRAY",
+]);
+
+function normalizeTagColor(tagColor?: string): string {
+  const token = (tagColor ?? "BLUE").trim();
+  if (!token) return "BLUE";
+  const upper = token.toUpperCase();
+  if (upper === "AMBER") return "ORANGE";
+  if (upper === "NEUTRAL" || upper === "GREY") return "GRAY";
+  return VALID_TAG_COLORS.has(upper) ? upper : "BLUE";
+}
+
 /**
  * Fetch the raw Remote Config template and ETag from Firebase.
  */
@@ -182,38 +206,15 @@ export async function publishTopicSuggestionsConfig(
     valueType: "JSON",
   };
 
-  // Merge conditions (preserve existing conditions for other parameters, add/update topic conditions)
+  // Rebuild topic conditions in UI priority order, preserving unrelated conditions.
   const existingConditions = template.conditions ?? [];
-  const updatedConditions: RemoteConfigCondition[] = [];
-
-  // Keep conditions that don't belong to topics or update topic conditions
-  const processedTopicConditions = new Set<string>();
-  for (const cond of existingConditions) {
-    const matchingVariant = newConfig.variants.find((v) => v.conditionName === cond.name);
-    if (matchingVariant) {
-      updatedConditions.push({
-        name: matchingVariant.conditionName,
-        expression: matchingVariant.expression,
-        tagColor: matchingVariant.tagColor ?? "BLUE",
-      });
-      processedTopicConditions.add(cond.name);
-    } else if (!newConditionNames.has(cond.name)) {
-      updatedConditions.push(cond);
-    }
-  }
-
-  // Add any brand new conditions
-  for (const variant of newConfig.variants) {
-    if (!processedTopicConditions.has(variant.conditionName)) {
-      updatedConditions.push({
-        name: variant.conditionName,
-        expression: variant.expression,
-        tagColor: variant.tagColor ?? "BLUE",
-      });
-    }
-  }
-
-  template.conditions = updatedConditions;
+  const nonTopicConditions = existingConditions.filter((cond) => !newConditionNames.has(cond.name));
+  const topicConditions = newConfig.variants.map((variant) => ({
+    name: variant.conditionName,
+    expression: variant.expression,
+    tagColor: normalizeTagColor(variant.tagColor),
+  }));
+  template.conditions = [...nonTopicConditions, ...topicConditions];
 
   // Publish to Remote Config
   const url = `https://firebaseremoteconfig.googleapis.com/v1/projects/${account.project_id}/remoteConfig`;
@@ -246,7 +247,7 @@ export async function publishTopicSuggestionsConfig(
     defaultTopics: newConfig.defaultTopics,
     variants: newConfig.variants.map((v) => ({
       ...v,
-      tagColor: v.tagColor ?? "BLUE",
+      tagColor: normalizeTagColor(v.tagColor),
     })),
     etag: newEtag,
     versionNumber: updatedTemplate.version?.versionNumber,

@@ -16,6 +16,10 @@ export const Route = createFileRoute("/admin/audit")({
     surprise?: string;
     kind?: string;
     side?: string;
+    trap?: string;
+    pmin?: string;
+    pmax?: string;
+    presented?: string;
     topic?: string;
   } => {
     return {
@@ -25,6 +29,10 @@ export const Route = createFileRoute("/admin/audit")({
       surprise: typeof search.surprise === "string" ? search.surprise : undefined,
       kind: typeof search.kind === "string" ? search.kind : undefined,
       side: typeof search.side === "string" ? search.side : undefined,
+      trap: typeof search.trap === "string" ? search.trap : undefined,
+      pmin: typeof search.pmin === "string" ? search.pmin : undefined,
+      pmax: typeof search.pmax === "string" ? search.pmax : undefined,
+      presented: typeof search.presented === "string" ? search.presented : undefined,
       topic: typeof search.topic === "string" ? search.topic : undefined,
     };
   },
@@ -111,7 +119,10 @@ function AuditLogPage() {
             surpriseFactor: searchParams.surprise,
             quantityKind: searchParams.kind,
             forcedSide: searchParams.side as CandidateSide | undefined,
-            trapDirection: undefined as TrapDirection | undefined,
+            trapDirection: searchParams.trap as TrapDirection | undefined,
+            plausibleMin: searchParams.pmin,
+            plausibleMax: searchParams.pmax,
+            presentedNumber: searchParams.presented,
             topic: searchParams.topic,
           }}
         />

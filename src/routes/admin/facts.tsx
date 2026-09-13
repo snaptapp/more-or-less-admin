@@ -118,6 +118,9 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
         ? rawSurprise >= 8 ? 3 : rawSurprise >= 5 ? 2 : rawSurprise >= 3 ? 1 : 0
         : Math.min(3, Math.max(0, Math.round(rawSurprise)))
       : 2;
+  const selectedDistractor =
+    fact.derivation?.distractors.find((d) => d.surprise_factor === normalizedSurprise)
+    ?? fact.derivation?.distractors[0];
 
   const [form, setForm] = useState({
     subject: fact.subject,
@@ -369,6 +372,11 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
                   unit: fact.unit ?? "",
                   surprise: String(fact.surprise_factor ?? 2),
                   kind: fact.derivation?.quantity_kind,
+                  side: selectedDistractor?.side,
+                  trap: fact.derivation?.trap_direction,
+                  pmin: fact.derivation?.plausible_min,
+                  pmax: fact.derivation?.plausible_max,
+                  presented: selectedDistractor?.presented_number,
                   topic: fact.subject,
                 }}
                 style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 4 }}
