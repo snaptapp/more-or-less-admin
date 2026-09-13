@@ -1,13 +1,34 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Badge, Card } from "@/index";
+import { Badge, Button, Card } from "@/index";
 import { PageHead } from "@/admin/AdminShell";
 import { fetchAuditLogEntries } from "@/lib/admin/roles.functions";
+import { DerivationInspector } from "@/admin/DerivationInspector";
+import type { CandidateSide, TrapDirection } from "@/lib/admin/derivation-audit";
 
 export const Route = createFileRoute("/admin/audit")({
-  head: () => ({ meta: [{ title: "Audit Log — More or Less Admin" }] }),
+  validateSearch: (search: Record<string, unknown>): {
+    tab?: "admin" | "derivation";
+    true?: string;
+    unit?: string;
+    surprise?: string;
+    kind?: string;
+    side?: string;
+    topic?: string;
+  } => {
+    return {
+      tab: search.tab === "admin" ? "admin" : "derivation", // default to derivation auditor
+      true: typeof search.true === "string" ? search.true : undefined,
+      unit: typeof search.unit === "string" ? search.unit : undefined,
+      surprise: typeof search.surprise === "string" ? search.surprise : undefined,
+      kind: typeof search.kind === "string" ? search.kind : undefined,
+      side: typeof search.side === "string" ? search.side : undefined,
+      topic: typeof search.topic === "string" ? search.topic : undefined,
+    };
+  },
+  head: () => ({ meta: [{ title: "Audit Log & Derivation Inspector — More or Less Admin" }] }),
   component: AuditLogPage,
 });
 
@@ -25,12 +46,17 @@ function toneForAction(action: string): "lime" | "amber" | "red" | "purple" | "n
 }
 
 function AuditLogPage() {
+  const searchParams = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const activeTab = searchParams.tab ?? "derivation";
+
   const load = useServerFn(fetchAuditLogEntries);
   const [search, setSearch] = useState("");
 
   const { data: logs = [], isLoading, error } = useQuery({
     queryKey: ["audit-logs"],
     queryFn: () => load(),
+    enabled: activeTab === "admin",
   });
 
   const filtered = logs.filter((entry) => {
@@ -44,81 +70,123 @@ function AuditLogPage() {
     );
   });
 
+  const handleSelectTab = (tab: "admin" | "derivation") => {
+    navigate({
+      search: (prev) => ({ ...prev, tab }),
+    });
+  };
+
   return (
     <>
       <PageHead
-        title="Audit log"
-        description="Immutable record of administrative actions and system events."
+        title="Audit &amp; Decision Inspector"
+        description="Inspect agent-go decision-making, DDM distractor mathematics, and administrative audit trails."
       />
 
-      <div className="admin-toolbar">
-        <div className="admin-field" style={{ flex: 1, maxWidth: 360 }}>
-          <label htmlFor="audit-search">Search log</label>
-          <input
-            id="audit-search"
-            className="admin-input"
-            type="search"
-            placeholder="Action, admin email, or target ID"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
+      {/* Main Tab Navigation */}
+      <div style={{ display: "flex", gap: "var(--ds-arena-space-2)", borderBottom: "1px solid var(--ds-arena-color-border)", paddingBottom: 12 }}>
+        <Button
+          type="button"
+          size="sm"
+          variant={activeTab === "derivation" ? "primary" : "ghost"}
+          onClick={() => handleSelectTab("derivation")}
+        >
+          🔬 Agent-Go &amp; DDM Decision Auditor
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={activeTab === "admin" ? "primary" : "ghost"}
+          onClick={() => handleSelectTab("admin")}
+        >
+          📋 Admin Action Trail
+        </Button>
       </div>
 
-      {error ? <p className="admin-error">{error.message}</p> : null}
+      {activeTab === "derivation" ? (
+        <DerivationInspector
+          initialValues={{
+            trueNumber: searchParams.true,
+            unit: searchParams.unit,
+            surpriseFactor: searchParams.surprise,
+            quantityKind: searchParams.kind,
+            forcedSide: searchParams.side as CandidateSide | undefined,
+            trapDirection: undefined as TrapDirection | undefined,
+            topic: searchParams.topic,
+          }}
+        />
+      ) : (
+        <>
+          <div className="admin-toolbar">
+            <div className="admin-field" style={{ flex: 1, maxWidth: 360 }}>
+              <label htmlFor="audit-search">Search log</label>
+              <input
+                id="audit-search"
+                className="admin-input"
+                type="search"
+                placeholder="Action, admin email, or target ID"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
+          </div>
 
-      <Card>
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Timestamp</th>
-                <th>Admin</th>
-                <th>Action</th>
-                <th>Target</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="admin-empty">
-                    Loading audit trail…
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="admin-empty">
-                    No audit records found.
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <span style={{ fontSize: 13, whiteSpace: "nowrap" }}>
-                        {formatDate(item.createdAt as string)}
-                      </span>
-                    </td>
-                    <td>
-                      <strong>{item.adminEmail || item.adminUid}</strong>
-                    </td>
-                    <td>
-                      <Badge tone={toneForAction(item.action)}>{item.action}</Badge>
-                    </td>
-                    <td>
-                      <span style={{ fontFamily: "var(--ds-arena-font-mono)", fontSize: 12 }}>
-                        {item.targetType}: {item.targetId}
-                      </span>
-                    </td>
-                    <td>{item.details || "—"}</td>
+          {error ? <p className="admin-error">{error.message}</p> : null}
+
+          <Card>
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Admin</th>
+                    <th>Action</th>
+                    <th>Target</th>
+                    <th>Details</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                </thead>
+                <tbody>
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="admin-empty">
+                        Loading audit trail…
+                      </td>
+                    </tr>
+                  ) : filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="admin-empty">
+                        No audit records found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((item) => (
+                      <tr key={item.id}>
+                        <td>
+                          <span style={{ fontSize: 13, whiteSpace: "nowrap" }}>
+                            {formatDate(item.createdAt as string)}
+                          </span>
+                        </td>
+                        <td>
+                          <strong>{item.adminEmail || item.adminUid}</strong>
+                        </td>
+                        <td>
+                          <Badge tone={toneForAction(item.action)}>{item.action}</Badge>
+                        </td>
+                        <td>
+                          <span style={{ fontFamily: "var(--ds-arena-font-mono)", fontSize: 12 }}>
+                            {item.targetType}: {item.targetId}
+                          </span>
+                        </td>
+                        <td>{item.details || "—"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
     </>
   );
 }
