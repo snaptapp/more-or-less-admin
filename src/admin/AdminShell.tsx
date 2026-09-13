@@ -6,6 +6,7 @@ import "./admin.css";
 
 const NAV = [
   { to: "/admin", label: "Overview", exact: true },
+  { to: "/admin/config", label: "Remote Config" },
   { to: "/admin/facts", label: "Content" },
   { to: "/admin/reports", label: "Moderation" },
   { to: "/admin/players", label: "Players" },
