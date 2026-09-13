@@ -258,6 +258,8 @@ export function classifyQuantityKind(unit: string, hint?: string): { kind: Quant
     return { kind: "percentage", matchedRule: `Percentage symbol in "${norm}"` };
   }
   if (/\b(year|ce|ad|bce)\b/.test(norm)) {
+    return { kind: "year", matchedRule: `Year term in "${norm}"` };
+  }
   }
   if (
     norm.includes("meter") ||
