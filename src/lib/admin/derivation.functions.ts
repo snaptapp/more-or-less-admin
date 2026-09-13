@@ -5,7 +5,7 @@ import { auditDerivation, type DerivationAuditTrace } from "./derivation-audit";
 
 export const auditDerivationFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-.inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         trueNumber: z.union([z.number(), z.string()]),

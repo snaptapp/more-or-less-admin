@@ -260,7 +260,6 @@ export function classifyQuantityKind(unit: string, hint?: string): { kind: Quant
   if (/\b(year|ce|ad|bce)\b/.test(norm)) {
     return { kind: "year", matchedRule: `Year term in "${norm}"` };
   }
-  }
   if (
     norm.includes("meter") ||
     norm.includes("metre") ||
