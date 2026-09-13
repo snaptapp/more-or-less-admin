@@ -174,7 +174,7 @@ function ConfigPage() {
       {
         conditionName: name,
         expression: preset.expression,
-        tagColor: preset.color,
+        tagColor: preset.color === "amber" ? "ORANGE" : preset.color === "neutral" ? "GRAY" : preset.color.toUpperCase(),
         topics: ["Pop Music", "Video Games", "Anime"],
       },
     ]);
