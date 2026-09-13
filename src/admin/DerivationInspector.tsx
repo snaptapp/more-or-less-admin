@@ -119,9 +119,9 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
   const inferredInitialSide: CandidateSide | undefined =
     Number.isFinite(initialPresented) && initialValues?.trueNumber !== undefined
       ? Number(initialValues.trueNumber) > initialPresented
-        ? "MORE"
+        ? "LESS"
         : Number(initialValues.trueNumber) < initialPresented
-          ? "LESS"
+          ? "MORE"
           : undefined
       : undefined;
 
@@ -753,7 +753,13 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
                             setSurprise(round.surprise_factor);
                             setKindOverride(round.quantity_kind ?? "");
                             setTrapDirection(round.trap_direction === "UNDERESTIMATE" ? "UNDERESTIMATE" : "OVERESTIMATE");
-                            setForcedSide(round.correct_direction);
+                            setForcedSide(
+                              round.presented_number > round.true_number
+                                ? "MORE"
+                                : round.presented_number < round.true_number
+                                  ? "LESS"
+                                  : "",
+                            );
                             setExpectedPresented(String(round.presented_number));
                             setSubTab("simulator");
                           }}
