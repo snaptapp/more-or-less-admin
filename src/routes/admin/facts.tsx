@@ -347,6 +347,7 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
             {fact.served_count} {fact.last_served_at ? `· last ${fact.last_served_at}` : ""}
           </dd>
           <dt>Retired reason</dt>
+          <dd>{fact.retired_reason ?? "—"}</dd>
         </dl>
 
         {fact.true_number !== null ? (
