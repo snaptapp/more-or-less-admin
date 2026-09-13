@@ -180,6 +180,9 @@ export async function publishTopicSuggestionsConfig(
   const template = await getRemoteConfigTemplate();
   const account = getServiceAccount();
   const token = await getAccessToken([REMOTE_CONFIG_SCOPE]);
+  const priorTopicConditionNames = new Set(
+    Object.keys(template.parameters?.[PARAM_KEY]?.conditionalValues ?? {}),
+  );
 
   // Ensure parameters object exists
   if (!template.parameters) template.parameters = {};
@@ -208,7 +211,9 @@ export async function publishTopicSuggestionsConfig(
 
   // Rebuild topic conditions in UI priority order, preserving unrelated conditions.
   const existingConditions = template.conditions ?? [];
-  const nonTopicConditions = existingConditions.filter((cond) => !newConditionNames.has(cond.name));
+  const nonTopicConditions = existingConditions.filter(
+    (cond) => !newConditionNames.has(cond.name) && !priorTopicConditionNames.has(cond.name),
+  );
   const topicConditions = newConfig.variants.map((variant) => ({
     name: variant.conditionName,
     expression: variant.expression,

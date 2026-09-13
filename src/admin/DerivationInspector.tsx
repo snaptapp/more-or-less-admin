@@ -114,6 +114,16 @@ export interface DerivationInspectorProps {
 
 export function DerivationInspector({ initialValues }: DerivationInspectorProps) {
   const [subTab, setSubTab] = useState<"simulator" | "probe">("simulator");
+  const initialPresented =
+    initialValues?.presentedNumber !== undefined ? Number(initialValues.presentedNumber) : NaN;
+  const inferredInitialSide: CandidateSide | undefined =
+    Number.isFinite(initialPresented) && initialValues?.trueNumber !== undefined
+      ? Number(initialValues.trueNumber) > initialPresented
+        ? "MORE"
+        : Number(initialValues.trueNumber) < initialPresented
+          ? "LESS"
+          : undefined
+      : undefined;
 
   // Simulator Form State
   const [trueNumber, setTrueNumber] = useState<string>(
@@ -127,12 +137,15 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
   const [trapDirection, setTrapDirection] = useState<TrapDirection>(
     initialValues?.trapDirection ?? "OVERESTIMATE",
   );
-  const [forcedSide, setForcedSide] = useState<string>(initialValues?.forcedSide ?? "");
+  const [forcedSide, setForcedSide] = useState<string>(initialValues?.forcedSide ?? inferredInitialSide ?? "");
   const [plausibleMin, setPlausibleMin] = useState<string>(
     initialValues?.plausibleMin !== undefined ? String(initialValues.plausibleMin) : "",
   );
   const [plausibleMax, setPlausibleMax] = useState<string>(
     initialValues?.plausibleMax !== undefined ? String(initialValues.plausibleMax) : "",
+  );
+  const [expectedPresented, setExpectedPresented] = useState<string>(
+    initialValues?.presentedNumber !== undefined ? String(initialValues.presentedNumber) : "",
   );
 
   // Live Agent Probe State
@@ -398,6 +411,11 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
                   <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ds-arena-color-text)" }}>
                     {auditResult.trace.outcome.explanation}
                   </p>
+                  {expectedPresented.trim() ? (
+                    <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--ds-arena-color-text-muted)" }}>
+                      Linked presented value: <strong>{expectedPresented}</strong>
+                    </p>
+                  ) : null}
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -736,6 +754,7 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
                             setKindOverride(round.quantity_kind ?? "");
                             setTrapDirection(round.trap_direction === "UNDERESTIMATE" ? "UNDERESTIMATE" : "OVERESTIMATE");
                             setForcedSide(round.correct_direction);
+                            setExpectedPresented(String(round.presented_number));
                             setSubTab("simulator");
                           }}
                         >
