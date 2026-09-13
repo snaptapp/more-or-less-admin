@@ -11,7 +11,15 @@ const VariantSchema = z.object({
 
 const SaveConfigInputSchema = z.object({
   defaultTopics: z.array(z.string().min(1)).min(1),
-  variants: z.array(VariantSchema),
+  variants: z.array(VariantSchema).superRefine((items, ctx) => {
+    const seen = new Set<string>();
+    items.forEach((item, index) => {
+      if (seen.has(item.conditionName)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [index, "conditionName"], message: "Condition names must be unique." });
+      }
+      seen.add(item.conditionName);
+    });
+  }),
   etag: z.string(),
 });
 
