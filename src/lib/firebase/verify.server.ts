@@ -59,6 +59,25 @@ function allowlist(): string[] {
     .filter(Boolean);
 }
 
+export function isEmailAllowlisted(email: string | null | undefined, list: string[]): boolean {
+  if (!email || list.length === 0) return false;
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return false;
+  for (const entry of list) {
+    const pattern = entry.trim().toLowerCase();
+    if (!pattern) continue;
+    if (pattern.startsWith("@")) {
+      if (normalized.endsWith(pattern)) return true;
+    } else if (pattern.includes("@")) {
+      if (normalized === pattern) return true;
+    } else {
+      // Domain without leading '@' (e.g. "trackdub.com", "snaptapp.us")
+      if (normalized.endsWith(`@${pattern}`) || normalized.endsWith(`.${pattern}`)) return true;
+    }
+  }
+  return false;
+}
+
 /** Verifies the bearer token on the current request and asserts admin access. */
 export async function requireAdmin(): Promise<AdminUser> {
   const header = getRequestHeader("authorization") ?? "";
@@ -115,14 +134,14 @@ export async function requireAdmin(): Promise<AdminUser> {
   const email = claims.email?.toLowerCase() ?? null;
   const isClaimAdmin = claims.admin === true;
   const list = allowlist();
-  const isAllowlisted = !!email && list.includes(email);
+  const isAllowlisted = isEmailAllowlisted(email, list);
 
   if (!isClaimAdmin && !isAllowlisted) {
     throw new AuthError(
       `This account is not an admin (${email ?? "no email on token"}). ` +
         (list.length === 0
           ? "The admin email allowlist is empty."
-          : "Add this exact email to the ADMIN_EMAIL_ALLOWLIST secret, then sign out and back in."),
+          : "Add this email address or domain to the ADMIN_EMAIL_ALLOWLIST secret, then sign out and back in."),
       403,
     );
   }
