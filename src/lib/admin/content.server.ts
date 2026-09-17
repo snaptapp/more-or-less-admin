@@ -45,6 +45,13 @@ export interface FactRecord {
   last_served_at: string | null;
   category: string | null;
   derivation: FactDerivationBlock | null;
+  quantity_kind: string;
+  plausible_min: string | null;
+  plausible_max: string | null;
+  quality_flags: string[];
+  disputed_reason: string | null;
+  number_pinned: boolean;
+  pinned_reason: string | null;
   updateTime?: string;
 }
 
@@ -89,6 +96,15 @@ export function toFact(doc: FirestoreDoc): FactRecord {
     last_served_at: typeof d["last_served_at"] === "string" ? d["last_served_at"] : null,
     category: typeof d["category"] === "string" ? d["category"] : null,
     derivation: parseDerivationBlock(d["derivation"]),
+    quantity_kind: str(d["quantity_kind"]),
+    plausible_min: typeof d["plausible_min"] === "string" ? d["plausible_min"] : null,
+    plausible_max: typeof d["plausible_max"] === "string" ? d["plausible_max"] : null,
+    quality_flags: Array.isArray(d["quality_flags"])
+      ? (d["quality_flags"] as Json[]).filter((v): v is string => typeof v === "string")
+      : [],
+    disputed_reason: typeof d["disputed_reason"] === "string" ? d["disputed_reason"] : null,
+    number_pinned: asBool(d["number_pinned"]) ?? false,
+    pinned_reason: typeof d["pinned_reason"] === "string" ? d["pinned_reason"] : null,
     updateTime: doc.updateTime,
   };
 }
@@ -377,7 +393,24 @@ export interface FactEditInput {
   difficulty_hint?: string;
   content_rating?: string;
   source_urls?: string[];
+  quantity_kind?: string;
+  plausible_min?: string;
+  plausible_max?: string;
 }
+
+// Semantic inputs the DDM consumes. When any of them change, the stored
+// derivation blocks and input fingerprint are invalidated so the next
+// precompute backfill regenerates under the corrected semantics rather than
+// shipping a stale block.
+const SEMANTIC_EDIT_KEYS: (keyof FactEditInput)[] = [
+  "true_number",
+  "unit",
+  "claim_template",
+  "surprise_factor",
+  "quantity_kind",
+  "plausible_min",
+  "plausible_max",
+];
 
 export async function updateFact(input: FactEditInput): Promise<FactRecord> {
   const existing = await getFact(input.id);
@@ -396,6 +429,9 @@ export async function updateFact(input: FactEditInput): Promise<FactRecord> {
     "difficulty_hint",
     "content_rating",
     "source_urls",
+    "quantity_kind",
+    "plausible_min",
+    "plausible_max",
   ];
   for (const key of assignable) {
     if (input[key] !== undefined) patch[key] = input[key];
@@ -406,13 +442,28 @@ export async function updateFact(input: FactEditInput): Promise<FactRecord> {
   // Changing the value preserves the old one for the reveal-diff history.
   if (input.true_number !== undefined && input.true_number !== existing.true_number) {
     patch["previous_true_number"] = existing.true_number;
+    patch["number_changed_at"] = new Date().toISOString();
+    patch["number_change_source"] = "admin_portal";
     patch["true_number"] = input.true_number;
   }
 
+  // Semantic edits invalidate the stored derivation: delete the precomputed
+  // blocks and input fingerprint so the next backfill regenerates under the
+  // corrected semantics instead of exporting a stale block.
+  const semanticChanged = SEMANTIC_EDIT_KEYS.some((key) => {
+    if (input[key] === undefined) return false;
+    const next = input[key];
+    const prev = existing[key as keyof FactRecord];
+    return String(next ?? "") !== String(prev ?? "");
+  });
+  const deletePaths = semanticChanged
+    ? ["derivation", "precomputed_derivation", "derivation_input_fingerprint"]
+    : undefined;
+
   let updatedFactDoc: FirestoreDoc | null = null;
-  if (Object.keys(patch).length > 0) {
+  if (Object.keys(patch).length > 0 || deletePaths) {
     patch["updated_at"] = new Date().toISOString();
-    updatedFactDoc = await patchDoc(`fact_bank/${input.id}`, patch);
+    updatedFactDoc = await patchDoc(`fact_bank/${input.id}`, patch, deletePaths);
   }
 
   // Link/update taxonomy in fact_subjects when category is assigned
@@ -567,6 +618,7 @@ export interface ReportRecord {
   ombudsmanRuling?: string;
   ombudsmanSources: string[];
   ombudsmanArbiter?: "gemini" | "edge_worker" | "unspecified";
+  qualityFlags?: string[];
 }
 
 function firstStr(d: Record<string, Json>, keys: string[]): string {
@@ -680,6 +732,9 @@ function toReport(doc: FirestoreDoc): ReportRecord {
     ombudsmanRuling: ruling || undefined,
     ombudsmanSources: sources,
     ombudsmanArbiter: arbiter,
+    qualityFlags: asSources(d["qualityFlags"]).length
+      ? asSources(d["qualityFlags"])
+      : asSources(d["quality_flags"]),
   };
 }
 

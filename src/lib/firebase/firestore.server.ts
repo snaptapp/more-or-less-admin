@@ -236,13 +236,17 @@ export async function runQuery(options: {
   return raw.filter((entry) => entry.document).map((entry) => toDoc(entry.document!));
 }
 
-/** Patch a subset of fields on an existing document. */
+/** Patch a subset of fields on an existing document. Paths listed in
+ * `deletePaths` are added to the update mask but omitted from the body,
+ * which deletes them from the document. */
 export async function patchDoc(
   path: string,
   data: Record<string, unknown>,
+  deletePaths?: string[],
 ): Promise<FirestoreDoc> {
   const params = new URLSearchParams();
   for (const key of Object.keys(data)) params.append("updateMask.fieldPaths", key);
+  for (const key of deletePaths ?? []) params.append("updateMask.fieldPaths", key);
   const raw = await request<Parameters<typeof toDoc>[0]>(
     `${baseUrl()}/${path}?${params.toString()}`,
     { method: "PATCH", body: JSON.stringify({ fields: encodeFields(data) }) },

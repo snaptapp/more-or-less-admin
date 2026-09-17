@@ -58,6 +58,11 @@ const editInput = z.object({
   surprise_factor: z.number().int().min(0).max(3).optional(),
   content_rating: z.enum(["standard", "after_dark"]).optional(),
   source_urls: z.array(z.string()).optional(),
+  quantity_kind: z
+    .enum(["year", "count", "percentage", "ratio", "physical_measure", "money", "duration", "rating", ""])
+    .optional(),
+  plausible_min: z.string().optional(),
+  plausible_max: z.string().optional(),
 });
 
 export const saveFact = createServerFn({ method: "POST" }).middleware([authMiddleware])

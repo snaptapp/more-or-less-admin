@@ -134,6 +134,9 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
     surprise_factor: String(normalizedSurprise),
     content_rating: fact.content_rating || "standard",
     source_urls: (fact.source_urls || []).join("\n"),
+    quantity_kind: fact.quantity_kind || "",
+    plausible_min: fact.plausible_min ?? "",
+    plausible_max: fact.plausible_max ?? "",
   });
 
   const matchedSubject = useMemo(() => {
@@ -169,6 +172,9 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
           surprise_factor: Number(form.surprise_factor),
           content_rating: form.content_rating as "standard" | "after_dark",
           source_urls: form.source_urls.split("\n").map((v) => v.trim()).filter(Boolean),
+          quantity_kind: form.quantity_kind as "" | "year" | "count" | "percentage" | "ratio" | "physical_measure" | "money" | "duration" | "rating",
+          plausible_min: form.plausible_min,
+          plausible_max: form.plausible_max,
         },
       }),
     onSuccess: async () => {
@@ -305,6 +311,49 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
               <option value="after_dark">after_dark</option>
             </select>
           </label>
+          <label className="admin-field">
+            <span>
+              Quantity kind{" "}
+              <InfoTip text="DDM semantic kind. Leave on auto to classify from the unit. Use 'year' for calendar-year answers, 'physical_measure' for physical domains." />
+            </span>
+            <select
+              className="admin-select"
+              value={form.quantity_kind}
+              onChange={(e) => setForm({ ...form, quantity_kind: e.target.value })}
+            >
+              <option value="">auto (classify from unit)</option>
+              <option value="year">year</option>
+              <option value="count">count</option>
+              <option value="percentage">percentage</option>
+              <option value="ratio">ratio</option>
+              <option value="physical_measure">physical_measure</option>
+              <option value="money">money</option>
+              <option value="duration">duration</option>
+              <option value="rating">rating (0-10 scale)</option>
+            </select>
+          </label>
+          <label className="admin-field">
+            <span>
+              Plausible min{" "}
+              <InfoTip text="Optional domain floor hint for distractor bounds (e.g. '0'). Both bounds must be set together; clearing regenerates defaults." />
+            </span>
+            <input
+              className="admin-input"
+              value={form.plausible_min}
+              onChange={(e) => setForm({ ...form, plausible_min: e.target.value })}
+            />
+          </label>
+          <label className="admin-field">
+            <span>
+              Plausible max{" "}
+              <InfoTip text="Optional domain ceiling hint (e.g. '158.3' for NFL passer rating, '110' for punt yards). Both bounds must be set together." />
+            </span>
+            <input
+              className="admin-input"
+              value={form.plausible_max}
+              onChange={(e) => setForm({ ...form, plausible_max: e.target.value })}
+            />
+          </label>
         </div>
 
         <label className="admin-field">
@@ -351,6 +400,26 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
           </dd>
           <dt>Retired reason</dt>
           <dd>{fact.retired_reason ?? "—"}</dd>
+          <dt>Quality flags</dt>
+          <dd>
+            {fact.quality_flags.length ? (
+              <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+                {fact.quality_flags.map((flag) => (
+                  <Badge key={flag} tone="red">{flag}</Badge>
+                ))}
+              </span>
+            ) : (
+              "—"
+            )}
+          </dd>
+          <dt>Disputed reason</dt>
+          <dd>{fact.disputed_reason ?? "—"}</dd>
+          <dt>Number pinned</dt>
+          <dd>
+            {fact.number_pinned
+              ? `yes — ${fact.pinned_reason ?? "hand-verified"}`
+              : "—"}
+          </dd>
         </dl>
 
         {fact.true_number !== null ? (

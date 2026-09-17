@@ -25,6 +25,17 @@ const REASON_LABELS: Record<string, string> = {
   OUTDATED_FACT: "Information is outdated",
 };
 
+const SOURCE_LABELS: Record<string, { label: string; tone: "lime" | "red" | "amber" | "purple" | "muted" }> = {
+  fact_lint: { label: "Fact lint", tone: "amber" },
+  fact_reverify: { label: "Re-verify number change", tone: "red" },
+  round_telemetry: { label: "Player report (signed telemetry)", tone: "muted" },
+};
+
+function sourceLabel(source: string | undefined): { label: string; tone: "lime" | "red" | "amber" | "purple" | "muted" } {
+  if (!source) return { label: "Player report", tone: "muted" };
+  return SOURCE_LABELS[source] ?? { label: source, tone: "muted" };
+}
+
 function displayOrMissing(value: string | null | undefined): string {
   const trimmed = value?.trim();
   return trimmed ? trimmed : "Not recorded";
@@ -141,7 +152,12 @@ function ReportCard({ entry }: { entry: Entry }) {
     <Card>
       <div className="admin-page-head">
         <CardTitle>{chosenTopic || "Untitled topic"}</CardTitle>
-        <Badge tone={statusTone(report.status)}>{report.status}</Badge>
+        <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+          <Pill tone={sourceLabel(report.reportSource).tone}>
+            {sourceLabel(report.reportSource).label}
+          </Pill>
+          <Badge tone={statusTone(report.status)}>{report.status}</Badge>
+        </span>
       </div>
       <dl className="admin-kv" style={{ marginTop: "var(--ds-arena-space-3)" }}>
         <dt>Topic chosen</dt>
@@ -176,6 +192,18 @@ function ReportCard({ entry }: { entry: Entry }) {
         </dd>
         <dt>Dispute reason</dt>
         <dd>{REASON_LABELS[report.reason] ?? displayOrMissing(report.reason)}</dd>
+        {report.qualityFlags?.length ? (
+          <>
+            <dt>Quality flags</dt>
+            <dd>
+              <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+                {report.qualityFlags.map((flag) => (
+                  <Badge key={flag} tone="amber">{flag}</Badge>
+                ))}
+              </span>
+            </dd>
+          </>
+        ) : null}
         <dt>Player feedback</dt>
         <dd>{displayOrMissing(report.feedbackText)}</dd>
         <dt>Reveal text</dt>
