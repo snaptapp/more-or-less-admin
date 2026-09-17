@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, PageHead } from "@/admin/AdminShell";
-import { fetchGameAnalytics } from "@/lib/admin/ops.functions";
+import { fetchGameAnalytics, fetchQuestionTelemetry, flagQuestionTelemetry } from "@/lib/admin/ops.functions";
 
 export const Route = createFileRoute("/admin/analytics")({
   head: () => ({
@@ -222,6 +222,8 @@ function CategoryBreakdown({
 
 function AnalyticsPage() {
   const load = useServerFn(fetchGameAnalytics);
+  const loadQuestions = useServerFn(fetchQuestionTelemetry);
+  const flagQuestion = useServerFn(flagQuestionTelemetry);
   const [days, setDays] = useState(7);
   const [deletedCategories, setDeletedCategories] = useState<string[]>([]);
   const [deletedReady, setDeletedReady] = useState(false);
@@ -240,6 +242,11 @@ function AnalyticsPage() {
   const query = useQuery({
     queryKey: ["analytics", days],
     queryFn: () => load({ data: { since: since(days) } }),
+    retry: false,
+  });
+  const questions = useQuery({
+    queryKey: ["question-telemetry", days],
+    queryFn: () => loadQuestions({ data: { days: days as 7 | 30 | 90 } }),
     retry: false,
   });
 
@@ -315,6 +322,27 @@ function AnalyticsPage() {
             onRestore={restoreCategory}
             onRestoreAll={() => setDeletedCategories([])}
           />
+          <Card>
+            <CardTitle>Question quality</CardTitle>
+            <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13 }}>
+              Signed question identities; player outcomes are self-reported. Rows need at least 20 answered attempts.
+            </p>
+            {questions.isLoading ? <p className="admin-empty">Loading signed telemetry…</p> : null}
+            <ErrorNote error={questions.error} />
+            {questions.data?.length === 0 ? <p className="admin-empty">No actionable signed telemetry yet.</p> : null}
+            {questions.data?.map((row) => (
+              <div key={row.questionId} className="admin-bar-row" style={{ gridTemplateColumns: "minmax(0, 2fr) repeat(4, auto)" }}>
+                <span title={row.claim}>{row.kind === "fact" ? "Fact" : "Generated"}: {row.claim || row.questionId}</span>
+                <span>{row.answered} answered</span>
+                <span>{Math.round(row.accuracy * 100)}% correct</span>
+                <span>{Math.round(row.skipRate * 100)}% skipped</span>
+                <Button size="sm" variant="danger" onClick={async () => { try { await flagQuestion({ data: { days: days as 7 | 30 | 90, questionId: row.questionId } }); await questions.refetch(); } catch (error) { console.error('Failed to flag question:', error); } }}>
+
+                  Flag for review
+                </Button>
+              </div>
+            ))}
+          </Card>
         </>
       ) : null}
     </>
