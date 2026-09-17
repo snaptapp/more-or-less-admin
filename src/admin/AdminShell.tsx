@@ -218,7 +218,7 @@ export function ErrorNote({ error }: { error: unknown }) {
 export function statusTone(status: string): "lime" | "red" | "amber" | "purple" | "neutral" {
   if (status === "active" || status === "resolved" || status === "done") return "lime";
   if (status === "retired" || status === "rejected") return "red";
-  if (status === "disputed" || status === "pending_review") return "amber";
+  if (status === "disputed" || status === "pending" || status === "pending_review") return "amber";
   if (status === "processing") return "purple";
   return "neutral";
 }

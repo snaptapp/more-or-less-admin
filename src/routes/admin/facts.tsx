@@ -1159,6 +1159,7 @@ function ContentPage() {
                 >
                   <option value="">All</option>
                   <option value="active">active</option>
+                  <option value="pending">pending</option>
                   <option value="disputed">disputed</option>
                   <option value="retired">retired</option>
                 </select>
