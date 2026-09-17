@@ -380,6 +380,6 @@ export const flagQuestionTelemetry = createServerFn({ method: "POST" }).middlewa
     const { flagQuestionTelemetry: flag } = await import("./ops.server");
     const result = await flag(data, context.user);
     const { logAdminAction } = await import("@/lib/firebase/audit.server");
-    await logAdminAction(context.user, { action: "telemetry.flag_for_review", targetType: "question", targetId: data.questionId, details: `Flagged from ${data.days}-day signed telemetry` });
+    await logAdminAction(context.user, { action: "telemetry.flag_for_review", targetType: "report", targetId: result.reportId, details: `Flagged ${data.questionId} from ${data.days}-day signed telemetry` });
     return result;
   });
