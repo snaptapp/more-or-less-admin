@@ -1016,3 +1016,57 @@ export async function getGameAnalytics(input: { since?: string }) {
     byVerified: tallyBool("verified", "verified", "unverified"),
   };
 }
+
+export interface QuestionTelemetryRecord {
+  id: string;
+  questionId: string;
+  kind: "fact" | "generated";
+  claim: string;
+  topic: string;
+  category: string;
+  unit: string;
+  attempts: number;
+  correct: number;
+  skipped: number;
+  answered: number;
+  accuracy: number;
+  skipRate: number;
+  lastSeenAt: string | null;
+}
+
+export async function listQuestionTelemetry(input: { days: 7 | 30 | 90; kind?: "fact" | "generated"; search?: string }) {
+  const { docs } = await listDocs(`round_analytics_${input.days}d`, { pageSize: 500 });
+  const term = input.search?.trim().toLowerCase() ?? "";
+  return docs.map((doc): QuestionTelemetryRecord => {
+    const attempts = num(doc.data["attempts"]) ?? 0;
+    const correct = num(doc.data["correct"]) ?? 0;
+    const skipped = num(doc.data["skipped"]) ?? 0;
+    const answered = Math.max(0, attempts - skipped);
+    return {
+      id: doc.id, questionId: str(doc.data["questionId"]), kind: str(doc.data["kind"]) === "fact" ? "fact" : "generated",
+      claim: str(doc.data["claimStatement"]), topic: str(doc.data["topic"]), category: str(doc.data["category"]), unit: str(doc.data["unit"]),
+      attempts, correct, skipped, answered, accuracy: answered ? correct / answered : 0, skipRate: attempts ? skipped / attempts : 0,
+      lastSeenAt: typeof doc.data["lastSeenAt"] === "string" ? doc.data["lastSeenAt"] : null,
+    };
+  }).filter((row) => row.answered >= 20 && (!input.kind || row.kind === input.kind) && (!term || `${row.questionId} ${row.claim} ${row.topic}`.toLowerCase().includes(term)))
+    .sort((a, b) => a.accuracy - b.accuracy || b.answered - a.answered).slice(0, 100);
+}
+
+function telemetryReportId(questionId: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < questionId.length; i++) { hash ^= questionId.charCodeAt(i); hash = Math.imul(hash, 0x01000193); }
+  return `telemetry_${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+export async function flagQuestionTelemetry(input: { days: 7 | 30 | 90; questionId: string }, admin: AdminUser) {
+  const reportId = telemetryReportId(input.questionId);
+  const existing = await getDoc(`trivia_reports/${reportId}`);
+  if (existing) return { reportId, alreadyReviewed: existing.data["status"] !== "pending_review" };
+  const docId = input.questionId.split(":")[1] ?? "";
+  if (input.questionId.startsWith("fact:") && docId) await patchDoc(`fact_bank/${docId}`, { status: "disputed", disputedAt: new Date().toISOString() });
+  await createDoc("trivia_reports", reportId, {
+    status: "pending_review", reportSource: "round_telemetry", questionId: input.questionId,
+    reason: `Low player accuracy in ${input.days}-day signed self-reported telemetry`, createdAt: new Date().toISOString(),
+  });
+  return { reportId, alreadyReviewed: false };
+}
