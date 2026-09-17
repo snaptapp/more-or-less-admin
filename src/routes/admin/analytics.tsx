@@ -336,7 +336,8 @@ function AnalyticsPage() {
                 <span>{row.answered} answered</span>
                 <span>{Math.round(row.accuracy * 100)}% correct</span>
                 <span>{Math.round(row.skipRate * 100)}% skipped</span>
-                <Button size="sm" variant="danger" onClick={async () => { await flagQuestion({ data: { days: days as 7 | 30 | 90, questionId: row.questionId } }); await questions.refetch(); }}>
+                <Button size="sm" variant="danger" onClick={async () => { try { await flagQuestion({ data: { days: days as 7 | 30 | 90, questionId: row.questionId } }); await questions.refetch(); } catch (error) { console.error('Failed to flag question:', error); } }}>
+
                   Flag for review
                 </Button>
               </div>
