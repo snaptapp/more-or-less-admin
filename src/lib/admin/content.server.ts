@@ -555,6 +555,11 @@ export interface ReportRecord {
   status: string;
   createdAt: string | null;
   resolutionNote: string | null;
+  questionId?: string;
+  reportSource?: string;
+  factId?: string;
+  factPreviousStatus?: string;
+  telemetryDays?: number | null;
   playerGuess?: string;
   isPlayerCorrect?: boolean | null;
   ombudsmanVerdict?: string;
@@ -663,6 +668,11 @@ function toReport(doc: FirestoreDoc): ReportRecord {
     status: firstStr(d, ["status"]) || "pending_review",
     createdAt: typeof d["createdAt"] === "string" ? d["createdAt"] : typeof d["created_at"] === "string" ? d["created_at"] : null,
     resolutionNote: typeof d["resolutionNote"] === "string" ? d["resolutionNote"] : null,
+    questionId: firstStr(d, ["questionId", "question_id"]) || undefined,
+    reportSource: firstStr(d, ["reportSource", "report_source"]) || undefined,
+    factId: firstStr(d, ["factId", "fact_id"]) || undefined,
+    factPreviousStatus: firstStr(d, ["factPreviousStatus", "fact_previous_status"]) || undefined,
+    telemetryDays: asNum(d["telemetryDays"]) ?? asNum(d["telemetry_days"]),
     playerGuess: firstStr(d, ["playerGuess", "player_guess", "guess", "choice"]) || undefined,
     isPlayerCorrect: asBool(d["isPlayerCorrect"]) ?? asBool(d["is_player_correct"]),
     ombudsmanVerdict: rawVerdict || undefined,
@@ -686,6 +696,17 @@ export async function listReports(input: { status?: string; limit?: number }) {
 
 /** Best-effort match from a report back to its fact-bank record. */
 export async function findFactForReport(report: ReportRecord): Promise<FactRecord | null> {
+  // 0. Direct match for signed-telemetry reports (fact:<docId> question ids).
+  const directId =
+    report.factId?.trim() ||
+    (report.questionId?.startsWith("fact:")
+      ? report.questionId.slice("fact:".length).trim()
+      : "");
+  if (directId) {
+    const direct = await getDoc(`fact_bank/${directId}`);
+    if (direct) return toFact(direct);
+  }
+
   const topicKey = normalizeKey(report.topic);
   if (!topicKey) return null;
 
@@ -794,6 +815,29 @@ export async function resolveReport(input: {
       resolved_at: now,
     });
     return { ok: true };
+  }
+
+  // Reject: restore a fact auto-disputed by signed telemetry. Flagging only
+  // transitions active -> disputed, so a rejected false signal must reactivate
+  // the fact instead of leaving it permanently excluded from active-only
+  // consumers such as the daily picker.
+  const reportDoc = await getDoc(`trivia_reports/${input.reportId}`);
+  const reportData = reportDoc?.data ?? {};
+  const storedFactId =
+    typeof reportData["factId"] === "string" && reportData["factId"].trim()
+      ? (reportData["factId"] as string).trim()
+      : typeof reportData["questionId"] === "string" && (reportData["questionId"] as string).startsWith("fact:")
+        ? ((reportData["questionId"] as string).slice("fact:".length).trim() || null)
+        : null;
+  if (storedFactId && reportData["reportSource"] === "round_telemetry") {
+    const factDoc = await getDoc(`fact_bank/${storedFactId}`);
+    if (factDoc && factDoc.data["status"] === "disputed") {
+      const previous =
+        typeof reportData["factPreviousStatus"] === "string" && reportData["factPreviousStatus"]
+          ? (reportData["factPreviousStatus"] as string)
+          : "active";
+      await patchDoc(`fact_bank/${storedFactId}`, { status: previous });
+    }
   }
 
   await patchDoc(`trivia_reports/${input.reportId}`, {

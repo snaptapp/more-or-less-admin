@@ -366,3 +366,20 @@ export const fetchGameAnalytics = createServerFn({ method: "POST" }).middleware(
     const { getGameAnalytics } = await import("./ops.server");
     return getGameAnalytics(data);
   });
+
+export const fetchQuestionTelemetry = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) => z.object({ days: z.union([z.literal(7), z.literal(30), z.literal(90)]), kind: z.enum(["fact", "generated"]).optional(), search: z.string().max(200).optional() }).parse(data))
+  .handler(async ({ data }) => {
+    const { listQuestionTelemetry } = await import("./ops.server");
+    return listQuestionTelemetry(data);
+  });
+
+export const flagQuestionTelemetry = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) => z.object({ days: z.union([z.literal(7), z.literal(30), z.literal(90)]), questionId: z.string().min(1).max(256) }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { flagQuestionTelemetry: flag } = await import("./ops.server");
+    const result = await flag(data, context.user);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(context.user, { action: "telemetry.flag_for_review", targetType: "report", targetId: result.reportId, details: `Flagged ${data.questionId} from ${data.days}-day signed telemetry` });
+    return result;
+  });
