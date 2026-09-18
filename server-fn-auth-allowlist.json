@@ -1,0 +1,21 @@
+{
+  "note": "Endpoints intentionally NOT composing authMiddleware. Each entry records the exported symbol, the repo-relative file path, and the authorization mechanism applied instead. Consumed by scripts/enumerate-server-functions.mjs and the Test_Suite (spec admin-quality-gates-and-shared-contracts, Requirements 6.1-6.2). An entry whose symbol/path the enumeration does not find is stale and fails the Test_Suite. Every createServerFn declaration under src/ composes authMiddleware and therefore appears nowhere in this file.",
+  "entries": [
+    {
+      "symbol": "Route",
+      "path": "src/routes/api/internal/daily-drafts.ts",
+      "routeId": "/api/internal/daily-drafts",
+      "methods": ["POST"],
+      "mechanism": "shared-secret header gate: returns 503 when OPS_CRON_SECRET is unset and 401 unless cronSecretMatches(request.headers.get(\"authorization\")) does a constant-time compare of the Bearer value against OPS_CRON_SECRET (src/lib/admin/daily-drafts.server.ts:280).",
+      "reason": "Unattended GitHub Actions cron caller has no Firebase ID token, so the admin-claim/allowlist boundary cannot apply. Writes daily_pack_drafts only; skip reasons are mapped through publicSkipReason so no internal error text leaks."
+    },
+    {
+      "symbol": "Route",
+      "path": "src/routes/api/public/firebase-config.ts",
+      "routeId": "/api/public/firebase-config",
+      "methods": ["GET"],
+      "mechanism": "public by design: no authorization. Returns only publishable Firebase web config values (FIREBASE_WEB_API_KEY, derived authDomain, projectId) with Cache-Control: private, max-age=300; the service account never leaves the server.",
+      "reason": "The sign-in form needs this config before any token exists — a server function would run the auth middleware, which itself depends on this config to mint a token, so gating it would deadlock login."
+    }
+  ]
+}

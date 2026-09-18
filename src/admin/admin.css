@@ -63,7 +63,7 @@
   color: var(--ds-arena-color-text);
 }
 
-.admin-nav a.active {
+.admin-nav a.is-active {
   background: var(--ds-arena-color-surface);
   color: var(--ds-arena-color-text);
   box-shadow: inset 3px 0 0 var(--ds-arena-color-lime);

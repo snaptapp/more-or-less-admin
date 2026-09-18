@@ -3,6 +3,22 @@ import type { AdminUser } from "./verify.server";
 
 export type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
 
+/**
+ * Payload accepted on the write side of the audit log.
+ *
+ * Callers hand us plain JS records whose values the Firestore encoder
+ * serializes (`encodeFields`), so the input is deliberately wider than the
+ * `JsonValue` that comes back out of Firestore on the read side.
+ */
+export type AuditPayload = JsonValue | Record<string, unknown>;
+
+/**
+ * An audit log entry as read from Firestore and transported to the client.
+ *
+ * `before` / `after` are `JsonValue` because that is what Firestore returns
+ * (`FirestoreDoc.data` is `Record<string, Json>`) and because the TanStack
+ * Start serializer must be able to validate every field of this type.
+ */
 export interface AuditLogEntry {
   id?: string;
   adminUid: string;
@@ -11,15 +27,21 @@ export interface AuditLogEntry {
   targetType: "fact" | "report" | "user" | "subject" | "playlist" | "crawl_job" | "daily_pack" | "leaderboard" | "system";
   targetId: string;
   details?: string;
-  before?: Record<string, unknown> | null;
-  after?: Record<string, unknown> | null;
+  before?: JsonValue | null;
+  after?: JsonValue | null;
   createdAt?: string | null;
 }
 
-export async function logAdminAction(
-  adminUser: AdminUser,
-  entry: Omit<AuditLogEntry, "adminUid" | "adminEmail" | "createdAt">,
-): Promise<void> {
+/** The shape a caller supplies to {@link logAdminAction}. */
+export type AuditLogInput = Omit<
+  AuditLogEntry,
+  "adminUid" | "adminEmail" | "createdAt" | "before" | "after"
+> & {
+  before?: AuditPayload | null;
+  after?: AuditPayload | null;
+};
+
+export async function logAdminAction(adminUser: AdminUser, entry: AuditLogInput): Promise<void> {
   const payload = {
     adminUid: adminUser.uid,
     adminEmail: adminUser.email,
@@ -53,8 +75,8 @@ export async function listAuditLogs(limitCount = 100): Promise<AuditLogEntry[]> 
       targetType: (data["targetType"] as AuditLogEntry["targetType"]) ?? "system",
       targetId: String(data["targetId"] ?? ""),
       details: data["details"] ? String(data["details"]) : undefined,
-      before: (data["before"] as Record<string, unknown>) || null,
-      after: (data["after"] as Record<string, unknown>) || null,
+      before: data["before"] ?? null,
+      after: data["after"] ?? null,
       createdAt: typeof data["createdAt"] === "string" ? data["createdAt"] : null,
     };
   });

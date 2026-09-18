@@ -1,8 +1,55 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Badge, Button, Card, CardTitle } from "@/index";
+import {
+  FACT_STATUSES,
+  STATUS_TRANSITIONS,
+  type FactStatus,
+} from "../../shared/fact-lifecycle-contract.gen";
 import { useAdminAuth } from "./auth";
 import "./admin.css";
+
+type StatusTone = "lime" | "red" | "amber" | "purple" | "neutral";
+
+/**
+ * Tone for every fact status the shared contract declares (Requirement 9.2).
+ * Keying the map by `FactStatus` makes the compiler require an entry for each
+ * declared status and reject any status the contract does not declare, so the
+ * fact status display enumerates exactly the contract's set — no hand-written
+ * fact-status literal chooses a tone.
+ */
+const FACT_STATUS_TONES: Record<FactStatus, StatusTone> = {
+  active: "lime",
+  pending: "amber",
+  disputed: "amber",
+  retired: "red",
+};
+
+const FACT_STATUS_SET = new Set<string>(FACT_STATUSES);
+
+/**
+ * Whether a persisted status is one the shared contract declares. A non-empty
+ * string absent from `FACT_STATUSES` is an unknown persisted status: it renders
+ * verbatim with a distinguishing indicator, is excluded from declared-status
+ * filters, and offers no status-change control (Requirement 9.10).
+ */
+export function isKnownFactStatus(status: string): status is FactStatus {
+  return FACT_STATUS_SET.has(status);
+}
+
+/**
+ * The admin-authorized status targets reachable from `status`, derived from the
+ * shared contract's transition table rather than any hand-written literal list
+ * (Requirements 9.3, 9.4, 9.8). An unknown persisted status is never a declared
+ * transition source, so this returns an empty list for it — the caller then
+ * offers no status-change control (Requirement 9.10). Targets are returned in
+ * the contract's declaration order.
+ */
+export function adminAuthorizedTargetsFor(status: string): FactStatus[] {
+  return STATUS_TRANSITIONS.filter(
+    (transition) => transition.from === status && transition.adminAuthorized,
+  ).map((transition) => transition.to);
+}
 
 const NAV = [
   { to: "/admin", label: "Overview", exact: true },
@@ -149,7 +196,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
               key={item.to}
               to={item.to}
               activeOptions={{ exact: "exact" in item ? item.exact : false }}
-              activeProps={{ className: "active" }}
+              activeProps={{ className: "is-active" }}
             >
               {item.label}
             </Link>
@@ -215,12 +262,43 @@ export function ErrorNote({ error }: { error: unknown }) {
   return <p className="admin-error">{message}</p>;
 }
 
-export function statusTone(status: string): "lime" | "red" | "amber" | "purple" | "neutral" {
-  if (status === "active" || status === "resolved" || status === "done") return "lime";
-  if (status === "retired" || status === "rejected") return "red";
-  if (status === "disputed" || status === "pending" || status === "pending_review") return "amber";
+export function statusTone(status: string): StatusTone {
+  // Fact statuses take their tone from the contract-derived map so the fact
+  // status display covers exactly the declared set (Requirement 9.2). Report
+  // and crawl lifecycle values, which the shared contract does not own, keep
+  // their own tones below.
+  if (FACT_STATUS_SET.has(status)) {
+    return FACT_STATUS_TONES[status as FactStatus];
+  }
+  if (status === "resolved" || status === "done") return "lime";
+  if (status === "rejected") return "red";
+  if (status === "pending_review") return "amber";
   if (status === "processing") return "purple";
   return "neutral";
+}
+
+/**
+ * Renders a fact's status as a badge, always showing the stored value verbatim
+ * and never coercing it. A status the shared contract declares takes its
+ * contract-derived tone. A non-empty status absent from the contract is an
+ * unknown persisted status (Requirement 9.10): it renders verbatim with a
+ * distinguishing "neutral" tone and an "unknown status" affordance (a `⚠` marker
+ * plus a tooltip and accessible label) so it reads as a value the portal does
+ * not own, while the stored value is left unmodified on read and display.
+ */
+export function FactStatusBadge({ status }: { status: string }) {
+  if (isKnownFactStatus(status)) {
+    return <Badge tone={statusTone(status)}>{status}</Badge>;
+  }
+  const note = `Unknown status not declared by the fact-lifecycle contract: ${status}`;
+  return (
+    <Badge tone="neutral">
+      <span aria-label={note} title={note}>
+        <span aria-hidden="true">⚠ </span>
+        {status}
+      </span>
+    </Badge>
+  );
 }
 
 export function InfoTip({

@@ -1,0 +1,19 @@
+{
+  "src/lib/admin/config.functions.ts": 0,
+  "src/lib/admin/content.functions.ts": 0,
+  "src/lib/admin/content.server.ts": 1,
+  "src/lib/admin/daily-drafts.server.ts": 0,
+  "src/lib/admin/derivation.functions.ts": 0,
+  "src/lib/admin/middleware.ts": 0,
+  "src/lib/admin/ops.functions.ts": 0,
+  "src/lib/admin/ops.server.ts": 2,
+  "src/lib/admin/roles.functions.ts": 0,
+  "src/lib/admin/roles.server.ts": 0,
+  "src/lib/firebase/audit.server.ts": 0,
+  "src/lib/firebase/firestore.server.ts": 0,
+  "src/lib/firebase/remote_config.server.ts": 0,
+  "src/lib/firebase/verify.server.ts": 0,
+  "src/routeTree.gen.ts": 14,
+  "src/routes/api/internal/daily-drafts.ts": 0,
+  "src/routes/api/public/firebase-config.ts": 0
+}

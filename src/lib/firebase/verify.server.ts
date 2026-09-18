@@ -3,14 +3,45 @@
  *
  * This is the security boundary for the portal: route guards only affect UI,
  * every server function that touches Firestore calls `requireAdmin()`.
+ *
+ * Two dependencies are injectable so the boundary can be tested with no
+ * network and no request context (Requirement 5.9): the JWKS source and the
+ * request-header source. Both default to the production implementation, so
+ * every existing call site — `authMiddleware` in `src/lib/admin/middleware.ts`
+ * calls `requireAdmin()` with no arguments — behaves exactly as before.
+ *
+ * Intended test usage (see task 5.4):
+ *
+ *     import {
+ *       requireAdmin,
+ *       resetJwksCache,
+ *       headerSourceFromRecord,
+ *       type Jwk,
+ *     } from "@/lib/firebase/verify.server";
+ *
+ *     beforeEach(() => {
+ *       // Key material cached by a preceding case cannot leak into this one.
+ *       resetJwksCache();
+ *     });
+ *
+ *     const keys: Jwk[] = [publishedJwkForLocallyMintedKeyPair];
+ *     const user = await requireAdmin({
+ *       getHeader: headerSourceFromRecord({ authorization: `Bearer ${token}` }),
+ *       fetchJwks: async () => ({ ok: true, json: async () => ({ keys }) }),
+ *     });
+ *
+ * No `vi.mock` of this module (or of `@tanstack/react-start/server`) is needed:
+ * both seams are plain parameters.
  */
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { getServiceAccount } from "./credentials.server";
 
-const JWKS_URL =
+/** Google's published signing keys for Firebase ID tokens. */
+export const JWKS_URL =
   "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 
-interface Jwk {
+/** One published RSA signing key, as it appears in the JWKS document. */
+export interface Jwk {
   kid: string;
   n: string;
   e: string;
@@ -18,11 +49,66 @@ interface Jwk {
   kty: string;
 }
 
+/**
+ * The part of an HTTP response `getJwks` actually consumes. Narrow on purpose:
+ * the real `fetch` satisfies it, and a test double can satisfy it with a plain
+ * object instead of constructing a `Response`.
+ */
+export interface JwksResponse {
+  readonly ok: boolean;
+  json(): Promise<unknown>;
+}
+
+/** Injectable JWKS source. The real `fetch` is assignable to this. */
+export type JwksFetcher = (url: string) => Promise<JwksResponse>;
+
+/**
+ * Injectable request-header source. Typed from `getRequestHeader`, so the
+ * production default is the function itself and a test double may accept a
+ * plain `string` name.
+ */
+export type RequestHeaderSource = typeof getRequestHeader;
+
+/** Production JWKS source: the ambient `fetch`, resolved at call time. */
+const defaultJwksFetcher: JwksFetcher = (url) => fetch(url);
+
+/** Production request-header source: the current request's headers. */
+const defaultHeaderSource: RequestHeaderSource = getRequestHeader;
+
+/**
+ * Builds a `RequestHeaderSource` over a fixed header map, for callers that have
+ * headers in hand rather than an ambient request (tests, primarily). Lookup is
+ * case-insensitive, matching HTTP header semantics.
+ */
+export function headerSourceFromRecord(
+  headers: Readonly<Record<string, string | undefined>>,
+): RequestHeaderSource {
+  const normalized = new Map<string, string>();
+  for (const [name, value] of Object.entries(headers)) {
+    if (typeof value === "string") normalized.set(name.toLowerCase(), value);
+  }
+  return (name) => normalized.get(name.toLowerCase());
+}
+
 let jwksCache: { keys: Jwk[]; fetchedAt: number } | null = null;
 
-async function getJwks(): Promise<Jwk[]> {
+/**
+ * Drops the cached JWKS document. Production never needs this — the cache
+ * expires on its own — but a test suite calls it between cases so retained key
+ * material cannot make one case's result depend on another's (Requirement 5.9).
+ */
+export function resetJwksCache(): void {
+  jwksCache = null;
+}
+
+/**
+ * The published signing keys, cached for an hour.
+ *
+ * @param fetcher JWKS source; defaults to the ambient `fetch`.
+ */
+export async function getJwks(fetcher: JwksFetcher = defaultJwksFetcher): Promise<Jwk[]> {
   if (jwksCache && Date.now() - jwksCache.fetchedAt < 60 * 60 * 1000) return jwksCache.keys;
-  const response = await fetch(JWKS_URL);
+  const response = await fetcher(JWKS_URL);
   if (!response.ok) throw new Error("Unable to fetch Firebase signing keys");
   const payload = (await response.json()) as { keys: Jwk[] };
   jwksCache = { keys: payload.keys, fetchedAt: Date.now() };
@@ -78,9 +164,25 @@ export function isEmailAllowlisted(email: string | null | undefined, list: strin
   return false;
 }
 
-/** Verifies the bearer token on the current request and asserts admin access. */
-export async function requireAdmin(): Promise<AdminUser> {
-  const header = getRequestHeader("authorization") ?? "";
+/** Overridable dependencies of {@link requireAdmin}; both default to production. */
+export interface RequireAdminOptions {
+  /** JWKS source. Default: the ambient `fetch` against {@link JWKS_URL}. */
+  fetchJwks?: JwksFetcher;
+  /** Request-header source. Default: the current request's headers. */
+  getHeader?: RequestHeaderSource;
+}
+
+/**
+ * Verifies the bearer token on the current request and asserts admin access.
+ *
+ * Called with no arguments in production (`authMiddleware`), which resolves
+ * both dependencies to the real request headers and the real JWKS endpoint.
+ */
+export async function requireAdmin(options: RequireAdminOptions = {}): Promise<AdminUser> {
+  const readHeader = options.getHeader ?? defaultHeaderSource;
+  const fetchJwks = options.fetchJwks ?? defaultJwksFetcher;
+
+  const header = readHeader("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
   if (!token) throw new AuthError("Not signed in");
 
@@ -93,7 +195,7 @@ export async function requireAdmin(): Promise<AdminUser> {
   };
   if (header64.alg !== "RS256" || !header64.kid) throw new AuthError("Unsupported token");
 
-  const jwk = (await getJwks()).find((entry) => entry.kid === header64.kid);
+  const jwk = (await getJwks(fetchJwks)).find((entry) => entry.kid === header64.kid);
   if (!jwk) throw new AuthError("Unknown signing key");
 
   const key = await crypto.subtle.importKey(
@@ -139,9 +241,9 @@ export async function requireAdmin(): Promise<AdminUser> {
   if (!isClaimAdmin && !isAllowlisted) {
     throw new AuthError(
       `This account is not an admin (${email ?? "no email on token"}). ` +
-        (list.length === 0
-          ? "The admin email allowlist is empty."
-          : "Add this email address or domain to the ADMIN_EMAIL_ALLOWLIST secret, then sign out and back in."),
+      (list.length === 0
+        ? "The admin email allowlist is empty."
+        : "Add this email address or domain to the ADMIN_EMAIL_ALLOWLIST secret, then sign out and back in."),
       403,
     );
   }
