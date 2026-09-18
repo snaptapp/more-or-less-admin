@@ -1,3 +1,25 @@
+> **STATUS: EXECUTED (historical plan, kept for rationale — do not re-implement).**
+> Written 2026-09-15; slices shipped within days with design changes:
+>
+> - **Slice 1 (per-round analytics): shipped, differently.** `game_history`
+>   docs persist `rounds[{q,ok,skip}]` with `roundsTrust` + `roundsExpiresAt`
+>   retention, plus worker-signed `signedTelemetry` question identities (which
+>   superseded the `disputedFactKey` plan). Admin `/admin/analytics` shows
+>   per-question accuracy/skip rates (≥20-attempt floor). Ship: `11820777`.
+> - **Slice 2 (reporting economy): mostly shipped.** Client is callable-only
+>   (`submitFactDispute` → `reportWrongAnswer`); server settlement landed in
+>   `functions/src/game/settleDisputeBounty.ts` with `bountySettled`
+>   idempotency and a negative-balance clamp. Ship: `0adc8e0e`.
+>   Per-report agreement tracking landed (`ombudsmanAgreed`, shown in
+>   `/admin/reports`).
+> - **Still unshipped:** reporter overturn-rate escalation (`escalateHuman`,
+>   plan item 7) and an aggregate ombudsman-vs-human agreement-% dashboard
+>   (the rest of item 8).
+>
+> The "Context And Current Facts" section below describes the repo as it was
+> on 2026-09-15; several statements are now false (per-round guesses ARE
+> persisted, bounties ARE settled server-side, reports are NOT written twice).
+
   Goal
 
   Ship two buffs: (A) per-round accuracy analytics in the admin site so real player answers continuously grade
