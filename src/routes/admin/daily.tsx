@@ -6,6 +6,7 @@ import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { DailyBlitzChat } from "@/admin/DailyBlitzChat";
 import { ErrorNote, PageHead } from "@/admin/AdminShell";
 import { exportFactsData } from "@/lib/admin/content.functions";
+import { STATUS } from "@/lib/admin/contract";
 import {
   DAILY_BLITZ_FALLBACK_CATEGORY,
   DAILY_BLITZ_ROUNDS,
@@ -86,7 +87,7 @@ function BlitzEditor({
 
   const factsQuery = useQuery({
     queryKey: ["active_facts_for_picker"],
-    queryFn: () => loadAllFacts({ data: { status: "active", pageSize: 1000 } }),
+    queryFn: () => loadAllFacts({ data: { status: STATUS.active, pageSize: 1000 } }),
     staleTime: 60_000,
   });
 
@@ -746,8 +747,8 @@ function DailyPage() {
             Drafted: {fillMutation.data.drafted.join(", ") || "none"}
             {fillMutation.data.skipped.length
               ? ` · Skipped: ${fillMutation.data.skipped
-                  .map((s) => `${s.date} (${s.reason})`)
-                  .join("; ")}`
+                .map((s) => `${s.date} (${s.reason})`)
+                .join("; ")}`
               : ""}
           </p>
         ) : null}

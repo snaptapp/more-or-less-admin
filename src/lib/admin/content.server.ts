@@ -2,6 +2,7 @@
  * Fact bank + moderation logic. Server-only: every export assumes the caller
  * has already been authorized with `requireAdmin()`.
  */
+import { z } from "zod";
 import {
   createDoc,
   factId,
@@ -15,8 +16,30 @@ import {
 } from "../firebase/firestore.server";
 import { GENRES } from "./taxonomy";
 import { parseDerivationBlock, type FactDerivationBlock } from "./daily-blitz";
+import {
+  FACT_STATUSES as CONTRACT_FACT_STATUSES,
+  QUANTITY_KINDS as CONTRACT_QUANTITY_KINDS,
+  STATUS_TRANSITIONS,
+  type FactStatus,
+  type QuantityKind,
+} from "../../../shared/fact-lifecycle-contract.gen";
 
-export const FACT_STATUSES = ["active", "disputed", "retired"] as const;
+// Derived from the shared contract (Requirement 9.1): the canonical status set
+// is owned by Main_Repository and consumed here, so no hand-written literal list
+// declares fact statuses in Admin_Repository source.
+export const FACT_STATUSES = CONTRACT_FACT_STATUSES;
+export type { FactStatus, QuantityKind };
+
+// Named fact-status constants derived from the shared contract (Requirement
+// 9.9): `STATUS.active === "active"`, etc. Referencing these instead of writing
+// the raw literal keeps the canonical status set single-sourced in the artifact
+// while the Contract_Literal_Check scan stays green. No status literal is
+// written here — the keys and values both come from CONTRACT_FACT_STATUSES.
+export const STATUS: { [K in FactStatus]: K } = (() => {
+  const out = {} as { [K in FactStatus]: K };
+  for (const value of CONTRACT_FACT_STATUSES) out[value] = value as never;
+  return out;
+})();
 export const CONTENT_RATINGS = ["standard", "after_dark"] as const;
 export const REPORT_STATUSES = ["pending_review", "resolved", "rejected"] as const;
 
@@ -35,7 +58,10 @@ export interface FactRecord {
   question: string;
   surprise_factor: number | null;
   content_rating: string;
-  status: string;
+  // Derived from the shared contract (Requirement 9.1). The `string & {}` arm
+  // keeps a persisted value absent from the contract representable verbatim
+  // (Requirement 9.10) while the `FactStatus` arm carries the declared union.
+  status: FactStatus | (string & {});
   previous_true_number: number | null;
   retired_reason: string | null;
   source_urls: string[];
@@ -84,7 +110,7 @@ export function toFact(doc: FirestoreDoc): FactRecord {
       return Math.min(3, Math.max(0, Math.round(raw)));
     })(),
     content_rating: str(d["content_rating"]) || "standard",
-    status: str(d["status"]) || "active",
+    status: str(d["status"]) || STATUS.active,
     previous_true_number: num(d["previous_true_number"]),
     retired_reason: typeof d["retired_reason"] === "string" ? d["retired_reason"] : null,
     source_urls: Array.isArray(d["source_urls"])
@@ -356,7 +382,7 @@ export async function importFactsBatch(
         source_urls: item.source_urls ?? [],
         subject_key,
         angle_key,
-        status: "active",
+        status: STATUS.active,
         previous_true_number: null,
         retired_reason: null,
         verifier_model: "csv_import",
@@ -500,20 +526,246 @@ export async function updateFact(input: FactEditInput): Promise<FactRecord> {
   });
 }
 
+/* ------------------------------- bulk update -------------------------------- */
+
+/** Smallest batch `bulkUpdateFacts` accepts in one invocation. */
+export const BULK_UPDATE_MIN_BATCH = 1;
+/** Largest batch `bulkUpdateFacts` accepts in one invocation. */
+export const BULK_UPDATE_MAX_BATCH = 200;
+
+/**
+ * The `quantity_kind` values the fact editor accepts: the contract's closed set
+ * (Requirement 9.5, derived — never restated) plus the empty-string "auto"
+ * sentinel that asks the DDM to classify the kind from the unit.
+ */
+export const QUANTITY_KIND_OPTIONS = [...CONTRACT_QUANTITY_KINDS, ""] as const;
+export type QuantityKindOption = (typeof QUANTITY_KIND_OPTIONS)[number];
+
+/**
+ * The declared fact-edit schema. Mirrors the `editInput` validator the
+ * `saveFact` / `bulkUpdateFacts` server functions apply, so a batch that
+ * reaches this module by any other route is held to the same shape.
+ */
+export const factEditSchema = z.object({
+  id: z.string().min(1),
+  subject: z.string().optional(),
+  category: z.union([z.enum(CATEGORIES), z.literal("")]).optional(),
+  sub_category: z.string().optional(),
+  angle: z.string().optional(),
+  true_number: z.number().optional(),
+  unit: z.string().optional(),
+  claim_template: z.string().optional(),
+  context: z.string().optional(),
+  question: z.string().optional(),
+  surprise_factor: z.number().int().min(0).max(3).optional(),
+  content_rating: z.enum(CONTENT_RATINGS).optional(),
+  source_urls: z.array(z.string()).optional(),
+  quantity_kind: z.enum(QUANTITY_KIND_OPTIONS).optional(),
+  plausible_min: z.string().optional(),
+  plausible_max: z.string().optional(),
+});
+
+export interface BulkUpdateResult {
+  /** Number of edits persisted. */
+  count: number;
+  /** Fact ids persisted, in application order. */
+  editedIds: string[];
+  /** Set only when the batch stopped early: the fact whose edit did not persist. */
+  failedId?: string;
+}
+
+/**
+ * A batch rejected before any Firestore write. `rule` names the violated
+ * validation rule; `index` locates the offending edit when the rule is
+ * per-edit rather than per-batch.
+ */
+export class BulkUpdateValidationError extends Error {
+  readonly rule: string;
+  readonly index: number | null;
+
+  constructor(rule: string, message: string, index: number | null = null) {
+    super(message);
+    this.name = "BulkUpdateValidationError";
+    this.rule = rule;
+    this.index = index;
+  }
+}
+
+/**
+ * A persistence failure part-way through a validated batch. Carries the
+ * persisted prefix so the caller can record exactly the ids that landed and
+ * no more.
+ */
+export class BulkUpdatePartialFailureError extends Error {
+  readonly failedId: string;
+  readonly result: BulkUpdateResult;
+
+  constructor(failedId: string, result: BulkUpdateResult, cause: unknown) {
+    super(
+      `Bulk update stopped at fact ${failedId} after persisting ${result.count} edit(s): ` +
+      (cause instanceof Error ? cause.message : String(cause)),
+      { cause },
+    );
+    this.name = "BulkUpdatePartialFailureError";
+    this.failedId = failedId;
+    this.result = result;
+  }
+}
+
+/**
+ * Apply a bounded batch of fact edits.
+ *
+ * The whole batch is validated before the first write: an empty batch, a batch
+ * larger than {@link BULK_UPDATE_MAX_BATCH}, or any edit that fails
+ * {@link factEditSchema} rejects with a {@link BulkUpdateValidationError} and
+ * leaves every targeted document untouched. Once validated, edits are applied
+ * in order through {@link updateFact}; a failure at edit *k* stops the batch
+ * and raises {@link BulkUpdatePartialFailureError} carrying the persisted
+ * prefix, so only edits before *k* are in Firestore.
+ *
+ * Audit logging is the caller's responsibility — like every other export in
+ * this module, this function writes no audit entry, so exactly one entry per
+ * batch is emitted by the server-function handler.
+ */
+export async function bulkUpdateFacts(updates: FactEditInput[]): Promise<BulkUpdateResult> {
+  if (!Array.isArray(updates)) {
+    throw new BulkUpdateValidationError(
+      "batch must be an array of fact edits",
+      "Bulk update rejected: batch must be an array of fact edits",
+    );
+  }
+  if (updates.length < BULK_UPDATE_MIN_BATCH) {
+    throw new BulkUpdateValidationError(
+      `batch size >= ${BULK_UPDATE_MIN_BATCH}`,
+      `Bulk update rejected: batch must contain at least ${BULK_UPDATE_MIN_BATCH} edit, received ${updates.length}`,
+    );
+  }
+  if (updates.length > BULK_UPDATE_MAX_BATCH) {
+    throw new BulkUpdateValidationError(
+      `batch size <= ${BULK_UPDATE_MAX_BATCH}`,
+      `Bulk update rejected: batch must contain at most ${BULK_UPDATE_MAX_BATCH} edits, received ${updates.length}`,
+    );
+  }
+  for (let index = 0; index < updates.length; index++) {
+    const parsed = factEditSchema.safeParse(updates[index]);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const field = issue.path.length > 0 ? issue.path.join(".") : "edit";
+      const rule = `${field}: ${issue.message}`;
+      throw new BulkUpdateValidationError(
+        rule,
+        `Bulk update rejected: edit at index ${index} violates the edit schema (${rule})`,
+        index,
+      );
+    }
+  }
+
+  // Validation passed for the whole batch, so the first write happens only
+  // once no rule can still reject it.
+  const editedIds: string[] = [];
+  for (const update of updates) {
+    try {
+      await updateFact(update);
+    } catch (err) {
+      throw new BulkUpdatePartialFailureError(
+        update.id,
+        { count: editedIds.length, editedIds: [...editedIds], failedId: update.id },
+        err,
+      );
+    }
+    editedIds.push(update.id);
+  }
+
+  return { count: editedIds.length, editedIds };
+}
+
+/**
+ * A `setFactStatus` call the shared contract does not permit. Raised before any
+ * Firestore write, so the targeted document is left unchanged (Requirements
+ * 9.3, 9.4). The message names both the fact's current status and the rejected
+ * target status.
+ */
+export class FactStatusTransitionError extends Error {
+  readonly factId: string;
+  readonly from: string;
+  readonly to: string;
+
+  constructor(factId: string, from: string, to: string) {
+    super(
+      `Status change rejected for fact ${factId}: the transition from "${from}" to "${to}" ` +
+      `is not admin-authorized by the shared fact-lifecycle contract.`,
+    );
+    this.name = "FactStatusTransitionError";
+    this.factId = factId;
+    this.from = from;
+    this.to = to;
+  }
+}
+
+/**
+ * Whether the shared contract marks the current→requested status change as one
+ * an admin may write. A pair the contract does not declare, or declares with
+ * `adminAuthorized: false`, is not authorized — so a status with no
+ * admin-authorized outgoing target is displayable and filterable but has no
+ * valid transition to offer and can never be written to (Requirement 9.8).
+ */
+function isAdminAuthorizedTransition(from: string, to: string): boolean {
+  return STATUS_TRANSITIONS.some(
+    (transition) =>
+      transition.from === from && transition.to === to && transition.adminAuthorized,
+  );
+}
+
+/**
+ * The "live" status a corrected fact is reinstated to, derived from the shared
+ * contract rather than a restated literal: the status that is both an
+ * admin-authorized transition *target* (something can be promoted into it) and
+ * an admin-authorized transition *source* (it is not terminal). `active` is the
+ * only status satisfying both in the current contract, but the rule follows the
+ * contract if the transition table changes.
+ */
+function liveStatus(): FactStatus | null {
+  const authorized = STATUS_TRANSITIONS.filter((t) => t.adminAuthorized);
+  const sources = new Set(authorized.map((t) => t.from));
+  const targets = authorized.map((t) => t.to);
+  const live = targets.filter((status) => sources.has(status));
+  return live.length > 0 ? live[0] : null;
+}
+
+/**
+ * The status a fact currently in `from` should be reinstated to when its number
+ * is corrected, or `null` when no such contract-authorized move exists (for
+ * example the fact is already live, which has no self-transition).
+ */
+function reinstatementTargetFor(from: string): FactStatus | null {
+  const target = liveStatus();
+  if (target === null || from === target) return null;
+  return isAdminAuthorizedTransition(from, target) ? target : null;
+}
+
 export async function setFactStatus(input: {
   id: string;
   status: (typeof FACT_STATUSES)[number];
   reason?: string;
   verifierModel?: string;
 }): Promise<FactRecord> {
+  // The transition is evaluated current-status → requested-status, reading the
+  // current status from the persisted document, and rejected before any write
+  // when the contract does not mark it admin-authorized (Requirements 9.3, 9.4).
+  const existing = await getFact(input.id);
+  if (!existing) throw new Error(`Fact ${input.id} not found`);
+  if (!isAdminAuthorizedTransition(existing.status, input.status)) {
+    throw new FactStatusTransitionError(input.id, existing.status, input.status);
+  }
+
   const patch: Record<string, unknown> = {
     status: input.status,
     updated_at: new Date().toISOString(),
   };
-  if (input.status === "retired") {
+  if (input.status === STATUS.retired) {
     patch["retired_reason"] = input.reason ?? "Retired from admin portal";
   }
-  if (input.status === "active") {
+  if (input.status === STATUS.active) {
     patch["verified_at"] = new Date().toISOString();
     patch["verifier_model"] = input.verifierModel ?? "admin_portal";
     patch["retired_reason"] = null;
@@ -554,7 +806,7 @@ export async function createFact(input: {
     context: input.context?.trim() || question,
     subject_key,
     angle_key,
-    status: "active",
+    status: STATUS.active,
     previous_true_number: null,
     retired_reason: null,
     verifier_model: "admin_portal",
@@ -808,7 +1060,7 @@ export async function resolveReport(input: {
     if (input.factId) {
       await setFactStatus({
         id: input.factId,
-        status: "retired",
+        status: STATUS.retired,
         reason: input.note ?? "Retired via player report",
       });
     }
@@ -822,8 +1074,17 @@ export async function resolveReport(input: {
 
   if (input.action === "fix_number") {
     if (input.factId && input.correctedNumber !== undefined) {
-      await updateFact({ id: input.factId, true_number: input.correctedNumber });
-      await setFactStatus({ id: input.factId, status: "active" });
+      const corrected = await updateFact({ id: input.factId, true_number: input.correctedNumber });
+      // Re-activate only along a contract-authorized transition (Requirements
+      // 9.3, 9.4). The reinstatement target and its authorization both come
+      // from the shared contract, never a restated literal: fixing the number
+      // of a disputed fact reinstates it, while a fact already in that status
+      // has no self-transition and is left as-is rather than forced through
+      // the guard.
+      const reinstateTarget = reinstatementTargetFor(corrected.status);
+      if (reinstateTarget !== null) {
+        await setFactStatus({ id: input.factId, status: reinstateTarget });
+      }
     }
     await patchDoc(`trivia_reports/${input.reportId}`, {
       status: "resolved",
@@ -841,7 +1102,7 @@ export async function resolveReport(input: {
     const claim_template = input.claimStatement
       ? input.claimStatement.replace(new RegExp(String(true_number), "g"), "{n}")
       : `${subject}: {n} ${unit}`;
-    
+
     await createFact({
       subject,
       angle,
@@ -886,11 +1147,11 @@ export async function resolveReport(input: {
         : null;
   if (storedFactId && reportData["reportSource"] === "round_telemetry") {
     const factDoc = await getDoc(`fact_bank/${storedFactId}`);
-    if (factDoc && factDoc.data["status"] === "disputed") {
+    if (factDoc && factDoc.data["status"] === STATUS.disputed) {
       const previous =
         typeof reportData["factPreviousStatus"] === "string" && reportData["factPreviousStatus"]
           ? (reportData["factPreviousStatus"] as string)
-          : "active";
+          : STATUS.active;
       await patchDoc(`fact_bank/${storedFactId}`, { status: previous });
     }
   }

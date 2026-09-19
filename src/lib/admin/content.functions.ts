@@ -2,9 +2,30 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "./middleware";
 import { GENRES } from "./taxonomy";
+import {
+  FACT_STATUSES,
+  QUANTITY_KINDS,
+  type FactStatus,
+} from "../../../shared/fact-lifecycle-contract.gen";
 
 export const CANONICAL_CATEGORIES = GENRES;
 export type CanonicalCategory = (typeof CANONICAL_CATEGORIES)[number];
+
+/**
+ * The `quantity_kind` values the fact edit input accepts: the shared contract's
+ * closed set (Requirement 9.5, derived) plus the empty-string "auto" sentinel.
+ */
+const QUANTITY_KIND_OPTIONS = [...QUANTITY_KINDS, ""] as const;
+
+// Named fact-status constants derived from the shared contract (Requirement
+// 9.9): the overview count queries and status series below reference
+// `STATUS.active` etc. rather than restating the raw status literal. No status
+// literal is written here — keys and values both come from FACT_STATUSES.
+const STATUS: { [K in FactStatus]: K } = (() => {
+  const out = {} as { [K in FactStatus]: K };
+  for (const value of FACT_STATUSES) out[value] = value as never;
+  return out;
+})();
 
 const listInput = z.object({
   search: z.string().optional(),
@@ -58,9 +79,9 @@ const editInput = z.object({
   surprise_factor: z.number().int().min(0).max(3).optional(),
   content_rating: z.enum(["standard", "after_dark"]).optional(),
   source_urls: z.array(z.string()).optional(),
-  quantity_kind: z
-    .enum(["year", "count", "percentage", "ratio", "physical_measure", "money", "duration", "rating", ""])
-    .optional(),
+  // Derived from the shared contract (Requirement 9.5): the closed set plus the
+  // "auto" sentinel, never restated as a hand-written literal list here.
+  quantity_kind: z.enum(QUANTITY_KIND_OPTIONS).optional(),
   plausible_min: z.string().optional(),
   plausible_max: z.string().optional(),
 });
@@ -82,21 +103,62 @@ export const saveFact = createServerFn({ method: "POST" }).middleware([authMiddl
     return updated;
   });
 
+/**
+ * Audit `targetId` for a bulk fact update. A batch that persisted exactly one
+ * edit is attributed to that fact; any other batch gets a generated batch id,
+ * so the field is never empty and the edited ids travel in the entry payload.
+ */
+function bulkUpdateTargetId(editedIds: string[]): string {
+  if (editedIds.length === 1) return editedIds[0];
+  return `bulk_update_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export const bulkUpdateFacts = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z.object({ updates: z.array(editInput).min(1).max(200) }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const caller = context.user;
-    const { bulkUpdateFacts } = await import("./content.server");
-    const count = await bulkUpdateFacts(data.updates);
+    const { bulkUpdateFacts, BulkUpdatePartialFailureError } = await import("./content.server");
     const { logAdminAction } = await import("@/lib/firebase/audit.server");
-    await logAdminAction(caller, {
-      action: "fact.bulk_update",
-      targetType: "fact",
-      details: `Bulk updated ${count} facts`,
-    });
-    return { count };
+
+    // Exactly one entry per batch that wrote anything: the successful batch, or
+    // the persisted prefix of a partial failure. A batch rejected before its
+    // first write never reaches here, so it leaves no audit trail.
+    const writeAuditEntry = async (
+      result: { count: number; editedIds: string[] },
+      failedId?: string,
+    ) => {
+      await logAdminAction(caller, {
+        action: "fact.bulk_update",
+        targetType: "fact",
+        targetId: bulkUpdateTargetId(result.editedIds),
+        details: failedId
+          ? `Bulk updated ${result.count} of ${data.updates.length} facts before failing at ${failedId}`
+          : `Bulk updated ${result.count} facts`,
+        after: {
+          count: result.count,
+          editedIds: result.editedIds,
+          ...(failedId ? { failedId } : {}),
+        },
+      });
+    };
+
+    let result: { count: number; editedIds: string[] };
+    try {
+      result = await bulkUpdateFacts(data.updates);
+    } catch (err) {
+      // Partial failure already persisted a prefix, so it is audited before the
+      // error surfaces; a validation rejection wrote nothing and is re-raised
+      // untouched so the caller sees which rule it violated.
+      if (err instanceof BulkUpdatePartialFailureError) {
+        await writeAuditEntry(err.result, err.failedId);
+      }
+      throw err;
+    }
+
+    await writeAuditEntry(result);
+    return result;
   });
 
 export const changeFactStatus = createServerFn({ method: "POST" }).middleware([authMiddleware])
@@ -104,7 +166,9 @@ export const changeFactStatus = createServerFn({ method: "POST" }).middleware([a
     z
       .object({
         id: z.string().min(1),
-        status: z.enum(["active", "disputed", "retired"]),
+        // Accepted status targets derive from the shared contract's declared
+        // set (Requirement 9.1) rather than a hand-written literal list.
+        status: z.enum(FACT_STATUSES),
         reason: z.string().optional(),
       })
       .parse(data),
@@ -179,12 +243,21 @@ export const bulkImportFacts = createServerFn({ method: "POST" }).middleware([au
     const caller = context.user;
     const { importFactsBatch } = await import("./content.server");
     const result = await importFactsBatch(data.facts);
+    // The import writes fact_bank documents but has no single document target, so the
+    // audit entry is keyed by a generated import-batch id (non-empty per Requirement 3.8).
+    const importBatchId = `import_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const { logAdminAction } = await import("@/lib/firebase/audit.server");
     await logAdminAction(caller, {
       action: "fact.bulk_import",
-      targetType: "fact_bank",
+      targetType: "fact",
+      targetId: importBatchId,
       details: `Bulk imported ${result.imported} facts (${result.skipped} skipped)`,
-      after: { importedCount: result.imported, skippedCount: result.skipped, errors: result.errors },
+      after: {
+        batchId: importBatchId,
+        importedCount: result.imported,
+        skippedCount: result.skipped,
+        errors: result.errors,
+      },
     });
     return result;
   });
@@ -251,7 +324,7 @@ export const fetchOverview = createServerFn({ method: "GET" })
       CANONICAL_CATEGORIES.map(async (category) => ({
         name: category,
         count: await countCollection("fact_bank", [
-          { field: "status", op: "EQUAL", value: "active" },
+          { field: "status", op: "EQUAL", value: STATUS.active },
           { field: "category", op: "EQUAL", value: category },
         ]),
       })),
@@ -274,18 +347,18 @@ export const fetchOverview = createServerFn({ method: "GET" })
       categoryCounts,
       gameAnalytics,
     ] = await Promise.all([
-      countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "active" }]),
-      countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "disputed" }]),
-      countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: "retired" }]),
+      countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: STATUS.active }]),
+      countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: STATUS.disputed }]),
+      countCollection("fact_bank", [{ field: "status", op: "EQUAL", value: STATUS.retired }]),
       countCollection("trivia_reports", [{ field: "status", op: "EQUAL", value: "pending_review" }]),
       countCollection("trivia_reports", [{ field: "status", op: "EQUAL", value: "resolved" }]),
       countCollection("trivia_reports", [{ field: "status", op: "EQUAL", value: "rejected" }]),
       countCollection("fact_bank", [
-        { field: "status", op: "EQUAL", value: "active" },
+        { field: "status", op: "EQUAL", value: STATUS.active },
         { field: "content_rating", op: "EQUAL", value: "standard" },
       ]),
       countCollection("fact_bank", [
-        { field: "status", op: "EQUAL", value: "active" },
+        { field: "status", op: "EQUAL", value: STATUS.active },
         { field: "content_rating", op: "EQUAL", value: "after_dark" },
       ]),
       countCollection("crawl_queue", [{ field: "status", op: "EQUAL", value: "queued" }]),
@@ -306,9 +379,9 @@ export const fetchOverview = createServerFn({ method: "GET" })
 
     const series = {
       factStatus: [
-        { name: "active", count: active },
-        { name: "disputed", count: disputed },
-        { name: "retired", count: retired },
+        { name: STATUS.active, count: active },
+        { name: STATUS.disputed, count: disputed },
+        { name: STATUS.retired, count: retired },
       ] satisfies OverviewSeriesRow[],
       contentRating: [
         { name: "standard", count: ratingStandard },

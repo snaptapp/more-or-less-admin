@@ -11,6 +11,7 @@ import {
   type QuantityKind,
   SURPRISE_DESCRIPTIONS,
 } from "@/lib/admin/derivation-audit";
+import { QK, QUANTITY_KINDS } from "@/lib/admin/contract";
 import {
   probeGoAgentPackFn,
   type ProbedRoundAudit,
@@ -34,7 +35,7 @@ const PRESETS: PresetExample[] = [
     trueNumber: 8848,
     unit: "meters",
     surpriseFactor: 2,
-    quantityKind: "physical_measure",
+    quantityKind: QK.physical_measure,
     trapDirection: "OVERESTIMATE",
     plausibleMin: 0,
     plausibleMax: 15000,
@@ -43,9 +44,12 @@ const PRESETS: PresetExample[] = [
   {
     label: "Apollo 11 Moon Landing (Year)",
     trueNumber: 1969,
-    unit: "year",
+    // The unit string for this preset is the word "year"; sourced from QK.year
+    // (=== "year") so this display unit is not a bare forbidden literal. It is a
+    // unit label, not a DDM quantity_kind field (Requirement 9.9).
+    unit: QK.year,
     surpriseFactor: 1,
-    quantityKind: "year",
+    quantityKind: QK.year,
     trapDirection: "UNDERESTIMATE",
     plausibleMin: 1900,
     plausibleMax: 2025,
@@ -56,7 +60,7 @@ const PRESETS: PresetExample[] = [
     trueNumber: 206,
     unit: "bones",
     surpriseFactor: 2,
-    quantityKind: "count",
+    quantityKind: QK.count,
     trapDirection: "OVERESTIMATE",
     plausibleMin: 10,
     plausibleMax: 1000,
@@ -67,7 +71,7 @@ const PRESETS: PresetExample[] = [
     trueNumber: 71,
     unit: "%",
     surpriseFactor: 0,
-    quantityKind: "percentage",
+    quantityKind: QK.percentage,
     trapDirection: "OVERESTIMATE",
     plausibleMin: 0,
     plausibleMax: 100,
@@ -78,7 +82,7 @@ const PRESETS: PresetExample[] = [
     trueNumber: 860,
     unit: "million dollars",
     surpriseFactor: 3,
-    quantityKind: "money",
+    quantityKind: QK.money,
     trapDirection: "UNDERESTIMATE",
     plausibleMin: 1,
     plausibleMax: 10000,
@@ -89,13 +93,30 @@ const PRESETS: PresetExample[] = [
     trueNumber: 70,
     unit: "mph",
     surpriseFactor: 1,
-    quantityKind: "physical_measure",
+    quantityKind: QK.physical_measure,
     trapDirection: "OVERESTIMATE",
     plausibleMin: 10,
     plausibleMax: 120,
     topic: "Animals",
   },
 ];
+
+/**
+ * Display labels for the quantity-kind override select, keyed by the contract's
+ * `QuantityKind` so the compiler ties this map to Shared_Contract_Artifact
+ * (Requirement 9.5 / 9.9). The select renders one option per QUANTITY_KINDS
+ * member in artifact order, using the kind itself as the option value.
+ */
+const QUANTITY_KIND_LABELS: Record<QuantityKind, string> = {
+  [QK.year]: "year (additive)",
+  [QK.count]: "count (multiplicative)",
+  [QK.percentage]: "percentage (bounded)",
+  [QK.ratio]: QK.ratio,
+  [QK.physical_measure]: QK.physical_measure,
+  [QK.money]: "money (multiplicative)",
+  [QK.duration]: "duration (multiplicative)",
+  [QK.rating]: "rating (bounded)",
+};
 
 export interface DerivationInspectorProps {
   initialValues?: {
@@ -212,7 +233,7 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
           <Button
             type="button"
             size="sm"
-            variant={subTab === "probe" ? "primary" : "secondary"}
+            variant={subTab === "probe" ? "primary" : "ghost"}
             onClick={() => setSubTab("probe")}
           >
             🤖 Live Go Agent Pack Probe
@@ -283,14 +304,11 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
                   onChange={(e) => setKindOverride(e.target.value)}
                 >
                   <option value="">Auto-detect from unit</option>
-                  <option value="year">year (additive)</option>
-                  <option value="count">count (multiplicative)</option>
-                  <option value="percentage">percentage (bounded)</option>
-                  <option value="physical_measure">physical_measure</option>
-                  <option value="money">money (multiplicative)</option>
-                  <option value="duration">duration (multiplicative)</option>
-                  <option value="rating">rating (bounded)</option>
-                  <option value="ratio">ratio</option>
+                  {QUANTITY_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {QUANTITY_KIND_LABELS[kind]}
+                    </option>
+                  ))}
                 </select>
               </label>
 

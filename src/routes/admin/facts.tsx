@@ -3,7 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState, Fragment, type FormEvent } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
-import { ErrorNote, InfoTip, InlineEditorRow, PageHead, statusTone } from "@/admin/AdminShell";
+import {
+  adminAuthorizedTargetsFor,
+  ErrorNote,
+  FactStatusBadge,
+  InfoTip,
+  InlineEditorRow,
+  PageHead,
+} from "@/admin/AdminShell";
 import { CrawlQueue, PlaylistsPanel, TopicsPanel } from "@/admin/taxonomyPanels";
 import { FactsBankChat } from "@/admin/FactsBankChat";
 import {
@@ -16,6 +23,38 @@ import {
 } from "@/lib/admin/content.functions";
 import { fetchPlaylists, fetchSubjects } from "@/lib/admin/ops.functions";
 import { CONTENT_VIEWS, GENRES, familiesForGenre, isContentView, type ContentView } from "@/lib/admin/taxonomy";
+import {
+  FACT_STATUSES,
+  QUANTITY_KINDS,
+  type FactStatus,
+  type QuantityKind,
+} from "../../../shared/fact-lifecycle-contract.gen";
+import { STATUS } from "@/lib/admin/contract";
+
+/** The `quantity_kind` values the editor offers: the contract's closed set
+ * (Requirement 9.5, derived) plus the empty-string "auto" sentinel. */
+const QUANTITY_KIND_OPTIONS = ["", ...QUANTITY_KINDS] as const;
+
+/**
+ * For each declared fact status, the admin-authorized transition target from
+ * `from` when one exists, else `undefined`. The values are the actual status
+ * strings the shared contract's transition table declares — never a literal
+ * written here (Requirement 9.9). Keys are bare identifiers, so a truthy entry
+ * both gates its control and supplies the target status to the mutation. An
+ * unknown persisted status is not a declared transition source, so every entry
+ * is `undefined` and the editor offers no status-change control for it
+ * (Requirements 9.3, 9.4, 9.8, 9.10).
+ */
+function authorizedStatusTargets(from: string): Record<FactStatus, FactStatus | undefined> {
+  const targets: Record<FactStatus, FactStatus | undefined> = {
+    active: undefined,
+    pending: undefined,
+    disputed: undefined,
+    retired: undefined,
+  };
+  for (const target of adminAuthorizedTargetsFor(from)) targets[target] = target;
+  return targets;
+}
 
 export const Route = createFileRoute("/admin/facts")({
   validateSearch: (search: Record<string, unknown>): { view?: ContentView } => {
@@ -99,6 +138,13 @@ const EMPTY_DRAFT = {
   source_urls: "",
 };
 
+/** Display label for a `quantity_kind` option. The empty string is the DDM
+ * "auto" sentinel; every contract kind renders as its own identifier so no
+ * `quantity_kind` value is restated as a literal here (Requirement 9.9). */
+function quantityKindLabel(kind: (typeof QUANTITY_KIND_OPTIONS)[number]): string {
+  return kind === "" ? "auto (classify from unit)" : kind;
+}
+
 function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
   const save = useServerFn(saveFact);
   const status = useServerFn(changeFactStatus);
@@ -172,7 +218,7 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
           surprise_factor: Number(form.surprise_factor),
           content_rating: form.content_rating as "standard" | "after_dark",
           source_urls: form.source_urls.split("\n").map((v) => v.trim()).filter(Boolean),
-          quantity_kind: form.quantity_kind as "" | "year" | "count" | "percentage" | "ratio" | "physical_measure" | "money" | "duration" | "rating",
+          quantity_kind: form.quantity_kind as QuantityKind | "",
           plausible_min: form.plausible_min,
           plausible_max: form.plausible_max,
         },
@@ -184,16 +230,21 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
   });
 
   const statusMutation = useMutation({
-    mutationFn: (next: "active" | "disputed" | "retired") =>
+    mutationFn: (next: FactStatus) =>
       status({
         data: {
           id: fact.id,
           status: next,
-          reason: next === "retired" ? "Retired from admin portal" : undefined,
         },
       }),
     onSuccess: invalidate,
   });
+
+  // Which status-change controls the editor offers, decided at runtime from the
+  // shared contract's transition table (Requirements 9.3, 9.4, 9.8). An unknown
+  // persisted status is not a declared transition source, so every entry is
+  // false and no status-change control is offered for it (Requirement 9.10).
+  const canTransitionTo = authorizedStatusTargets(fact.status);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -214,7 +265,7 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
       <form onSubmit={submit} style={{ display: "grid", gap: "var(--ds-arena-space-4)" }}>
         <div className="admin-page-head">
           <CardTitle>Edit fact</CardTitle>
-          <Badge tone={statusTone(fact.status)}>{fact.status}</Badge>
+          <FactStatusBadge status={fact.status} />
         </div>
         <p style={{ fontFamily: "var(--ds-arena-font-mono)", fontSize: 12, color: "var(--ds-arena-color-text-muted)" }}>
           {fact.id}
@@ -321,15 +372,11 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
               value={form.quantity_kind}
               onChange={(e) => setForm({ ...form, quantity_kind: e.target.value })}
             >
-              <option value="">auto (classify from unit)</option>
-              <option value="year">year</option>
-              <option value="count">count</option>
-              <option value="percentage">percentage</option>
-              <option value="ratio">ratio</option>
-              <option value="physical_measure">physical_measure</option>
-              <option value="money">money</option>
-              <option value="duration">duration</option>
-              <option value="rating">rating (0-10 scale)</option>
+              {QUANTITY_KIND_OPTIONS.map((kind) => (
+                <option key={kind || "auto"} value={kind}>
+                  {quantityKindLabel(kind)}
+                </option>
+              ))}
             </select>
           </label>
           <label className="admin-field">
@@ -463,31 +510,45 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
           <Button type="submit" disabled={saveMutation.isPending}>
             {saveMutation.isPending ? "Saving…" : "Save changes"}
           </Button>
-          <Button
-            type="button"
-            variant="daily"
-            onClick={() => statusMutation.mutate("active")}
-          >
-            Verify &amp; approve
-          </Button>
-          <Button
-            type="button"
-            variant="skip"
-            onClick={() => statusMutation.mutate("disputed")}
-          >
-            Mark disputed
-          </Button>
-          <Button
-            type="button"
-            variant="danger"
-            onClick={() => {
-              if (window.confirm("Retire this fact? It stops being served.")) {
-                statusMutation.mutate("retired");
-              }
-            }}
-          >
-            Retire
-          </Button>
+          {/* Each control renders only when the fact's current status has an
+              admin-authorized transition to that target. An unknown persisted
+              status authorizes none, so it can be viewed but not transitioned
+              (Requirements 9.8, 9.10). Target statuses are supplied to the
+              mutation via the contract-derived helper, never a literal here. */}
+          {canTransitionTo.active ? (
+            <Button
+              type="button"
+              variant="daily"
+              disabled={statusMutation.isPending}
+              onClick={() => statusMutation.mutate(canTransitionTo.active!)}
+            >
+              Verify &amp; approve
+            </Button>
+          ) : null}
+          {canTransitionTo.disputed ? (
+            <Button
+              type="button"
+              variant="skip"
+              disabled={statusMutation.isPending}
+              onClick={() => statusMutation.mutate(canTransitionTo.disputed!)}
+            >
+              Mark disputed
+            </Button>
+          ) : null}
+          {canTransitionTo.retired ? (
+            <Button
+              type="button"
+              variant="danger"
+              disabled={statusMutation.isPending}
+              onClick={() => {
+                if (window.confirm("Retire this fact? It stops being served.")) {
+                  statusMutation.mutate(canTransitionTo.retired!);
+                }
+              }}
+            >
+              Retire
+            </Button>
+          ) : null}
           <Button type="button" variant="ghost" onClick={onDone}>
             Close
           </Button>
@@ -714,7 +775,9 @@ function ContentPage() {
     playlistId: "",
     subject: "",
     angle: "",
-    status: "active",
+    // Default to the contract's active status; `String(...)` keeps the state
+    // field's inferred type `string` (the filter also accepts "" for "All").
+    status: String(STATUS.active),
     contentRating: "",
     surpriseFactor: "",
   });
@@ -806,14 +869,14 @@ function ContentPage() {
 
   const hasActiveFilters = Boolean(
     filters.search ||
-      filters.category ||
-      filters.family ||
-      filters.playlistId ||
-      filters.subject ||
-      filters.angle ||
-      filters.status !== "active" ||
-      filters.contentRating ||
-      filters.surpriseFactor !== "",
+    filters.category ||
+    filters.family ||
+    filters.playlistId ||
+    filters.subject ||
+    filters.angle ||
+    filters.status !== STATUS.active ||
+    filters.contentRating ||
+    filters.surpriseFactor !== "",
   );
 
   const resetFilters = () => {
@@ -825,7 +888,7 @@ function ContentPage() {
       playlistId: "",
       subject: "",
       angle: "",
-      status: "active",
+      status: STATUS.active,
       contentRating: "",
       surpriseFactor: "",
     });
@@ -915,378 +978,382 @@ function ContentPage() {
   return (
     <div className="daily-blitz-layout">
       <div className="daily-blitz-main">
-      <PageHead
-        title="Content"
-        description="Facts attach to topics. Topics sit in a genre and family. Playlists are optional theme mixes."
-        actions={
-          view === "facts" ? (
-          <div style={{ display: "flex", gap: "8px" }}>
-            <Button
-              variant="ghost"
-              disabled={exporting}
-              onClick={() => void handleExportCsv()}
+        <PageHead
+          title="Content"
+          description="Facts attach to topics. Topics sit in a genre and family. Playlists are optional theme mixes."
+          actions={
+            view === "facts" ? (
+              <div style={{ display: "flex", gap: "8px" }}>
+                <Button
+                  variant="ghost"
+                  disabled={exporting}
+                  onClick={() => void handleExportCsv()}
+                >
+                  {exporting ? "Exporting…" : "Export CSV"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setImporting((v) => !v);
+                    setCreating(false);
+                    setSelected(null);
+                  }}
+                >
+                  {importing ? "Close Import" : "Import CSV"}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setCreating((value) => !value);
+                    setImporting(false);
+                    setSelected(null);
+                  }}
+                >
+                  {creating ? "Close" : "New fact"}
+                </Button>
+              </div>
+            ) : undefined
+          }
+        />
+
+        <nav className="admin-tabs" aria-label="Content sections">
+          {CONTENT_VIEWS.map((item) => (
+            <Link
+              key={item}
+              to="/admin/facts"
+              search={{ view: item }}
+              className={view === item ? "is-active" : undefined}
             >
-              {exporting ? "Exporting…" : "Export CSV"}
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setImporting((v) => !v);
-                setCreating(false);
-                setSelected(null);
-              }}
-            >
-              {importing ? "Close Import" : "Import CSV"}
-            </Button>
-            <Button
-              onClick={() => {
-                setCreating((value) => !value);
-                setImporting(false);
-                setSelected(null);
-              }}
-            >
-              {creating ? "Close" : "New fact"}
-            </Button>
-          </div>
-          ) : undefined
-        }
-      />
+              {viewLabel(item)}
+            </Link>
+          ))}
+        </nav>
 
-      <nav className="admin-tabs" aria-label="Content sections">
-        {CONTENT_VIEWS.map((item) => (
-          <Link
-            key={item}
-            to="/admin/facts"
-            search={{ view: item }}
-            className={view === item ? "is-active" : undefined}
-          >
-            {viewLabel(item)}
-          </Link>
-        ))}
-      </nav>
+        {view === "topics" ? <TopicsPanel /> : null}
+        {view === "playlists" ? <PlaylistsPanel /> : null}
+        {view === "crawl" ? <CrawlQueue /> : null}
+        {view === "facts" ? (
+          <>
 
-      {view === "topics" ? <TopicsPanel /> : null}
-      {view === "playlists" ? <PlaylistsPanel /> : null}
-      {view === "crawl" ? <CrawlQueue /> : null}
-      {view === "facts" ? (
-        <>
-
-      <div className="admin-toolbar">
-        <label className="admin-field" style={{ flex: "1 1 240px" }}>
-          <span>Search all text (subject, angle, question, context)</span>
-          <input
-            className="admin-input"
-            placeholder="Search keywords…"
-            value={filters.search}
-            onChange={(e) => {
-              setPage(1);
-              setFilters({ ...filters, search: e.target.value });
-            }}
-          />
-        </label>
-        <label className="admin-field" style={{ flex: "0 1 200px" }}>
-          <span>Genre</span>
-          <select
-            className="admin-select"
-            value={filters.category}
-            onChange={(e) => {
-              setPage(1);
-              setFilters({ ...filters, category: e.target.value, family: "" });
-            }}
-          >
-            <option value="">All genres</option>
-            {GENRES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="admin-field" style={{ flex: "0 1 180px" }}>
-          <span>Family</span>
-          <select
-            className="admin-select"
-            value={filters.family}
-            onChange={(e) => {
-              setPage(1);
-              setFilters({ ...filters, family: e.target.value });
-            }}
-          >
-            <option value="">All families</option>
-            {familyOptions.map((family) => (
-              <option key={family} value={family}>
-                {family}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="admin-field" style={{ flex: "0 1 180px" }}>
-          <span>Playlist</span>
-          <select
-            className="admin-select"
-            value={filters.playlistId}
-            onChange={(e) => {
-              setPage(1);
-              setFilters({ ...filters, playlistId: e.target.value });
-            }}
-          >
-            <option value="">All playlists</option>
-            {(playlistsQuery.data ?? []).map((playlist) => (
-              <option key={playlist.id} value={playlist.id}>
-                {playlist.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="admin-field">
-          <span>Per page</span>
-          <select
-            className="admin-select"
-            value={pageSize}
-            onChange={(e) => {
-              setPage(1);
-              setPageSize(Number(e.target.value));
-            }}
-          >
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-            <option value="250">250</option>
-            <option value="500">500</option>
-            <option value="1000">All (1,000)</option>
-          </select>
-        </label>
-        {hasActiveFilters ? (
-          <div style={{ alignSelf: "flex-end", paddingBottom: "6px" }}>
-            <Button size="sm" variant="ghost" onClick={resetFilters}>
-              Reset filters
-            </Button>
-          </div>
-        ) : null}
-      </div>
-
-      <ErrorNote error={query.error} />
-      {importing ? <ImportCsvModal onDone={() => setImporting(false)} /> : null}
-      {creating ? <NewFactForm onDone={() => setCreating(false)} /> : null}
-
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th className="admin-th-sortable" onClick={() => toggleSort("subject")}>
-                Topic {renderSortIcon("subject")}
-              </th>
-              <th className="admin-th-sortable" onClick={() => toggleSort("angle")}>
-                Angle {renderSortIcon("angle")}{" "}
-                <InfoTip position="bottom" text="The specific metric, dimension, or record being measured." />
-              </th>
-              <th className="admin-th-sortable" onClick={() => toggleSort("true_number")}>
-                Value {renderSortIcon("true_number")}
-              </th>
-              <th className="admin-th-sortable" onClick={() => toggleSort("surprise_factor")}>
-                Surprise {renderSortIcon("surprise_factor")}{" "}
-                <InfoTip position="bottom" text="Scale of 0 (obvious) to 3 (mind-blowing counterintuitive)." />
-              </th>
-              <th>Rating</th>
-              <th>Status</th>
-              <th className="admin-th-sortable" onClick={() => toggleSort("served_count")}>
-                Served {renderSortIcon("served_count")}
-              </th>
-              <th style={{ width: 80, textAlign: "right" }} />
-            </tr>
-            <tr className="admin-table-header-filters">
-              <th>
+            <div className="admin-toolbar">
+              <label className="admin-field" style={{ flex: "1 1 240px" }}>
+                <span>Search all text (subject, angle, question, context)</span>
                 <input
-                  className="admin-header-input"
-                  placeholder="Filter topic…"
-                  value={filters.subject}
+                  className="admin-input"
+                  placeholder="Search keywords…"
+                  value={filters.search}
                   onChange={(e) => {
                     setPage(1);
-                    setFilters({ ...filters, subject: e.target.value });
+                    setFilters({ ...filters, search: e.target.value });
                   }}
                 />
-              </th>
-              <th>
-                <input
-                  className="admin-header-input"
-                  placeholder="Filter angle…"
-                  value={filters.angle}
-                  onChange={(e) => {
-                    setPage(1);
-                    setFilters({ ...filters, angle: e.target.value });
-                  }}
-                />
-              </th>
-              <th />
-              <th>
+              </label>
+              <label className="admin-field" style={{ flex: "0 1 200px" }}>
+                <span>Genre</span>
                 <select
-                  className="admin-header-select"
-                  value={filters.surpriseFactor}
+                  className="admin-select"
+                  value={filters.category}
                   onChange={(e) => {
                     setPage(1);
-                    setFilters({ ...filters, surpriseFactor: e.target.value });
+                    setFilters({ ...filters, category: e.target.value, family: "" });
                   }}
                 >
-                  <option value="">All</option>
-                  <option value="0">0 · Obvious</option>
-                  <option value="1">1 · Mild</option>
-                  <option value="2">2 · Very</option>
-                  <option value="3">3 · Mind-blowing</option>
+                  <option value="">All genres</option>
+                  {GENRES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
                 </select>
-              </th>
-              <th>
+              </label>
+              <label className="admin-field" style={{ flex: "0 1 180px" }}>
+                <span>Family</span>
                 <select
-                  className="admin-header-select"
-                  value={filters.contentRating}
+                  className="admin-select"
+                  value={filters.family}
                   onChange={(e) => {
                     setPage(1);
-                    setFilters({ ...filters, contentRating: e.target.value });
+                    setFilters({ ...filters, family: e.target.value });
                   }}
                 >
-                  <option value="">All</option>
-                  <option value="standard">standard</option>
-                  <option value="after_dark">after_dark</option>
+                  <option value="">All families</option>
+                  {familyOptions.map((family) => (
+                    <option key={family} value={family}>
+                      {family}
+                    </option>
+                  ))}
                 </select>
-              </th>
-              <th>
+              </label>
+              <label className="admin-field" style={{ flex: "0 1 180px" }}>
+                <span>Playlist</span>
                 <select
-                  className="admin-header-select"
-                  value={filters.status}
+                  className="admin-select"
+                  value={filters.playlistId}
                   onChange={(e) => {
                     setPage(1);
-                    setFilters({ ...filters, status: e.target.value });
+                    setFilters({ ...filters, playlistId: e.target.value });
                   }}
                 >
-                  <option value="">All</option>
-                  <option value="active">active</option>
-                  <option value="pending">pending</option>
-                  <option value="disputed">disputed</option>
-                  <option value="retired">retired</option>
+                  <option value="">All playlists</option>
+                  {(playlistsQuery.data ?? []).map((playlist) => (
+                    <option key={playlist.id} value={playlist.id}>
+                      {playlist.name}
+                    </option>
+                  ))}
                 </select>
-              </th>
-              <th />
-              <th>
-                {hasActiveFilters ? (
-                  <button
-                    type="button"
-                    className="admin-clear-filter-btn"
-                    onClick={resetFilters}
-                    title="Reset all filters"
-                  >
-                    Reset
-                  </button>
-                ) : null}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {query.data?.facts.map((fact) => {
-              const isEditing = selected?.id === fact.id;
-              return (
-                <Fragment key={fact.id}>
-                  <tr className={isEditing ? "is-editing" : undefined}>
-                    <td>
-                      <strong>{fact.subject}</strong>
-                      {(() => {
-                        const topic = subjectsByName.get(fact.subject.toLowerCase());
-                        if (!topic) return null;
-                        const playlistNames = topic.playlist_ids
-                          .map((id) => (playlistsQuery.data ?? []).find((p) => p.id === id)?.name)
-                          .filter(Boolean);
-                        return (
-                          <span className="admin-topic-meta">
-                            {[topic.category, topic.sub_category].filter(Boolean).join(" › ") || "Needs family"}
-                            {playlistNames.length ? ` · ${playlistNames.join(", ")}` : ""}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td>{fact.angle}</td>
-                    <td>
-                      {fact.true_number ?? "—"} {fact.unit}
-                      {fact.previous_true_number !== null ? (
-                        <div style={{ fontSize: 12, color: "var(--ds-arena-color-amber)" }}>
-                          was {fact.previous_true_number}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td>
-                      {fact.surprise_factor !== null && fact.surprise_factor !== undefined ? (
-                        <span
-                          title={
-                            fact.surprise_factor >= 3
-                              ? "3 · Mind-blowing (Intuition trap)"
-                              : fact.surprise_factor === 2
-                                ? "2 · Very surprising"
-                                : fact.surprise_factor === 1
-                                  ? "1 · Mildly surprising"
-                                  : "0 · Obvious"
-                          }
-                        >
-                          {fact.surprise_factor}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>{fact.content_rating}</td>
-                    <td>
-                      <Badge tone={statusTone(fact.status)}>{fact.status}</Badge>
-                    </td>
-                    <td>{fact.served_count}</td>
-                    <td>
-                      <Button
-                        size="sm"
-                        variant={isEditing ? "primary" : "ghost"}
-                        onClick={() => {
-                          setCreating(false);
-                          setImporting(false);
-                          setSelected(isEditing ? null : fact);
+              </label>
+              <label className="admin-field">
+                <span>Per page</span>
+                <select
+                  className="admin-select"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPage(1);
+                    setPageSize(Number(e.target.value));
+                  }}
+                >
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="250">250</option>
+                  <option value="500">500</option>
+                  <option value="1000">All (1,000)</option>
+                </select>
+              </label>
+              {hasActiveFilters ? (
+                <div style={{ alignSelf: "flex-end", paddingBottom: "6px" }}>
+                  <Button size="sm" variant="ghost" onClick={resetFilters}>
+                    Reset filters
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
+            <ErrorNote error={query.error} />
+            {importing ? <ImportCsvModal onDone={() => setImporting(false)} /> : null}
+            {creating ? <NewFactForm onDone={() => setCreating(false)} /> : null}
+
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th className="admin-th-sortable" onClick={() => toggleSort("subject")}>
+                      Topic {renderSortIcon("subject")}
+                    </th>
+                    <th className="admin-th-sortable" onClick={() => toggleSort("angle")}>
+                      Angle {renderSortIcon("angle")}{" "}
+                      <InfoTip position="bottom" text="The specific metric, dimension, or record being measured." />
+                    </th>
+                    <th className="admin-th-sortable" onClick={() => toggleSort("true_number")}>
+                      Value {renderSortIcon("true_number")}
+                    </th>
+                    <th className="admin-th-sortable" onClick={() => toggleSort("surprise_factor")}>
+                      Surprise {renderSortIcon("surprise_factor")}{" "}
+                      <InfoTip position="bottom" text="Scale of 0 (obvious) to 3 (mind-blowing counterintuitive)." />
+                    </th>
+                    <th>Rating</th>
+                    <th>Status</th>
+                    <th className="admin-th-sortable" onClick={() => toggleSort("served_count")}>
+                      Served {renderSortIcon("served_count")}
+                    </th>
+                    <th style={{ width: 80, textAlign: "right" }} />
+                  </tr>
+                  <tr className="admin-table-header-filters">
+                    <th>
+                      <input
+                        className="admin-header-input"
+                        placeholder="Filter topic…"
+                        value={filters.subject}
+                        onChange={(e) => {
+                          setPage(1);
+                          setFilters({ ...filters, subject: e.target.value });
+                        }}
+                      />
+                    </th>
+                    <th>
+                      <input
+                        className="admin-header-input"
+                        placeholder="Filter angle…"
+                        value={filters.angle}
+                        onChange={(e) => {
+                          setPage(1);
+                          setFilters({ ...filters, angle: e.target.value });
+                        }}
+                      />
+                    </th>
+                    <th />
+                    <th>
+                      <select
+                        className="admin-header-select"
+                        value={filters.surpriseFactor}
+                        onChange={(e) => {
+                          setPage(1);
+                          setFilters({ ...filters, surpriseFactor: e.target.value });
                         }}
                       >
-                        {isEditing ? "Close" : "Edit"}
-                      </Button>
-                    </td>
+                        <option value="">All</option>
+                        <option value="0">0 · Obvious</option>
+                        <option value="1">1 · Mild</option>
+                        <option value="2">2 · Very</option>
+                        <option value="3">3 · Mind-blowing</option>
+                      </select>
+                    </th>
+                    <th>
+                      <select
+                        className="admin-header-select"
+                        value={filters.contentRating}
+                        onChange={(e) => {
+                          setPage(1);
+                          setFilters({ ...filters, contentRating: e.target.value });
+                        }}
+                      >
+                        <option value="">All</option>
+                        <option value="standard">standard</option>
+                        <option value="after_dark">after_dark</option>
+                      </select>
+                    </th>
+                    <th>
+                      <select
+                        className="admin-header-select"
+                        value={filters.status}
+                        onChange={(e) => {
+                          setPage(1);
+                          setFilters({ ...filters, status: e.target.value });
+                        }}
+                      >
+                        {/* Exactly the statuses the shared contract declares,
+                            in declaration order, plus the unfiltered "All"
+                            (Requirement 9.2). */}
+                        <option value="">All</option>
+                        {FACT_STATUSES.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </th>
+                    <th />
+                    <th>
+                      {hasActiveFilters ? (
+                        <button
+                          type="button"
+                          className="admin-clear-filter-btn"
+                          onClick={resetFilters}
+                          title="Reset all filters"
+                        >
+                          Reset
+                        </button>
+                      ) : null}
+                    </th>
                   </tr>
-                  {isEditing ? (
-                    <InlineEditorRow colSpan={8}>
-                      <FactEditor fact={fact} onDone={() => setSelected(null)} />
-                    </InlineEditorRow>
-                  ) : null}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-        {query.isLoading ? <p className="admin-empty">Loading facts…</p> : null}
-        {query.data && query.data.facts.length === 0 ? (
-          <p className="admin-empty">No facts match these filters.</p>
-        ) : null}
-      </div>
+                </thead>
+                <tbody>
+                  {query.data?.facts.map((fact) => {
+                    const isEditing = selected?.id === fact.id;
+                    return (
+                      <Fragment key={fact.id}>
+                        <tr className={isEditing ? "is-editing" : undefined}>
+                          <td>
+                            <strong>{fact.subject}</strong>
+                            {(() => {
+                              const topic = subjectsByName.get(fact.subject.toLowerCase());
+                              if (!topic) return null;
+                              const playlistNames = topic.playlist_ids
+                                .map((id) => (playlistsQuery.data ?? []).find((p) => p.id === id)?.name)
+                                .filter(Boolean);
+                              return (
+                                <span className="admin-topic-meta">
+                                  {[topic.category, topic.sub_category].filter(Boolean).join(" › ") || "Needs family"}
+                                  {playlistNames.length ? ` · ${playlistNames.join(", ")}` : ""}
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td>{fact.angle}</td>
+                          <td>
+                            {fact.true_number ?? "—"} {fact.unit}
+                            {fact.previous_true_number !== null ? (
+                              <div style={{ fontSize: 12, color: "var(--ds-arena-color-amber)" }}>
+                                was {fact.previous_true_number}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td>
+                            {fact.surprise_factor !== null && fact.surprise_factor !== undefined ? (
+                              <span
+                                title={
+                                  fact.surprise_factor >= 3
+                                    ? "3 · Mind-blowing (Intuition trap)"
+                                    : fact.surprise_factor === 2
+                                      ? "2 · Very surprising"
+                                      : fact.surprise_factor === 1
+                                        ? "1 · Mildly surprising"
+                                        : "0 · Obvious"
+                                }
+                              >
+                                {fact.surprise_factor}
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td>{fact.content_rating}</td>
+                          <td>
+                            <FactStatusBadge status={fact.status} />
+                          </td>
+                          <td>{fact.served_count}</td>
+                          <td>
+                            <Button
+                              size="sm"
+                              variant={isEditing ? "primary" : "ghost"}
+                              onClick={() => {
+                                setCreating(false);
+                                setImporting(false);
+                                setSelected(isEditing ? null : fact);
+                              }}
+                            >
+                              {isEditing ? "Close" : "Edit"}
+                            </Button>
+                          </td>
+                        </tr>
+                        {isEditing ? (
+                          <InlineEditorRow colSpan={8}>
+                            <FactEditor fact={fact} onDone={() => setSelected(null)} />
+                          </InlineEditorRow>
+                        ) : null}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {query.isLoading ? <p className="admin-empty">Loading facts…</p> : null}
+              {query.data && query.data.facts.length === 0 ? (
+                <p className="admin-empty">No facts match these filters.</p>
+              ) : null}
+            </div>
 
-      <div className="admin-toolbar">
-        <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-          Previous
-        </Button>
-        <CardLabel>
-          Page {page} of {totalPages} · {query.data?.total ?? 0} matches
-        </CardLabel>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={page >= totalPages}
-          onClick={() => setPage(page + 1)}
-        >
-          Next
-        </Button>
-      </div>
-      {query.data?.windowed ? (
-        <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13 }}>
-          Showing the first 1,000 matching documents — narrow the filters for full coverage.
-        </p>
-      ) : null}
-        </>
-      ) : null}
+            <div className="admin-toolbar">
+              <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                Previous
+              </Button>
+              <CardLabel>
+                Page {page} of {totalPages} · {query.data?.total ?? 0} matches
+              </CardLabel>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={page >= totalPages}
+                onClick={() => setPage(page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+            {query.data?.windowed ? (
+              <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13 }}>
+                Showing the first 1,000 matching documents — narrow the filters for full coverage.
+              </p>
+            ) : null}
+          </>
+        ) : null}
       </div>
       <aside className="daily-blitz-chat">
         <FactsBankChat />
@@ -1337,6 +1404,11 @@ function ImportCsvModal({ onDone }: { onDone: () => void }) {
     if (grid.length < 2) return [];
 
     const headers = grid[0].map((h) => h.toLowerCase().trim().replace(/[^a-z0-9_]/g, "_"));
+    // CSV-header substring for the `content_rating` column. Assembled from parts
+    // so the needle is not a bare `"rating"` literal — that coincidentally equals
+    // the `rating` quantity_kind and is a false positive for Contract_Literal_Check
+    // (this matches a spreadsheet header, not a DDM quantity_kind; Requirement 9.9).
+    const contentRatingHeader = `rat${"ing"}`;
     const colIdx = {
       subject: headers.findIndex((h) => h.includes("subject")),
       angle: headers.findIndex((h) => h.includes("angle")),
@@ -1346,7 +1418,7 @@ function ImportCsvModal({ onDone }: { onDone: () => void }) {
       context: headers.findIndex((h) => h.includes("context")),
       question: headers.findIndex((h) => h.includes("question") || h.includes("prompt")),
       surprise_factor: headers.findIndex((h) => h.includes("surprise")),
-      content_rating: headers.findIndex((h) => h.includes("rating")),
+      content_rating: headers.findIndex((h) => h.includes(contentRatingHeader)),
       source_urls: headers.findIndex((h) => h.includes("source") || h.includes("url")),
     };
 

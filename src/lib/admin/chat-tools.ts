@@ -5,7 +5,7 @@
  * Guided Daily/Content chat never writes daily_packs or fact_bank.
  * Autonomous cron may write daily_pack_drafts only.
  */
-import { exportFacts, getFact } from "./content.server";
+import { exportFacts, getFact, STATUS } from "./content.server";
 import {
   DAILY_BLITZ_ROUNDS,
   DAILY_BLITZ_FALLBACK_CATEGORY,
@@ -233,7 +233,7 @@ export async function listUnfilledDates(): Promise<string[]> {
  */
 async function searchFacts(query: string) {
   const facts = await exportFacts({
-    status: "active",
+    status: STATUS.active,
     contentRating: "standard",
     search: query,
     pageSize: 24,
@@ -455,9 +455,9 @@ export async function executeTool(
           title: `Fact bank: ${query}`,
           summary: facts.length
             ? facts
-                .slice(0, 6)
-                .map((f) => `${f.subject}: ${f.question}${f.has_ddm ? "" : " (no DDM block)"}`)
-                .join(" | ")
+              .slice(0, 6)
+              .map((f) => `${f.subject}: ${f.question}${f.has_ddm ? "" : " (no DDM block)"}`)
+              .join(" | ")
             : "No matching active facts.",
           applyKind: "none",
         },
@@ -578,9 +578,9 @@ export async function executeTool(
           title: status ? `Queue (${status})` : "Crawl queue",
           summary: items.length
             ? items
-                .slice(0, 8)
-                .map((item) => `${item.subject}: ${item.status}`)
-                .join(" | ")
+              .slice(0, 8)
+              .map((item) => `${item.subject}: ${item.status}`)
+              .join(" | ")
             : "Queue is empty.",
           applyKind: "none",
         },

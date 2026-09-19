@@ -1,0 +1,50 @@
+# Admin_CI_Workflow — runs the mandatory pre-deploy Quality_Gate for visibility
+# on every push. The gate that actually blocks the Cloudflare Workers Builds
+# deploy lives inside `npm run build`; this workflow reports the same result as
+# a check run so a failure is visible before the deploy pipeline reaches it.
+name: CI
+
+on:
+  # Every branch. The gate is not path-filtered: it covers lockfiles, types,
+  # lint, suppressions, and the test suite, any of which a "docs-only" push can
+  # break (README/AGENTS are gate-adjacent documentation).
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    # The check run reported for this job is named "CI / Quality gate"; its
+    # conclusion is success only when `npm run gate` exits 0. No step below
+    # uses continue-on-error, and the gate is the final step, so the job
+    # conclusion mirrors the Quality_Gate exit code exactly.
+    name: Quality gate
+    # GitHub-hosted runner. (Was the laptop ARC scale set `docker-desktop`,
+    # which left this job queued indefinitely whenever the fleet was offline.)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          package-manager-cache: false
+          # Same pin mise and Cloudflare Workers Builds read.
+          node-version-file: .node-version
+      # Plain `npm ci` — the documented clean-checkout install. Do not add
+      # --ignore-scripts: .npmrc sets ignore-scripts=false because esbuild,
+      # workerd, @firebase/util, and protobufjs need their install-time builds,
+      # and the gate's typecheck/lint/test members depend on those binaries.
+      - name: Install dependencies
+        run: npm ci
+      # Final step: its exit code is the job's, and therefore the check run's.
+      - name: Run Quality_Gate
+        run: npm run gate

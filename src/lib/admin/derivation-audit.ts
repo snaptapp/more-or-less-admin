@@ -6,17 +6,11 @@
  * and unit_tables.json.
  */
 
-export const DDM_VERSION = "ddm-2";
+import { QK, QUANTITY_KINDS, type QuantityKind } from "./contract";
 
-export type QuantityKind =
-  | "year"
-  | "count"
-  | "percentage"
-  | "ratio"
-  | "physical_measure"
-  | "money"
-  | "duration"
-  | "rating";
+export type { QuantityKind };
+
+export const DDM_VERSION = "ddm-2";
 
 export type DerivationStrategy = "additive" | "multiplicative" | "bounded";
 export type TrapDirection = "OVERESTIMATE" | "UNDERESTIMATE";
@@ -125,120 +119,120 @@ export function canonicalizeSurprise(raw: unknown): number {
 }
 
 const EXACT_UNIT_MAP: Record<string, QuantityKind> = {
-  year: "year",
-  years: "year",
-  yr: "year",
-  yrs: "year",
-  ce: "year",
-  ad: "year",
-  bc: "year",
-  bce: "year",
-  "year (ce)": "year",
-  "year ce": "year",
-  "year ad": "year",
-  "calendar year": "year",
+  year: QK.year,
+  years: QK.year,
+  yr: QK.year,
+  yrs: QK.year,
+  ce: QK.year,
+  ad: QK.year,
+  bc: QK.year,
+  bce: QK.year,
+  "year (ce)": QK.year,
+  "year ce": QK.year,
+  "year ad": QK.year,
+  "calendar year": QK.year,
 
-  percent: "percentage",
-  percentage: "percentage",
-  "%": "percentage",
-  pct: "percentage",
-  "per cent": "percentage",
-  "percentage points": "percentage",
+  percent: QK.percentage,
+  percentage: QK.percentage,
+  "%": QK.percentage,
+  pct: QK.percentage,
+  "per cent": QK.percentage,
+  "percentage points": QK.percentage,
 
-  mph: "physical_measure",
-  "km/h": "physical_measure",
-  kmh: "physical_measure",
-  knots: "physical_measure",
-  meters: "physical_measure",
-  metres: "physical_measure",
-  meter: "physical_measure",
-  metre: "physical_measure",
-  feet: "physical_measure",
-  foot: "physical_measure",
-  ft: "physical_measure",
-  inches: "physical_measure",
-  inch: "physical_measure",
-  in: "physical_measure",
-  cm: "physical_measure",
-  mm: "physical_measure",
-  km: "physical_measure",
-  miles: "physical_measure",
-  mile: "physical_measure",
-  yards: "physical_measure",
-  yard: "physical_measure",
-  yd: "physical_measure",
-  kg: "physical_measure",
-  kilograms: "physical_measure",
-  kilogram: "physical_measure",
-  lbs: "physical_measure",
-  lb: "physical_measure",
-  pounds: "physical_measure",
-  pound: "physical_measure",
-  tons: "physical_measure",
-  tonnes: "physical_measure",
-  grams: "physical_measure",
-  g: "physical_measure",
-  mg: "physical_measure",
-  ounces: "physical_measure",
-  oz: "physical_measure",
-  calories: "physical_measure",
-  kcal: "physical_measure",
-  bpm: "physical_measure",
-  celsius: "physical_measure",
-  fahrenheit: "physical_measure",
-  "°c": "physical_measure",
-  "°f": "physical_measure",
+  mph: QK.physical_measure,
+  "km/h": QK.physical_measure,
+  kmh: QK.physical_measure,
+  knots: QK.physical_measure,
+  meters: QK.physical_measure,
+  metres: QK.physical_measure,
+  meter: QK.physical_measure,
+  metre: QK.physical_measure,
+  feet: QK.physical_measure,
+  foot: QK.physical_measure,
+  ft: QK.physical_measure,
+  inches: QK.physical_measure,
+  inch: QK.physical_measure,
+  in: QK.physical_measure,
+  cm: QK.physical_measure,
+  mm: QK.physical_measure,
+  km: QK.physical_measure,
+  miles: QK.physical_measure,
+  mile: QK.physical_measure,
+  yards: QK.physical_measure,
+  yard: QK.physical_measure,
+  yd: QK.physical_measure,
+  kg: QK.physical_measure,
+  kilograms: QK.physical_measure,
+  kilogram: QK.physical_measure,
+  lbs: QK.physical_measure,
+  lb: QK.physical_measure,
+  pounds: QK.physical_measure,
+  pound: QK.physical_measure,
+  tons: QK.physical_measure,
+  tonnes: QK.physical_measure,
+  grams: QK.physical_measure,
+  g: QK.physical_measure,
+  mg: QK.physical_measure,
+  ounces: QK.physical_measure,
+  oz: QK.physical_measure,
+  calories: QK.physical_measure,
+  kcal: QK.physical_measure,
+  bpm: QK.physical_measure,
+  celsius: QK.physical_measure,
+  fahrenheit: QK.physical_measure,
+  "°c": QK.physical_measure,
+  "°f": QK.physical_measure,
 
-  $: "money",
-  usd: "money",
-  dollar: "money",
-  dollars: "money",
-  "us dollars": "money",
-  cents: "money",
-  "million dollars": "money",
-  "billion dollars": "money",
-  "trillion dollars": "money",
-  euro: "money",
-  euros: "money",
-  "€": "money",
-  gbp: "money",
-  pounds_sterling: "money",
-  "£": "money",
-  yen: "money",
-  "¥": "money",
+  $: QK.money,
+  usd: QK.money,
+  dollar: QK.money,
+  dollars: QK.money,
+  "us dollars": QK.money,
+  cents: QK.money,
+  "million dollars": QK.money,
+  "billion dollars": QK.money,
+  "trillion dollars": QK.money,
+  euro: QK.money,
+  euros: QK.money,
+  "€": QK.money,
+  gbp: QK.money,
+  pounds_sterling: QK.money,
+  "£": QK.money,
+  yen: QK.money,
+  "¥": QK.money,
 
-  seconds: "duration",
-  second: "duration",
-  sec: "duration",
-  secs: "duration",
-  s: "duration",
-  minutes: "duration",
-  minute: "duration",
-  min: "duration",
-  mins: "duration",
-  hours: "duration",
-  hour: "duration",
-  hr: "duration",
-  hrs: "duration",
-  h: "duration",
-  days: "duration",
-  day: "duration",
-  d: "duration",
-  weeks: "duration",
-  week: "duration",
-  months: "duration",
-  month: "duration",
+  seconds: QK.duration,
+  second: QK.duration,
+  sec: QK.duration,
+  secs: QK.duration,
+  s: QK.duration,
+  minutes: QK.duration,
+  minute: QK.duration,
+  min: QK.duration,
+  mins: QK.duration,
+  hours: QK.duration,
+  hour: QK.duration,
+  hr: QK.duration,
+  hrs: QK.duration,
+  h: QK.duration,
+  days: QK.duration,
+  day: QK.duration,
+  d: QK.duration,
+  weeks: QK.duration,
+  week: QK.duration,
+  months: QK.duration,
+  month: QK.duration,
 
-  stars: "rating",
-  star: "rating",
-  "/5": "rating",
-  "/10": "rating",
-  "/100": "rating",
-  rating: "rating",
+  stars: QK.rating,
+  star: QK.rating,
+  "/5": QK.rating,
+  "/10": QK.rating,
+  "/100": QK.rating,
+  rating: QK.rating,
 
-  ratio: "ratio",
-  ":1": "ratio",
-  "to 1": "ratio",
+  ratio: QK.ratio,
+  ":1": QK.ratio,
+  "to 1": QK.ratio,
 };
 
 /**
@@ -252,13 +246,13 @@ export function classifyQuantityKind(unit: string, hint?: string): { kind: Quant
 
   // Check prefix or substring indicators
   if (norm.includes("$") || norm.includes("dollar") || norm.includes("euro") || norm.includes("usd")) {
-    return { kind: "money", matchedRule: `Currency token in "${norm}"` };
+    return { kind: QK.money, matchedRule: `Currency token in "${norm}"` };
   }
   if (norm.includes("%") || norm.includes("percent")) {
-    return { kind: "percentage", matchedRule: `Percentage symbol in "${norm}"` };
+    return { kind: QK.percentage, matchedRule: `Percentage symbol in "${norm}"` };
   }
   if (/\b(year|ce|ad|bce)\b/.test(norm)) {
-    return { kind: "year", matchedRule: `Year term in "${norm}"` };
+    return { kind: QK.year, matchedRule: `Year term in "${norm}"` };
   }
   if (
     norm.includes("meter") ||
@@ -272,10 +266,10 @@ export function classifyQuantityKind(unit: string, hint?: string): { kind: Quant
     norm.includes("mph") ||
     norm.includes("km")
   ) {
-    return { kind: "physical_measure", matchedRule: `Measurement dimension in "${norm}"` };
+    return { kind: QK.physical_measure, matchedRule: `Measurement dimension in "${norm}"` };
   }
   if (norm.includes("second") || norm.includes("minute") || norm.includes("hour") || norm.includes("day")) {
-    return { kind: "duration", matchedRule: `Temporal unit in "${norm}"` };
+    return { kind: QK.duration, matchedRule: `Temporal unit in "${norm}"` };
   }
 
   // Use hint if valid
@@ -284,25 +278,16 @@ export function classifyQuantityKind(unit: string, hint?: string): { kind: Quant
   }
 
   // Fallback to count for discrete nouns (people, trees, planets, etc.)
-  return { kind: "count", matchedRule: `Count noun fallback for "${norm}"` };
+  return { kind: QK.count, matchedRule: `Count noun fallback for "${norm}"` };
 }
 
 function isValidQuantityKind(k: string): k is QuantityKind {
-  return [
-    "year",
-    "count",
-    "percentage",
-    "ratio",
-    "physical_measure",
-    "money",
-    "duration",
-    "rating",
-  ].includes(k);
+  return (QUANTITY_KINDS as readonly string[]).includes(k);
 }
 
 export function strategyForKind(kind: QuantityKind): DerivationStrategy {
-  if (kind === "year") return "additive";
-  if (kind === "percentage" || kind === "rating") return "bounded";
+  if (kind === QK.year) return "additive";
+  if (kind === QK.percentage || kind === QK.rating) return "bounded";
   return "multiplicative";
 }
 
@@ -339,9 +324,9 @@ const RATING_DELTAS = [
 ];
 
 function snappingIntervalFor(val: number, kind: QuantityKind): number {
-  if (kind === "year") return 1;
-  if (kind === "percentage") return val > 20 ? 1 : 0.5;
-  if (kind === "rating") return 0.1;
+  if (kind === QK.year) return 1;
+  if (kind === QK.percentage) return val > 20 ? 1 : 0.5;
+  if (kind === QK.rating) return 0.1;
 
   const abs = Math.abs(val);
   if (abs >= 1_000_000_000) return 50_000_000;
@@ -372,7 +357,7 @@ function calculateRawCandidates(
   kind: QuantityKind,
   strategy: DerivationStrategy,
 ): { moreRaw: number; lessRaw: number; factorMin: number; factorMax: number; deltaMin?: number; deltaMax?: number } {
-  if (strategy === "additive" && kind === "year") {
+  if (strategy === "additive" && kind === QK.year) {
     const band = YEAR_DELTAS[surprise] ?? YEAR_DELTAS[2];
     const midDelta = (band.min + band.max) / 2;
     return {
@@ -385,7 +370,7 @@ function calculateRawCandidates(
     };
   }
 
-  if (strategy === "bounded" && kind === "percentage") {
+  if (strategy === "bounded" && kind === QK.percentage) {
     const band = PERCENTAGE_DELTAS[surprise] ?? PERCENTAGE_DELTAS[2];
     const midDelta = (band.min + band.max) / 2;
     return {
@@ -398,7 +383,7 @@ function calculateRawCandidates(
     };
   }
 
-  if (strategy === "bounded" && kind === "rating") {
+  if (strategy === "bounded" && kind === QK.rating) {
     const band = RATING_DELTAS[surprise] ?? RATING_DELTAS[2];
     const midDelta = (band.min + band.max) / 2;
     return {
@@ -526,16 +511,14 @@ export function auditDerivation(input: DerivationAuditInput): DerivationAuditTra
     strategy === "additive"
       ? `Additive delta of ${currentRaw.deltaMin ?? 0} to ${currentRaw.deltaMax ?? 0} ${input.unit}`
       : `Multiplicative band of ${currentRaw.factorMin}x to ${currentRaw.factorMax}x (${Math.round(
-          (currentRaw.factorMin - 1) * 100,
-        )}% to ${Math.round((currentRaw.factorMax - 1) * 100)}% shift)`;
+        (currentRaw.factorMin - 1) * 100,
+      )}% to ${Math.round((currentRaw.factorMax - 1) * 100)}% shift)`;
 
   const sideRationale = input.forcedSide
     ? `Forced side override: ${input.forcedSide} selected by caller or pack balance constraints.`
-    : `Trap direction is ${trapDirection}: intuitively players ${
-        trapDirection === "OVERESTIMATE" ? "expect a larger number" : "expect a smaller number"
-      }, so presenting ${
-        selectedSide === "LESS" ? "a higher number (making correct answer LESS)" : "a lower number (making correct answer MORE)"
-      } creates the maximum intuition trap.`;
+    : `Trap direction is ${trapDirection}: intuitively players ${trapDirection === "OVERESTIMATE" ? "expect a larger number" : "expect a smaller number"
+    }, so presenting ${selectedSide === "LESS" ? "a higher number (making correct answer LESS)" : "a lower number (making correct answer MORE)"
+    } creates the maximum intuition trap.`;
 
   const explanation =
     correctDirection === "MORE"

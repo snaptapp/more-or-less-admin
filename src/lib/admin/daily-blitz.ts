@@ -1,4 +1,5 @@
 /** Shared Daily Blitz authoring types and pure helpers (safe for client + server). */
+import { QUANTITY_KINDS } from "./contract";
 
 export const DAILY_BLITZ_ROUNDS = 15;
 export const DAILY_BLITZ_SECONDS = 60;
@@ -139,11 +140,11 @@ export function roundReadyToSchedule(round: {
   const presented = Number(round.presented_number);
   return Boolean(
     String(round.claim_statement ?? "").trim() &&
-      String(round.unit ?? "").trim() &&
-      String(round.explanation ?? "").trim() &&
-      Number.isFinite(trueNum) &&
-      Number.isFinite(presented) &&
-      trueNum !== presented,
+    String(round.unit ?? "").trim() &&
+    String(round.explanation ?? "").trim() &&
+    Number.isFinite(trueNum) &&
+    Number.isFinite(presented) &&
+    trueNum !== presented,
   );
 }
 
@@ -163,16 +164,7 @@ function canonicalToken(value: unknown): string | null {
   return null;
 }
 
-const DERIVATION_KINDS = new Set([
-  "year",
-  "count",
-  "percentage",
-  "ratio",
-  "physical_measure",
-  "money",
-  "duration",
-  "rating",
-]);
+const DERIVATION_KINDS = new Set<string>(QUANTITY_KINDS);
 const DERIVATION_TRAPS = new Set(["OVERESTIMATE", "UNDERESTIMATE"]);
 
 export function parseDerivationBlock(raw: unknown): FactDerivationBlock | null {
@@ -341,8 +333,7 @@ export function draftContextSummary(input: {
     `Topic / category: ${input.topic || "(none)"}`,
     `Last brief: ${input.brief.trim() || "(none)"}`,
     `Draft rounds: ${filled.length}/${DAILY_BLITZ_ROUNDS} (MORE ${mix.more} / LESS ${mix.less})`,
-    `Unfilled dates in the strip (Sports bank cycle until saved): ${
-      input.unfilledDates.length ? input.unfilledDates.join(", ") : "none"
+    `Unfilled dates in the strip (Sports bank cycle until saved): ${input.unfilledDates.length ? input.unfilledDates.join(", ") : "none"
     }`,
     filled.length ? `Current draft:\n${lines.join("\n")}` : "Current draft: empty",
   ].join("\n");

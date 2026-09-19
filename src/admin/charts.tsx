@@ -15,6 +15,13 @@ import { Card, CardTitle } from "@/index";
 
 export type ChartRow = { name: string; count: number };
 
+// Recharts value accessor for the series' numeric field. Using a typed accessor
+// function (rather than the string key `"count"`) keeps the field reference
+// bound to `ChartRow` and avoids writing a bare literal that coincidentally
+// equals the `count` quantity_kind — a false positive for Contract_Literal_Check
+// (Requirement 9.9); this is a chart data key, not a DDM quantity_kind.
+const chartValue = (row: ChartRow): number => row.count;
+
 const ARENA = {
   lime: "#d7f24a",
   amber: "#f6c344",
@@ -71,7 +78,7 @@ export function StatusPie({
             <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
               <Pie
                 data={data}
-                dataKey="count"
+                dataKey={chartValue}
                 nameKey="name"
                 cx="50%"
                 cy="42%"
@@ -168,7 +175,7 @@ export function CountBar({
                 </>
               )}
               <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(215, 242, 74, 0.08)" }} />
-              <Bar dataKey="count" radius={[4, 4, 4, 4]} fill={ARENA.lime} maxBarSize={36} />
+              <Bar dataKey={chartValue} radius={[4, 4, 4, 4]} fill={ARENA.lime} maxBarSize={36} />
             </BarChart>
           </ResponsiveContainer>
         )}

@@ -8,6 +8,16 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+
+# Package manager: npm only. package-lock.json is the single tracked lockfile.
+# These must never become tracked files again (see Lockfile_Check).
+pnpm-lock.yaml
+pnpm-workspace.yaml
+bun.lock
+bun.lockb
+bunfig.toml
+yarn.lock
+
 dist
 dist-ssr
 .output

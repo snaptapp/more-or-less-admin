@@ -16,6 +16,7 @@ import {
 } from "../firebase/firestore.server";
 import type { AdminUser } from "../firebase/verify.server";
 import { sanitizeDraftRounds } from "./daily-blitz";
+import { STATUS } from "./contract";
 
 function str(value: Json | undefined): string {
   return typeof value === "string" ? value : "";
@@ -323,10 +324,10 @@ function toCrawl(doc: FirestoreDoc): CrawlRecord {
 export async function listCrawlQueue(input: { status?: string }) {
   const docs = input.status
     ? await runQuery({
-        collection: "crawl_queue",
-        filters: [{ field: "status", op: "EQUAL", value: input.status }],
-        limit: 200,
-      })
+      collection: "crawl_queue",
+      filters: [{ field: "status", op: "EQUAL", value: input.status }],
+      limit: 200,
+    })
     : (await listDocs("crawl_queue", { pageSize: 200 })).docs;
   const items = docs.map(toCrawl);
   items.sort(
@@ -504,12 +505,12 @@ export async function getPlayer(id: string): Promise<PlayerRecord | null> {
     createdAt: typeof doc.data["createdAt"] === "string" ? doc.data["createdAt"] : null,
     stats: summary
       ? {
-          totalGamesPlayed: num(summary.data["totalGamesPlayed"]) ?? 0,
-          totalCorrect: num(summary.data["totalCorrect"]) ?? 0,
-          totalWrong: num(summary.data["totalWrong"]) ?? 0,
-          bestScore: num(summary.data["bestScore"]) ?? 0,
-          lifetimePercentCorrect: num(summary.data["lifetimePercentCorrect"]) ?? 0,
-        }
+        totalGamesPlayed: num(summary.data["totalGamesPlayed"]) ?? 0,
+        totalCorrect: num(summary.data["totalCorrect"]) ?? 0,
+        totalWrong: num(summary.data["totalWrong"]) ?? 0,
+        bestScore: num(summary.data["bestScore"]) ?? 0,
+        lifetimePercentCorrect: num(summary.data["lifetimePercentCorrect"]) ?? 0,
+      }
       : null,
   };
 }
@@ -936,11 +937,11 @@ export async function getGameAnalytics(input: { since?: string }) {
     useFilters: boolean;
     newestFirst: boolean;
   }> = [
-    { orderBy: newestFirst, useFilters: true, newestFirst: true },
-    { useFilters: true, newestFirst: false },
-    { orderBy: newestFirst, useFilters: false, newestFirst: true },
-    { useFilters: false, newestFirst: false },
-  ];
+      { orderBy: newestFirst, useFilters: true, newestFirst: true },
+      { useFilters: true, newestFirst: false },
+      { orderBy: newestFirst, useFilters: false, newestFirst: true },
+      { useFilters: false, newestFirst: false },
+    ];
 
   let docs: Awaited<ReturnType<typeof load>> = [];
   let orderedNewestFirst = false;
@@ -1099,8 +1100,8 @@ export async function flagQuestionTelemetry(input: { days: 7 | 30 | 90; question
       factPreviousStatus = currentStatus || null;
       // Only transition active facts to disputed. Never overwrite an
       // already-disputed or retired fact with stale telemetry.
-      if (currentStatus === "active") {
-        await patchDoc(`fact_bank/${factId}`, { status: "disputed", disputedAt: new Date().toISOString() });
+      if (currentStatus === STATUS.active) {
+        await patchDoc(`fact_bank/${factId}`, { status: STATUS.disputed, disputedAt: new Date().toISOString() });
       }
     }
   }
