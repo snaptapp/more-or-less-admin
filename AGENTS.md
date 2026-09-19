@@ -24,7 +24,10 @@ npm run check:lockfiles           # Lockfile_Check
 npm run typecheck                 # Typecheck_Step — tsc --noEmit reports 0 errors; keep it that way
 npm run lint                      # Lint_Step — eslint (errors fail, warnings do not)
 npm run check:suppressions        # Suppression_Check
+npm run check:contract-literals   # Contract_Literal_Check
 npm test                          # Test_Suite — vitest run
+npm run check:contract            # Contract_Drift_Check
+npm run sync:contract             # refresh the vendored published contract copy (needs ../more-or-less)
 ```
 
 ## Quality gate
@@ -38,12 +41,17 @@ and stops at the first non-zero exit, reporting the failing member and the membe
 | 2 | `Typecheck_Step` | `node node_modules/typescript7/bin/tsc --noEmit` | `npm run typecheck` |
 | 3 | `Lint_Step` | `eslint .` | `npm run lint` |
 | 4 | `Suppression_Check` | `node scripts/check-suppressions.mjs` | `npm run check:suppressions` |
-| 5 | `Test_Suite` | `vitest run` | `npm test` |
-| — | `Contract_Drift_Check` | *excluded* | — |
+| 5 | `Contract_Literal_Check` | `node scripts/check-contract-literals.mjs` | `npm run check:contract-literals` |
+| 6 | `Test_Suite` | `vitest run` | `npm test` |
+| 7 | `Contract_Drift_Check` | `node scripts/check-contract-drift.mjs` | `npm run check:contract` |
 
-`Contract_Drift_Check` is configured but not yet a member: it joins only once `contract-adoption.json`
-records `adopted: true`. That file is absent today, so the gate prints the exclusion and its reason on
-stdout and decides the exit code on members 1-5.
+`Contract_Drift_Check` is a member because `contract-adoption.json` records `adopted: true`. It
+compares the consumed copy `shared/fact-lifecycle-contract.gen.ts` against the vendored published
+snapshot `contract/published/fact-lifecycle-contract.gen.ts` (the path declared in
+`contract-source.json`). The snapshot is vendored inside this repository because the gate must also
+pass where no sibling checkout exists (CI, Workers Builds). When Main_Repository republishes the
+contract, run `npm run sync:contract` with the `more-or-less` checkout side by side to refresh the
+snapshot, then adopt the new state into `shared/`; without adoption the drift check fails closed.
 
 - **Two npm scripts invoke it:** `npm run gate` (gate only, produces no build output) and
   `npm run build` (`node scripts/quality-gate.mjs && vite build`). `npm run deploy` reaches it through

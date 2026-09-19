@@ -39,12 +39,18 @@ name, a pointer to that member's own diagnostics, and the members it never reach
 | 2 | `Typecheck_Step` | `tsc --noEmit` reports 0 errors | `npm run typecheck` |
 | 3 | `Lint_Step` | `eslint .` reports 0 errors | `npm run lint` |
 | 4 | `Suppression_Check` | no file exceeds its `suppression-baseline.json` entry | `npm run check:suppressions` |
-| 5 | `Test_Suite` | `vitest run` passes | `npm test` |
-| — | `Contract_Drift_Check` | *not yet a member — see below* | — |
+| 5 | `Contract_Literal_Check` | admin literals derive from the consumed contract artifact | `npm run check:contract-literals` |
+| 6 | `Test_Suite` | `vitest run` passes | `npm test` |
+| 7 | `Contract_Drift_Check` | consumed copy matches the vendored published artifact | `npm run check:contract` |
 
-`Contract_Drift_Check` is configured but excluded until `contract-adoption.json` records
-`adopted: true`. That file does not exist yet, so the gate reports the exclusion with its reason on
-stdout and decides the exit code on members 1-5 alone.
+`Contract_Drift_Check` is a member because `contract-adoption.json` records `adopted: true`. It
+compares `shared/fact-lifecycle-contract.gen.ts` (the consumed copy) against the vendored published
+snapshot `contract/published/fact-lifecycle-contract.gen.ts`, the path declared in
+`contract-source.json`. The snapshot lives inside this repository because the gate must also pass
+where no sibling checkout exists (CI, Workers Builds). After Main_Repository republishes the
+contract, run `npm run sync:contract` with the `more-or-less` checkout side by side to refresh the
+snapshot, then adopt the new state into `shared/` — the drift check fails closed until the copies
+match again.
 
 Two npm scripts invoke the gate:
 

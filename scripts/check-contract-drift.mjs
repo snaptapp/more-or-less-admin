@@ -10,9 +10,11 @@
  * What it does:
  *   - Resolves a TRACKED reference to the Shared_Contract_Artifact copy published by
  *     Main_Repository. The reference lives in `contract-source.json` at the repository
- *     root (field `publishedArtifactPath`), a repo-relative path. Both repositories are
- *     checked out side by side, so the default reference is
- *     `../more-or-less/shared/fact-lifecycle-contract.gen.ts` (Requirement 10.4).
+ *     root (field `publishedArtifactPath`), a repo-relative path. It points at the
+ *     vendored snapshot `contract/published/fact-lifecycle-contract.gen.ts`, committed
+ *     in this repository so the check also runs where no sibling checkout exists
+ *     (CI, Workers Builds). `npm run sync:contract` refreshes that snapshot from the
+ *     side-by-side Main_Repository checkout (Requirement 10.4).
  *   - Reads the consumed copy (`shared/fact-lifecycle-contract.gen.ts`) and the
  *     recorded Contract_Version (`contract-adoption.json` → `contractVersion`).
  *   - Compares consumed bytes vs published bytes AND recorded version vs the published
