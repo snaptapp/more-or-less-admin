@@ -74,11 +74,10 @@ runs, no new Worker version is uploaded, and the previously deployed version kee
 `ops.snaptapp.us`; the `Workers Builds: more-or-less-ops` check run reports the failure. Locally,
 `npm run deploy` skips `wrangler` the same way.
 
-**CI.** `.github/workflows/ci.yml` runs on every push: checkout → Node 22 → `npm ci` → `npm run gate`,
-on the **`docker-desktop`** self-hosted runner label (the laptop ARC scale set; it must be the only
-`runs-on` value). The `CI / Quality gate` check-run conclusion mirrors the gate exit code. This
-workflow makes the result visible early — the gate inside `npm run build` is what actually blocks the
-deploy.
+**CI.** `.github/workflows/ci.yml` runs on every push: checkout → Node (from `.node-version`) →
+`npm ci` → `npm run gate`, on the GitHub-hosted **`ubuntu-latest`** runner. The `CI / Quality gate`
+check-run conclusion mirrors the gate exit code. This workflow makes the result visible early — the
+gate inside `npm run build` is what actually blocks the deploy.
 
 **Emergency deploys.** If the portal must be deployed by invoking `npx wrangler deploy` directly,
 bypassing the build and deploy scripts, record it in [`EMERGENCY_DEPLOYS.md`](EMERGENCY_DEPLOYS.md):

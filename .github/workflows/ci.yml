@@ -24,21 +24,11 @@ jobs:
     # uses continue-on-error, and the gate is the final step, so the job
     # conclusion mirrors the Quality_Gate exit code exactly.
     name: Quality gate
-    # Laptop ARC scale set — the Main_Repository label for Node-only gates.
-    # Must be the sole runs-on value: mixing it with self-hosted/lite/full
-    # stops GitHub routing to the scale set.
-    runs-on: docker-desktop
+    # GitHub-hosted runner. (Was the laptop ARC scale set `docker-desktop`,
+    # which left this job queued indefinitely whenever the fleet was offline.)
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      # Standing self-hosted runners keep the previous job's tree; clear it so
-      # a stale node_modules or lockfile cannot influence the gate.
-      - name: Clean Workspace
-        shell: bash
-        run: |
-          git config --global --unset-all http.https://github.com/.extraheader 2>/dev/null || true
-          chmod -R u+w . || true
-          rm -rf ./* || true
-          rm -rf ./.git || true
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -46,16 +36,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          # No `cache: npm` — the persistent /opt/ci/npm volume already carries
-          # the cache between jobs on this fleet, and setup-node's remote cache
-          # caused post-job timeouts in Main_Repository.
           package-manager-cache: false
-          node-version: 22
-      # The /opt/ci npm volume rejects the atomic rename npm's _cacache needs
-      # (ENOSYS); use the local default cache instead.
-      - name: Use local npm cache
-        shell: bash
-        run: echo "NPM_CONFIG_CACHE=${HOME}/.npm" >> "$GITHUB_ENV"
+          # Same pin mise and Cloudflare Workers Builds read.
+          node-version-file: .node-version
       # Plain `npm ci` — the documented clean-checkout install. Do not add
       # --ignore-scripts: .npmrc sets ignore-scripts=false because esbuild,
       # workerd, @firebase/util, and protobufjs need their install-time builds,

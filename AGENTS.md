@@ -65,9 +65,9 @@ snapshot, then adopt the new state into `shared/`; without adoption the drift ch
 - **`Lint_Step` fails on errors only.** ESLint warnings (3 today) exit 0; 1 or more errors exit
   non-zero.
 - **CI:** `.github/workflows/ci.yml` runs `npm ci` → `npm run gate` on every push, on the
-  **`docker-desktop`** self-hosted runner label (the laptop ARC scale set — do not mix it with
-  `self-hosted`/`lite`/`full`). The `CI / Quality gate` check-run conclusion mirrors the gate exit code.
-  This workflow reports; the gate inside `npm run build` is what actually blocks the deploy.
+  GitHub-hosted **`ubuntu-latest`** runner (Node version comes from `.node-version`, the same pin
+  mise and Workers Builds read). The `CI / Quality gate` check-run conclusion mirrors the gate exit
+  code. This workflow reports; the gate inside `npm run build` is what actually blocks the deploy.
 - **Bypassing it is a logged event.** If you ever deploy by running `npx wrangler deploy` directly,
   add an entry to `EMERGENCY_DEPLOYS.md` naming the deployed commit, the operator, the reason, and
   every gate member that was failing or not run — and return `main` to a passing gate within 24 hours.
