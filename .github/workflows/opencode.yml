@@ -53,6 +53,16 @@ jobs:
         with:
           persist-credentials: false
 
+      # persist-credentials leaves git without auth for the agent's own pushes;
+      # the action only configures this header inside its salvage path.
+      - name: Configure git push credential
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          git config --local http.https://github.com/.extraheader \
+            "AUTHORIZATION: basic $(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 -w 0)"
+
       # The org carries two Cloudflare credentials (CLOUDFLARE_API_KEY and
       # CLOUDFLARE_API_TOKEN) and only one is scoped for Workers AI. Probe each
       # against the chain's lead model and export the winner under both env
