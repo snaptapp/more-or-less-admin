@@ -53,17 +53,15 @@ jobs:
         with:
           persist-credentials: false
 
-      # persist-credentials leaves git without auth for the agent's own pushes;
-      # the action only configures this header inside its salvage path.
-      - name: Configure git for agent pushes
+      # Committer identity for agent commits. Push and API auth come from the
+      # OpenCode app token the CLI resolves via OIDC (use-github-token is off),
+      # so summaries and pushes post as opencode-agent[bot] while ad-hoc `gh`
+      # calls use the job token and appear as github-actions[bot].
+      - name: Configure git identity
         shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local http.https://github.com/.extraheader \
-            "AUTHORIZATION: basic $(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 -w 0)"
 
       # The org carries two Cloudflare credentials (CLOUDFLARE_API_KEY and
       # CLOUDFLARE_API_TOKEN) and only one is scoped for Workers AI. Probe each
@@ -98,8 +96,10 @@ jobs:
           echo "::warning::No Cloudflare credential reached Workers AI; cf: models will be skipped"
 
       # Model probing, verified install, agent run with retry/salvage, and the
-      # leaked-path comment guard are handled by the action. `use-github-token`
-      # keeps the job's GITHUB_TOKEN (contents: write) as the push credential.
+      # leaked-path comment guard are handled by the action. App-token mode
+      # (OIDC exchange, needs the OpenCode app installed on the repo) posts
+      # summaries and pushes as opencode-agent[bot]; GH_TOKEN stays the job
+      # token so ad-hoc `gh` writes appear as github-actions[bot].
       # `job-started-at` anchors the 40-minute agent budget to job start so the
       # retry and the guard still run inside the 45-minute job limit.
       # CLOUDFLARE_* env comes from the credential-selection step above (step
@@ -109,10 +109,11 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          # Job token (not the GH_TOKEN PAT) so the agent's ad-hoc `gh` writes
+          # post as github-actions[bot]; the CLI's own writes use the app token.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
         with:
-          use-github-token: 'true'
           job-started-at: ${{ steps.job_start.outputs.epoch }}
           timeout-minutes: '40'
           # Review runs lead with the Cloudflare GLM/DeepSeek/GPT-OSS chain and
