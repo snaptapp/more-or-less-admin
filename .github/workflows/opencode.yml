@@ -53,23 +53,51 @@ jobs:
         with:
           persist-credentials: false
 
+      # The org carries two Cloudflare credentials (CLOUDFLARE_API_KEY and
+      # CLOUDFLARE_API_TOKEN) and only one is scoped for Workers AI. Probe each
+      # against the chain's lead model and export the winner under both env
+      # names: the action's cf: probe reads CLOUDFLARE_API_TOKEN while
+      # opencode's cloudflare-workers-ai provider authenticates with
+      # CLOUDFLARE_API_KEY. When neither reaches Workers AI, cf: chain entries
+      # are skipped and the zen: fallbacks still run.
+      - name: Select a working Cloudflare credential
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          for tok in "${CF_KEY:-}" "${CF_TOKEN:-}"; do
+            [[ -n "${tok}" ]] || continue
+            if curl -sf --max-time 20 -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1/chat/completions" \
+              -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
+              -d '{"model":"@cf/zai-org/glm-5.3","messages":[{"role":"user","content":"ping"}],"max_tokens":1}' \
+              >/dev/null 2>&1; then
+              {
+                echo "CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}"
+                echo "CLOUDFLARE_API_TOKEN=${tok}"
+                echo "CLOUDFLARE_API_KEY=${tok}"
+              } >> "${GITHUB_ENV}"
+              echo "::notice::Cloudflare Workers AI credential selected"
+              exit 0
+            fi
+          done
+          echo "::warning::No Cloudflare credential reached Workers AI; cf: models will be skipped"
+
       # Model probing, verified install, agent run with retry/salvage, and the
       # leaked-path comment guard are handled by the action. `use-github-token`
       # keeps the job's GITHUB_TOKEN (contents: write) as the push credential.
       # `job-started-at` anchors the 40-minute agent budget to job start so the
       # retry and the guard still run inside the 45-minute job limit.
+      # CLOUDFLARE_* env comes from the credential-selection step above (step
+      # env would override GITHUB_ENV).
       - name: Run opencode
         uses: tonythethompson/opencode-action@8b917d4ce4f10a967e9d29ae263d05580c3ed395 # v0.8.0
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # The action's cf: probe reads CLOUDFLARE_API_TOKEN while opencode's
-          # cloudflare-workers-ai provider authenticates with
-          # CLOUDFLARE_API_KEY; supply both, tolerating either secret name.
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_API_KEY }}
-          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY || secrets.CLOUDFLARE_API_TOKEN }}
           CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
         with:
           use-github-token: 'true'
