@@ -871,6 +871,7 @@ export interface ReportRecord {
   ombudsmanSources: string[];
   ombudsmanArbiter?: "gemini" | "edge_worker" | "unspecified";
   qualityFlags?: string[];
+  duplicateFactIds?: string[];
 }
 
 function firstStr(d: Record<string, Json>, keys: string[]): string {
@@ -987,6 +988,9 @@ function toReport(doc: FirestoreDoc): ReportRecord {
     qualityFlags: asSources(d["qualityFlags"]).length
       ? asSources(d["qualityFlags"])
       : asSources(d["quality_flags"]),
+    duplicateFactIds: asSources(d["duplicateFactIds"]).length
+      ? asSources(d["duplicateFactIds"])
+      : asSources(d["duplicate_fact_ids"]),
   };
 }
 
@@ -1044,17 +1048,200 @@ export async function findFactForReport(report: ReportRecord): Promise<FactRecor
   return null;
 }
 
+const INTERROGATIVE_PREFIXES = [
+  ["how", "many"],
+  ["how", "much"],
+  ["how", "long"],
+  ["how", "tall"],
+  ["how", "far"],
+  ["how", "old"],
+  ["how", "fast"],
+  ["how", "often"],
+  ["how", "does"],
+  ["how", "did"],
+  ["how", "do"],
+  ["what", "is"],
+  ["what", "s"],
+  ["what", "was"],
+  ["what", "were"],
+  ["what", "did"],
+  ["what", "does"],
+  ["what", "are"],
+  ["what", CONTRACT_QUANTITY_KINDS[0]],
+  ["what"],
+  ["which"],
+  ["who"],
+  ["when"],
+  ["where"],
+  ["why"],
+  ["how"],
+];
+
+export function normalizeQuestion(text: string): string {
+  const s = text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (!s) return "";
+  const toks = s.split(" ").filter(Boolean);
+  for (const pre of INTERROGATIVE_PREFIXES) {
+    if (toks.length <= pre.length) continue;
+    let match = true;
+    for (let i = 0; i < pre.length; i++) {
+      if (toks[i] !== pre[i]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return toks.slice(pre.length).join(" ");
+  }
+  return toks.join(" ");
+}
+
+export function tokenJaccard(a: string, b: string): number {
+  const setA = new Set(a.split(" ").filter(Boolean));
+  const setB = new Set(b.split(" ").filter(Boolean));
+  if (setA.size === 0 || setB.size === 0) return 0;
+  let intersection = 0;
+  for (const item of setA) {
+    if (setB.has(item)) intersection++;
+  }
+  const union = setA.size + setB.size - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+
+/** Best-effort lookup for other facts that duplicate or collide with this report. */
+export async function findDuplicateFactsForReport(
+  report: ReportRecord,
+  primaryFact: FactRecord | null,
+): Promise<FactRecord[]> {
+  const duplicates = new Map<string, FactRecord>();
+  const primaryId = primaryFact?.id ?? report.factId?.trim();
+
+  // 1. Direct IDs recorded on report
+  if (report.duplicateFactIds && report.duplicateFactIds.length > 0) {
+    for (const dupId of report.duplicateFactIds) {
+      if (dupId && dupId !== primaryId && !duplicates.has(dupId)) {
+        const doc = await getDoc(`fact_bank/${dupId}`);
+        if (doc) duplicates.set(dupId, toFact(doc));
+      }
+    }
+  }
+
+  // 2. Query fallback if duplicate_question or conflicting_answer flag/reason is present
+  const isDuplicateReport =
+    report.qualityFlags?.some((f) => f === "duplicate_question" || f === "conflicting_answer") ||
+    report.reason?.toLowerCase().includes("duplicate_question") ||
+    report.reason?.toLowerCase().includes("conflicting_answer");
+
+  if (isDuplicateReport && duplicates.size === 0 && primaryFact) {
+    const subjectKey = primaryFact.subject_key || normalizeKey(primaryFact.subject);
+    const normQuestion = normalizeQuestion(primaryFact.question || primaryFact.claim_template || "");
+
+    // A. Search by same subject_key
+    if (subjectKey) {
+      const docs = await runQuery({
+        collection: "fact_bank",
+        filters: [{ field: "subject_key", op: "EQUAL", value: subjectKey }],
+        limit: 20,
+      });
+      for (const d of docs) {
+        if (d.id === primaryFact.id || duplicates.has(d.id)) continue;
+        const candidate = toFact(d);
+        const candidateNorm = normalizeQuestion(candidate.question || candidate.claim_template || "");
+        if (
+          normQuestion &&
+          candidateNorm &&
+          (normQuestion === candidateNorm || tokenJaccard(normQuestion, candidateNorm) >= 0.6)
+        ) {
+          duplicates.set(d.id, candidate);
+        }
+      }
+    }
+
+    // B. Search by exact question if across subjects
+    if (duplicates.size === 0 && primaryFact.question) {
+      const docs = await runQuery({
+        collection: "fact_bank",
+        filters: [{ field: "question", op: "EQUAL", value: primaryFact.question }],
+        limit: 10,
+      });
+      for (const d of docs) {
+        if (d.id !== primaryFact.id && !duplicates.has(d.id)) {
+          duplicates.set(d.id, toFact(d));
+        }
+      }
+    }
+  }
+
+  return Array.from(duplicates.values());
+}
+
 export async function resolveReport(input: {
   reportId: string;
-  action: "retire_fact" | "fix_number" | "reject" | "resolve_only" | "add_to_bank";
+  action: "retire_fact" | "fix_number" | "reject" | "resolve_only" | "add_to_bank" | "resolve_duplicate";
   factId?: string;
   correctedNumber?: number;
   note?: string;
   topic?: string;
   claimStatement?: string;
   unit?: string;
+  keepFactId?: string;
+  retireFactId?: string;
+  retireFactIds?: string[];
 }): Promise<{ ok: true }> {
   const now = new Date().toISOString();
+
+  if (input.action === "resolve_duplicate") {
+    const keepId = input.keepFactId?.trim();
+    const retireIds = [
+      ...(input.retireFactId ? [input.retireFactId.trim()] : []),
+      ...(input.retireFactIds ? input.retireFactIds.map((id) => id.trim()) : []),
+    ].filter((id) => id && id !== keepId);
+
+    for (const retireId of retireIds) {
+      await setFactStatus({
+        id: retireId,
+        status: STATUS.retired,
+        reason: input.note ?? (keepId ? `Retired in favor of duplicate fact ${keepId}` : "Retired as duplicate fact"),
+      });
+
+      // Auto-resolve counterpart pending report if one exists
+      const otherReportDoc = await getDoc(`trivia_reports/lint_${retireId}`);
+      if (otherReportDoc && otherReportDoc.data["status"] === "pending_review") {
+        await patchDoc(`trivia_reports/lint_${retireId}`, {
+          status: "resolved",
+          resolutionNote: `Auto-resolved: duplicate resolved via ${input.reportId}`,
+          resolved_at: now,
+        });
+      }
+    }
+
+    if (keepId) {
+      const keepDoc = await getFact(keepId);
+      if (keepDoc && keepDoc.status === STATUS.disputed) {
+        await setFactStatus({
+          id: keepId,
+          status: STATUS.active,
+          reason: "Reinstated duplicate winner via moderation",
+        });
+        await patchDoc(`fact_bank/${keepId}`, {}, ["quality_flags", "disputed_reason", "disputed_at"]);
+      }
+
+      const keepReportDoc = await getDoc(`trivia_reports/lint_${keepId}`);
+      if (keepReportDoc && keepReportDoc.data["status"] === "pending_review" && keepReportDoc.id !== input.reportId) {
+        await patchDoc(`trivia_reports/lint_${keepId}`, {
+          status: "resolved",
+          resolutionNote: `Auto-resolved: duplicate resolved via ${input.reportId}`,
+          resolved_at: now,
+        });
+      }
+    }
+
+    await patchDoc(`trivia_reports/${input.reportId}`, {
+      status: "resolved",
+      resolutionNote: input.note ?? `Kept ${keepId ?? "chosen fact"}, retired duplicate ${retireIds.join(", ") || "other"}`,
+      resolved_at: now,
+    });
+    return { ok: true };
+  }
 
   if (input.action === "retire_fact") {
     if (input.factId) {
@@ -1133,10 +1320,10 @@ export async function resolveReport(input: {
     return { ok: true };
   }
 
-  // Reject: restore a fact auto-disputed by signed telemetry. Flagging only
-  // transitions active -> disputed, so a rejected false signal must reactivate
-  // the fact instead of leaving it permanently excluded from active-only
-  // consumers such as the daily picker.
+  // Reject: restore a fact auto-disputed by signed telemetry or fact lint.
+  // Flagging only transitions active -> disputed, so a rejected false signal
+  // must reactivate the fact instead of leaving it permanently excluded from
+  // active-only consumers such as the daily picker.
   const reportDoc = await getDoc(`trivia_reports/${input.reportId}`);
   const reportData = reportDoc?.data ?? {};
   const storedFactId =
@@ -1145,14 +1332,44 @@ export async function resolveReport(input: {
       : typeof reportData["questionId"] === "string" && (reportData["questionId"] as string).startsWith("fact:")
         ? ((reportData["questionId"] as string).slice("fact:".length).trim() || null)
         : null;
-  if (storedFactId && reportData["reportSource"] === "round_telemetry") {
+  if (
+    storedFactId &&
+    (reportData["reportSource"] === "round_telemetry" || reportData["reportSource"] === "fact_lint")
+  ) {
     const factDoc = await getDoc(`fact_bank/${storedFactId}`);
     if (factDoc && factDoc.data["status"] === STATUS.disputed) {
       const previous =
         typeof reportData["factPreviousStatus"] === "string" && reportData["factPreviousStatus"]
           ? (reportData["factPreviousStatus"] as string)
           : STATUS.active;
-      await patchDoc(`fact_bank/${storedFactId}`, { status: previous });
+      await patchDoc(
+        `fact_bank/${storedFactId}`,
+        { status: previous },
+        ["quality_flags", "disputed_reason", "disputed_at"],
+      );
+    }
+
+    if (reportData["reportSource"] === "fact_lint") {
+      const duplicateIds = asSources(reportData["duplicateFactIds"] ?? reportData["duplicate_fact_ids"]);
+      for (const dupId of duplicateIds) {
+        if (!dupId || dupId === storedFactId) continue;
+        const dupDoc = await getDoc(`fact_bank/${dupId}`);
+        if (dupDoc && dupDoc.data["status"] === STATUS.disputed) {
+          await patchDoc(
+            `fact_bank/${dupId}`,
+            { status: STATUS.active },
+            ["quality_flags", "disputed_reason", "disputed_at"],
+          );
+        }
+        const dupReport = await getDoc(`trivia_reports/lint_${dupId}`);
+        if (dupReport && dupReport.data["status"] === "pending_review") {
+          await patchDoc(`trivia_reports/lint_${dupId}`, {
+            status: "rejected",
+            resolutionNote: input.note ?? `Auto-rejected: counterpart report ${input.reportId} rejected`,
+            resolved_at: now,
+          });
+        }
+      }
     }
   }
 

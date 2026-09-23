@@ -109,19 +109,45 @@ function ReportCard({ entry }: { entry: Entry }) {
   );
 
   const mutation = useMutation({
-    mutationFn: (action: "retire_fact" | "fix_number" | "reject" | "resolve_only" | "add_to_bank") =>
-      act({
+    mutationFn: (
+      params:
+        | "retire_fact"
+        | "fix_number"
+        | "reject"
+        | "resolve_only"
+        | "add_to_bank"
+        | {
+            action:
+              | "retire_fact"
+              | "fix_number"
+              | "reject"
+              | "resolve_only"
+              | "add_to_bank"
+              | "resolve_duplicate";
+            keepFactId?: string;
+            retireFactId?: string;
+            retireFactIds?: string[];
+            note?: string;
+          },
+    ) => {
+      const isObj = typeof params === "object";
+      const action = isObj ? params.action : params;
+      return act({
         data: {
           reportId: entry.report.id,
           action,
           factId: entry.fact?.id,
           correctedNumber: corrected ? Number(corrected) : undefined,
-          note: note || undefined,
+          note: (isObj && params.note) || note || undefined,
           topic: entry.report.topic,
           claimStatement: entry.report.claimStatement,
           unit: entry.report.unit,
+          keepFactId: isObj ? params.keepFactId : undefined,
+          retireFactId: isObj ? params.retireFactId : undefined,
+          retireFactIds: isObj ? params.retireFactIds : undefined,
         },
-      }),
+      });
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["reports"] }),
   });
 
@@ -252,7 +278,223 @@ function ReportCard({ entry }: { entry: Entry }) {
         ) : null}
       </dl>
 
-      {pending ? (
+      {entry.duplicateFacts && entry.duplicateFacts.length > 0 && entry.fact ? (
+        <div
+          style={{
+            marginTop: "var(--ds-arena-space-4)",
+            padding: "var(--ds-arena-space-3)",
+            background: "rgba(246, 195, 68, 0.05)",
+            border: "1px solid rgba(246, 195, 68, 0.25)",
+            borderRadius: "var(--ds-arena-radius-md)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "var(--ds-arena-space-2)",
+              flexWrap: "wrap",
+              gap: 8,
+            }}
+          >
+            <h4 style={{ margin: 0, color: "#f6c344", fontSize: "0.95em", fontWeight: 700 }}>
+              Duplicate Fact Collisions ({entry.duplicateFacts.length + 1} facts)
+            </h4>
+            <span style={{ fontSize: "0.8em", color: "var(--ds-arena-color-text-muted)" }}>
+              Compare versions below: pick one to keep active; the other will be retired.
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "var(--ds-arena-space-3)",
+            }}
+          >
+            {/* Primary fact card */}
+            <div
+              style={{
+                background: "var(--ds-arena-color-surface-elevated, rgba(255, 255, 255, 0.03))",
+                padding: "var(--ds-arena-space-3)",
+                borderRadius: "var(--ds-arena-radius-sm)",
+                border: "1px solid var(--ds-arena-color-border)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--ds-arena-space-2)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 700, fontSize: "0.85em", color: "#10b981" }}>
+                  Reported Fact (A)
+                </span>
+                <Badge tone={statusTone(entry.fact.status)}>{entry.fact.status}</Badge>
+              </div>
+              <div style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
+                ID: <code>{entry.fact.id}</code>
+              </div>
+              <div>
+                <strong style={{ fontSize: "0.85em" }}>Subject / Angle:</strong>
+                <div>{entry.fact.subject} &mdash; <em>{entry.fact.angle}</em></div>
+              </div>
+              <div>
+                <strong style={{ fontSize: "0.85em" }}>Question:</strong>
+                <div style={{ color: "var(--ds-arena-color-text)", fontWeight: 500 }}>
+                  {entry.fact.question || entry.fact.claim_template}
+                </div>
+              </div>
+              <div>
+                <strong style={{ fontSize: "0.85em" }}>Claim template:</strong>
+                <div style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
+                  {entry.fact.claim_template}
+                </div>
+              </div>
+              <div>
+                <strong style={{ fontSize: "0.85em" }}>True Answer:</strong>{" "}
+                <span style={{ fontSize: "1.1em", fontWeight: 700, color: "var(--ds-arena-color-text)" }}>
+                  {entry.fact.true_number} {entry.fact.unit}
+                </span>
+              </div>
+              {entry.fact.source_urls?.length ? (
+                <div>
+                  <strong style={{ fontSize: "0.85em" }}>Sources:</strong>
+                  <SourceList sources={entry.fact.source_urls} />
+                </div>
+              ) : null}
+              {pending ? (
+                <div style={{ marginTop: "auto", paddingTop: "var(--ds-arena-space-2)" }}>
+                  <Button
+                    variant="primary"
+                    disabled={mutation.isPending}
+                    onClick={() => {
+                      if (window.confirm(`Keep Fact A (${entry.fact!.id}) and retire the other duplicate(s)?`)) {
+                        mutation.mutate({
+                          action: "resolve_duplicate",
+                          keepFactId: entry.fact!.id,
+                          retireFactIds: entry.duplicateFacts.map((d) => d.id),
+                        });
+                      }
+                    }}
+                  >
+                    Keep Fact A &amp; Retire Other(s)
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Duplicate facts */}
+            {entry.duplicateFacts.map((dupFact, idx) => (
+              <div
+                key={dupFact.id}
+                style={{
+                  background: "var(--ds-arena-color-surface-elevated, rgba(255, 255, 255, 0.03))",
+                  padding: "var(--ds-arena-space-3)",
+                  borderRadius: "var(--ds-arena-radius-sm)",
+                  border: "1px solid var(--ds-arena-color-border)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "var(--ds-arena-space-2)",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 700, fontSize: "0.85em", color: "#f6c344" }}>
+                    Duplicate Fact ({String.fromCharCode(66 + idx)})
+                  </span>
+                  <Badge tone={statusTone(dupFact.status)}>{dupFact.status}</Badge>
+                </div>
+                <div style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
+                  ID: <code>{dupFact.id}</code>
+                </div>
+                <div>
+                  <strong style={{ fontSize: "0.85em" }}>Subject / Angle:</strong>
+                  <div>{dupFact.subject} &mdash; <em>{dupFact.angle}</em></div>
+                </div>
+                <div>
+                  <strong style={{ fontSize: "0.85em" }}>Question:</strong>
+                  <div style={{ color: "var(--ds-arena-color-text)", fontWeight: 500 }}>
+                    {dupFact.question || dupFact.claim_template}
+                  </div>
+                </div>
+                <div>
+                  <strong style={{ fontSize: "0.85em" }}>Claim template:</strong>
+                  <div style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
+                    {dupFact.claim_template}
+                  </div>
+                </div>
+                <div>
+                  <strong style={{ fontSize: "0.85em" }}>True Answer:</strong>{" "}
+                  <span style={{ fontSize: "1.1em", fontWeight: 700, color: "var(--ds-arena-color-text)" }}>
+                    {dupFact.true_number} {dupFact.unit}
+                  </span>
+                </div>
+                {dupFact.source_urls?.length ? (
+                  <div>
+                    <strong style={{ fontSize: "0.85em" }}>Sources:</strong>
+                    <SourceList sources={dupFact.source_urls} />
+                  </div>
+                ) : null}
+                {pending ? (
+                  <div style={{ marginTop: "auto", paddingTop: "var(--ds-arena-space-2)" }}>
+                    <Button
+                      variant="primary"
+                      disabled={mutation.isPending}
+                      onClick={() => {
+                        if (window.confirm(`Keep Duplicate (${dupFact.id}) and retire Fact A (${entry.fact!.id})?`)) {
+                          const otherRetires = [
+                            entry.fact!.id,
+                            ...entry.duplicateFacts.filter((d) => d.id !== dupFact.id).map((d) => d.id),
+                          ];
+                          mutation.mutate({
+                            action: "resolve_duplicate",
+                            keepFactId: dupFact.id,
+                            retireFactIds: otherRetires,
+                          });
+                        }
+                      }}
+                    >
+                      Keep Fact {String.fromCharCode(66 + idx)} &amp; Retire Other(s)
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          {pending ? (
+            <div style={{ display: "flex", gap: "var(--ds-arena-space-2)", marginTop: "var(--ds-arena-space-3)", flexWrap: "wrap" }}>
+              <Button
+                variant="danger"
+                disabled={mutation.isPending}
+                onClick={() => {
+                  if (window.confirm("Retire ALL duplicate facts involved in this collision?")) {
+                    mutation.mutate({
+                      action: "resolve_duplicate",
+                      retireFactIds: [entry.fact!.id, ...entry.duplicateFacts.map((d) => d.id)],
+                      note: "All duplicate facts retired via moderation",
+                    });
+                  }
+                }}
+              >
+                Retire all duplicates
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={mutation.isPending}
+                onClick={() => {
+                  if (window.confirm("Reject report and keep all facts active (not duplicates)?")) {
+                    mutation.mutate({ action: "reject", note: "Not a duplicate - kept all active" });
+                  }
+                }}
+              >
+                Reject report (Keep all active)
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {pending && (!entry.duplicateFacts || entry.duplicateFacts.length === 0) ? (
         <>
           <div className="admin-toolbar" style={{ marginTop: "var(--ds-arena-space-4)" }}>
             <label className="admin-field">

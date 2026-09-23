@@ -460,7 +460,7 @@ const actOnReportScenario: fc.Arbitrary<MutationScenario> = fc
   .tuple(
     slugArb,
     slugArb,
-    fc.constantFrom("retire_fact", "fix_number", "reject", "resolve_only", "add_to_bank"),
+    fc.constantFrom("retire_fact", "fix_number", "reject", "resolve_only", "add_to_bank", "resolve_duplicate"),
     fc.integer({ min: 1, max: 5_000 }),
     fc.option(wordArb, { nil: undefined }),
   )

@@ -267,13 +267,21 @@ export const fetchReports = createServerFn({ method: "POST" }).middleware([authM
     z.object({ status: z.string().optional(), limit: z.number().optional() }).parse(data),
   )
   .handler(async ({ data }) => {
-    const { listReports, findFactForReport } = await import("./content.server");
+    const { listReports, findFactForReport, findDuplicateFactsForReport } = await import("./content.server");
     const reports = await listReports(data);
     const withFacts = await Promise.all(
-      reports.slice(0, 40).map(async (report) => ({
-        report,
-        fact: report.status === "pending_review" ? await findFactForReport(report) : null,
-      })),
+      reports.slice(0, 40).map(async (report) => {
+        const fact = report.status === "pending_review" ? await findFactForReport(report) : null;
+        const duplicateFacts =
+          report.status === "pending_review"
+            ? await findDuplicateFactsForReport(report, fact)
+            : [];
+        return {
+          report,
+          fact,
+          duplicateFacts,
+        };
+      }),
     );
     return withFacts;
   });
@@ -283,13 +291,23 @@ export const actOnReport = createServerFn({ method: "POST" }).middleware([authMi
     z
       .object({
         reportId: z.string().min(1),
-        action: z.enum(["retire_fact", "fix_number", "reject", "resolve_only", "add_to_bank"]),
+        action: z.enum([
+          "retire_fact",
+          "fix_number",
+          "reject",
+          "resolve_only",
+          "add_to_bank",
+          "resolve_duplicate",
+        ]),
         factId: z.string().optional(),
         correctedNumber: z.number().optional(),
         note: z.string().optional(),
         topic: z.string().optional(),
         claimStatement: z.string().optional(),
         unit: z.string().optional(),
+        keepFactId: z.string().optional(),
+        retireFactId: z.string().optional(),
+        retireFactIds: z.array(z.string()).optional(),
       })
       .parse(data),
   )
