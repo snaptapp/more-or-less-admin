@@ -17,6 +17,7 @@ import {
 import type { AdminUser } from "../firebase/verify.server";
 import { sanitizeDraftRounds } from "./daily-blitz";
 import { STATUS } from "./contract";
+import { validateTaxonomy } from "./taxonomy";
 
 function str(value: Json | undefined): string {
   return typeof value === "string" ? value : "";
@@ -122,6 +123,8 @@ export async function createSubject(input: {
 }): Promise<SubjectRecord> {
   const subjectKey = normalizeKey(input.subject);
   if (!subjectKey) throw new Error("Topic name is required");
+  const taxonomyErr = validateTaxonomy(input.category, input.sub_category, input.subject);
+  if (taxonomyErr) throw new Error(taxonomyErr);
   if (await getDoc(`fact_subjects/${subjectKey}`)) throw new Error("A topic with this name already exists");
   await assertNameNotTaken(subjectKey, "topic");
   const playlist_ids = [...new Set(input.playlist_ids ?? [])];
@@ -152,6 +155,14 @@ export async function updateSubject(input: {
   crawl_notes?: string;
   playlist_ids?: string[];
 }): Promise<SubjectRecord> {
+  const existing = await getDoc(`fact_subjects/${input.id}`);
+  if (!existing) throw new Error(`Topic ${input.id} not found`);
+  const effectiveCat = input.category ?? str(existing.data["category"]);
+  const effectiveSubCat = input.sub_category !== undefined ? input.sub_category : str(existing.data["sub_category"]);
+  const effectiveSubject = str(existing.data["subject"]);
+  const taxonomyErr = validateTaxonomy(effectiveCat, effectiveSubCat, effectiveSubject);
+  if (taxonomyErr) throw new Error(taxonomyErr);
+
   const patch: Record<string, unknown> = {};
   if (input.category !== undefined) patch["category"] = input.category;
   if (input.sub_category !== undefined) patch["sub_category"] = input.sub_category;

@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Fragment, useMemo, useState } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, InlineEditorRow, statusTone } from "@/admin/AdminShell";
-import { GENRES, familiesForGenre } from "@/lib/admin/taxonomy";
+import { GENRES, familiesForGenre, validateTaxonomy, normalizeTaxonomyKey } from "@/lib/admin/taxonomy";
 import {
   createPlaylistAction,
   createTopic,
@@ -45,7 +45,10 @@ function TopicEditor({
     playlist_ids: subject.playlist_ids,
   });
 
-  const familyOptions = familiesForGenre(form.category, observedFamilies(subjects, form.category));
+  const validationError = validateTaxonomy(form.category, form.sub_category, subject.subject);
+  const familyOptions = familiesForGenre(form.category, observedFamilies(subjects, form.category)).filter(
+    (f) => normalizeTaxonomyKey(f) !== normalizeTaxonomyKey(subject.subject),
+  );
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -168,8 +171,13 @@ function TopicEditor({
         />
       </label>
       <ErrorNote error={mutation.error} />
+      {validationError ? (
+        <p style={{ color: "var(--ds-arena-color-red)", fontSize: 13, margin: "var(--ds-arena-space-2) 0" }}>
+          {validationError}
+        </p>
+      ) : null}
       <div className="admin-row-actions" style={{ marginTop: "var(--ds-arena-space-3)" }}>
-        <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+        <Button disabled={mutation.isPending || !!validationError} onClick={() => mutation.mutate()}>
           Save topic
         </Button>
         <Button variant="ghost" onClick={onDone}>
@@ -196,7 +204,10 @@ function NewTopicForm({
     aliases: "",
     playlist_ids: [] as string[],
   });
-  const familyOptions = familiesForGenre(form.category, observedFamilies(subjects, form.category));
+  const validationError = validateTaxonomy(form.category, form.sub_category, form.subject);
+  const familyOptions = familiesForGenre(form.category, observedFamilies(subjects, form.category)).filter(
+    (f) => !form.subject || normalizeTaxonomyKey(f) !== normalizeTaxonomyKey(form.subject),
+  );
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -260,8 +271,13 @@ function NewTopicForm({
         </label>
       </div>
       <ErrorNote error={mutation.error} />
+      {validationError ? (
+        <p style={{ color: "var(--ds-arena-color-red)", fontSize: 13, margin: "var(--ds-arena-space-2) 0" }}>
+          {validationError}
+        </p>
+      ) : null}
       <div className="admin-row-actions" style={{ marginTop: "var(--ds-arena-space-3)" }}>
-        <Button disabled={!form.subject.trim() || mutation.isPending} onClick={() => mutation.mutate()}>
+        <Button disabled={!form.subject.trim() || !!validationError || mutation.isPending} onClick={() => mutation.mutate()}>
           Create topic
         </Button>
         <Button variant="ghost" onClick={onDone}>
