@@ -833,14 +833,15 @@ function ContentPage() {
     retry: false,
   });
 
+  const subjects = subjectsQuery.data?.subjects;
   const subjectsByName = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof subjectsQuery.data>["subjects"][number]>();
-    for (const subject of subjectsQuery.data?.subjects ?? []) {
+    const map = new Map<string, NonNullable<typeof subjects>[number]>();
+    for (const subject of subjects ?? []) {
       map.set(subject.subject.toLowerCase(), subject);
       for (const alias of subject.aliases) map.set(alias.toLowerCase(), subject);
     }
     return map;
-  }, [subjectsQuery.data?.subjects]);
+  }, [subjects]);
 
   const familyOptions = familiesForGenre(
     filters.category,
