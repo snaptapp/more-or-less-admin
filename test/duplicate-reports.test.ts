@@ -281,4 +281,149 @@ describe("Duplicate reports handling", () => {
     expect(firestoreDouble().document("trivia_reports/lint_fact_x")!.data["status"]).toBe("rejected");
     expect(firestoreDouble().document("trivia_reports/lint_fact_y")!.data["status"]).toBe("rejected");
   });
+
+  it("resolving duplicate where kept fact has another linter flag retains remaining flag and stays disputed", async () => {
+    const { resolveReport } = await import("@/lib/admin/content.server");
+
+    firestoreDouble().seed("fact_bank/fact_multi_flag", {
+      subject: "Billboard Hot 100",
+      status: STATUS.disputed,
+      quality_flags: ["duplicate_question", "bounds_chart_position"],
+      disputed_reason: "fact_lint: duplicate_question,bounds_chart_position",
+      true_number: 105,
+    });
+    firestoreDouble().seed("fact_bank/fact_loser_dup", {
+      subject: "Billboard Hot 100",
+      status: STATUS.disputed,
+      quality_flags: ["duplicate_question"],
+      disputed_reason: "fact_lint: duplicate_question",
+      true_number: 105,
+    });
+
+    firestoreDouble().seed("trivia_reports/lint_fact_multi_flag", {
+      factId: "fact_multi_flag",
+      status: "pending_review",
+      duplicateFactIds: ["fact_loser_dup"],
+      qualityFlags: ["duplicate_question", "bounds_chart_position"],
+    });
+
+    await resolveReport({
+      reportId: "lint_fact_multi_flag",
+      action: "resolve_duplicate",
+      keepFactId: "fact_multi_flag",
+      retireFactIds: ["fact_loser_dup"],
+    });
+
+    // Kept fact should NOT be active because it still has bounds_chart_position!
+    const kept = firestoreDouble().document("fact_bank/fact_multi_flag")!;
+    expect(kept.data["status"]).toBe(STATUS.disputed);
+    expect(kept.data["quality_flags"]).toEqual(["bounds_chart_position"]);
+    expect(kept.data["disputed_reason"]).toBe("fact_lint: bounds_chart_position");
+
+    // Loser should be retired
+    expect(firestoreDouble().document("fact_bank/fact_loser_dup")!.data["status"]).toBe(STATUS.retired);
+
+    // Report should remain in pending_review with bounds_chart_position so the moderator can fix it
+    const rep = firestoreDouble().document("trivia_reports/lint_fact_multi_flag")!;
+    expect(rep.data["status"]).toBe("pending_review");
+    expect(rep.data["qualityFlags"]).toEqual(["bounds_chart_position"]);
+    expect(rep.data["duplicateFactIds"]).toBeUndefined();
+    expect(rep.data["resolutionNote"]).toContain("bounds_chart_position");
+  });
+
+  it("rejecting duplicate report where fact has another flag retains remaining flag and stays disputed", async () => {
+    const { resolveReport } = await import("@/lib/admin/content.server");
+
+    firestoreDouble().seed("fact_bank/fact_reject_multi", {
+      subject: "Billboard Hot 100",
+      status: STATUS.disputed,
+      quality_flags: ["duplicate_question", "bounds_chart_position"],
+      disputed_reason: "fact_lint: duplicate_question,bounds_chart_position",
+      true_number: 105,
+    });
+    firestoreDouble().seed("fact_bank/fact_reject_clean", {
+      subject: "Billboard Hot 100",
+      status: STATUS.disputed,
+      quality_flags: ["duplicate_question"],
+      disputed_reason: "fact_lint: duplicate_question",
+      true_number: 100,
+    });
+
+    firestoreDouble().seed("trivia_reports/lint_fact_reject_multi", {
+      reportSource: "fact_lint",
+      factId: "fact_reject_multi",
+      status: "pending_review",
+      duplicateFactIds: ["fact_reject_clean"],
+      qualityFlags: ["duplicate_question", "bounds_chart_position"],
+    });
+    firestoreDouble().seed("trivia_reports/lint_fact_reject_clean", {
+      reportSource: "fact_lint",
+      factId: "fact_reject_clean",
+      status: "pending_review",
+      duplicateFactIds: ["fact_reject_multi"],
+      qualityFlags: ["duplicate_question"],
+    });
+
+    await resolveReport({
+      reportId: "lint_fact_reject_multi",
+      action: "reject",
+    });
+
+    // Multi-flag fact should STILL be disputed with bounds_chart_position
+    const multi = firestoreDouble().document("fact_bank/fact_reject_multi")!;
+    expect(multi.data["status"]).toBe(STATUS.disputed);
+    expect(multi.data["quality_flags"]).toEqual(["bounds_chart_position"]);
+
+    // Clean fact should be reinstated to active
+    const clean = firestoreDouble().document("fact_bank/fact_reject_clean")!;
+    expect(clean.data["status"]).toBe(STATUS.active);
+    expect(clean.data["quality_flags"]).toBeUndefined();
+
+    // Multi-flag report should stay pending_review for bounds_chart_position
+    const multiRep = firestoreDouble().document("trivia_reports/lint_fact_reject_multi")!;
+    expect(multiRep.data["status"]).toBe("pending_review");
+    expect(multiRep.data["qualityFlags"]).toEqual(["bounds_chart_position"]);
+
+    // Clean fact report should be auto-rejected
+    const cleanRep = firestoreDouble().document("trivia_reports/lint_fact_reject_clean")!;
+    expect(cleanRep.data["status"]).toBe("rejected");
+  });
+
+  it("resolving duplicate with correctedNumber updates true_number on kept fact", async () => {
+    const { resolveReport } = await import("@/lib/admin/content.server");
+
+    firestoreDouble().seed("fact_bank/fact_conflicting_a", {
+      subject: "Donna Summer",
+      status: STATUS.disputed,
+      quality_flags: ["conflicting_answer"],
+      true_number: 4,
+    });
+    firestoreDouble().seed("fact_bank/fact_conflicting_b", {
+      subject: "Donna Summer",
+      status: STATUS.disputed,
+      quality_flags: ["conflicting_answer"],
+      true_number: 5,
+    });
+
+    firestoreDouble().seed("trivia_reports/lint_conflicting", {
+      factId: "fact_conflicting_a",
+      status: "pending_review",
+      duplicateFactIds: ["fact_conflicting_b"],
+      qualityFlags: ["conflicting_answer"],
+    });
+
+    await resolveReport({
+      reportId: "lint_conflicting",
+      action: "resolve_duplicate",
+      keepFactId: "fact_conflicting_a",
+      retireFactIds: ["fact_conflicting_b"],
+      correctedNumber: 6,
+      note: "Official count is 6 number-one hits",
+    });
+
+    const kept = firestoreDouble().document("fact_bank/fact_conflicting_a")!;
+    expect(kept.data["status"]).toBe(STATUS.active);
+    expect(kept.data["true_number"]).toBe(6);
+    expect(kept.data["quality_flags"]).toBeUndefined();
+  });
 });

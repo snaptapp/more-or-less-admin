@@ -38,6 +38,12 @@ export interface RemoteConfigTemplate {
   etag: string;
 }
 
+export interface CustomParamEntry {
+  value: string;
+  valueType?: "STRING" | "BOOLEAN" | "NUMBER" | "JSON";
+  description?: string;
+}
+
 export interface TopicSuggestionConfig {
   defaultTopics: string[];
   variants: {
@@ -46,13 +52,45 @@ export interface TopicSuggestionConfig {
     tagColor: string;
     topics: string[];
   }[];
+  // Active Remote Config options in More or Less
+  enableInterstitialAds: boolean;
+  interstitialAdFrequency: number;
+  enableRewardedAds: boolean;
+  enableBannerAds: boolean;
+  allowedEmails: string[];
+  // Dynamic custom parameters
+  customParameters: Record<string, CustomParamEntry>;
   etag: string;
   versionNumber?: string;
   updatedAt?: string;
   updatedBy?: string;
 }
 
+export interface RemoteConfigPublishInput {
+  defaultTopics: string[];
+  variants: {
+    conditionName: string;
+    expression: string;
+    tagColor?: string;
+    topics: string[];
+  }[];
+  enableInterstitialAds?: boolean;
+  interstitialAdFrequency?: number;
+  enableRewardedAds?: boolean;
+  enableBannerAds?: boolean;
+  allowedEmails?: string[];
+  customParameters?: Record<string, CustomParamEntry>;
+}
+
 const PARAM_KEY = "custom_topic_suggestions";
+const KNOWN_PARAM_KEYS = new Set([
+  PARAM_KEY,
+  "enable_interstitial_ads",
+  "interstitial_ad_frequency_rounds",
+  "enable_rewarded_ads",
+  "enable_banner_ads",
+  "allowed_emails",
+]);
 
 const VALID_TAG_COLORS = new Set([
   "BLUE",
@@ -105,7 +143,7 @@ export async function getRemoteConfigTemplate(): Promise<RemoteConfigTemplate> {
 }
 
 /**
- * Parse the topic suggestions configuration (default topics and targeted variants).
+ * Parse the full Remote Config configuration including topics, ad settings, allowlist, and custom parameters.
  */
 export async function getTopicSuggestionsConfig(): Promise<TopicSuggestionConfig> {
   const template = await getRemoteConfigTemplate();
@@ -151,9 +189,46 @@ export async function getTopicSuggestionsConfig(): Promise<TopicSuggestionConfig
     }
   }
 
+  // Parse active parameters in place
+  const enableInterstitialAds =
+    template.parameters?.["enable_interstitial_ads"]?.defaultValue?.value === "true";
+
+  const rawFreq = template.parameters?.["interstitial_ad_frequency_rounds"]?.defaultValue?.value;
+  const interstitialAdFrequency = rawFreq ? Math.max(1, parseInt(rawFreq, 10) || 3) : 3;
+
+  const rawRewarded = template.parameters?.["enable_rewarded_ads"]?.defaultValue?.value;
+  const enableRewardedAds = rawRewarded !== undefined ? rawRewarded === "true" : true;
+
+  const enableBannerAds =
+    template.parameters?.["enable_banner_ads"]?.defaultValue?.value === "true";
+
+  const rawAllowed = template.parameters?.["allowed_emails"]?.defaultValue?.value ?? "";
+  const allowedEmails = rawAllowed
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // Discover any parameters beyond the known set
+  const customParameters: Record<string, CustomParamEntry> = {};
+  for (const [key, p] of Object.entries(template.parameters ?? {})) {
+    if (!KNOWN_PARAM_KEYS.has(key)) {
+      customParameters[key] = {
+        value: p.defaultValue?.value ?? "",
+        valueType: p.valueType,
+        description: p.description,
+      };
+    }
+  }
+
   return {
     defaultTopics,
     variants,
+    enableInterstitialAds,
+    interstitialAdFrequency,
+    enableRewardedAds,
+    enableBannerAds,
+    allowedEmails,
+    customParameters,
     etag: template.etag,
     versionNumber: template.version?.versionNumber,
     updatedAt: template.version?.updateTime,
@@ -162,18 +237,10 @@ export async function getTopicSuggestionsConfig(): Promise<TopicSuggestionConfig
 }
 
 /**
- * Update the topic suggestions parameter & associated conditions in Remote Config and publish.
+ * Update the topic suggestions, ad flags, allowlist, and custom parameters in Remote Config and publish.
  */
 export async function publishTopicSuggestionsConfig(
-  newConfig: {
-    defaultTopics: string[];
-    variants: {
-      conditionName: string;
-      expression: string;
-      tagColor?: string;
-      topics: string[];
-    }[];
-  },
+  newConfig: RemoteConfigPublishInput,
   etag: string,
   userEmail?: string,
 ): Promise<TopicSuggestionConfig> {
@@ -187,7 +254,7 @@ export async function publishTopicSuggestionsConfig(
   // Ensure parameters object exists
   if (!template.parameters) template.parameters = {};
 
-  // Build conditionalValues map
+  // Build conditionalValues map for topics
   const conditionalValues: Record<string, { value: string }> = {};
   const newConditionNames = new Set<string>();
 
@@ -198,7 +265,7 @@ export async function publishTopicSuggestionsConfig(
     newConditionNames.add(variant.conditionName);
   }
 
-  // Update or set parameter
+  // Update or set custom_topic_suggestions parameter
   template.parameters[PARAM_KEY] = {
     ...template.parameters[PARAM_KEY],
     defaultValue: {
@@ -208,6 +275,67 @@ export async function publishTopicSuggestionsConfig(
     description: "Rotating custom topic suggestions on solo config screen",
     valueType: "JSON",
   };
+
+  // Update monetization and access parameters if provided
+  if (newConfig.enableInterstitialAds !== undefined) {
+    template.parameters["enable_interstitial_ads"] = {
+      ...template.parameters["enable_interstitial_ads"],
+      defaultValue: { value: String(newConfig.enableInterstitialAds) },
+      valueType: "BOOLEAN",
+      description: "Display full-screen ads between finished game rounds on mobile",
+    };
+  }
+
+  if (newConfig.interstitialAdFrequency !== undefined) {
+    template.parameters["interstitial_ad_frequency_rounds"] = {
+      ...template.parameters["interstitial_ad_frequency_rounds"],
+      defaultValue: { value: String(newConfig.interstitialAdFrequency) },
+      valueType: "NUMBER",
+      description: "Number of completed rounds/packs required between interstitial ad displays",
+    };
+  }
+
+  if (newConfig.enableRewardedAds !== undefined) {
+    template.parameters["enable_rewarded_ads"] = {
+      ...template.parameters["enable_rewarded_ads"],
+      defaultValue: { value: String(newConfig.enableRewardedAds) },
+      valueType: "BOOLEAN",
+      description: "Allow players to watch opt-in rewarded video ads to revive in Cutthroat sudden-death mode",
+    };
+  }
+
+  if (newConfig.enableBannerAds !== undefined) {
+    template.parameters["enable_banner_ads"] = {
+      ...template.parameters["enable_banner_ads"],
+      defaultValue: { value: String(newConfig.enableBannerAds) },
+      valueType: "BOOLEAN",
+      description: "Display banner ads on eligible non-gameplay screens",
+    };
+  }
+
+  if (newConfig.allowedEmails !== undefined) {
+    template.parameters["allowed_emails"] = {
+      ...template.parameters["allowed_emails"],
+      defaultValue: { value: newConfig.allowedEmails.join(",") },
+      valueType: "STRING",
+      description: "Comma-separated email addresses or domain suffixes granted runtime testing/access",
+    };
+  }
+
+  // Merge custom dynamic parameters if provided
+  if (newConfig.customParameters) {
+    for (const [key, customParam] of Object.entries(newConfig.customParameters)) {
+      if (customParam.value === "" && !template.parameters[key]) {
+        continue;
+      }
+      template.parameters[key] = {
+        ...template.parameters[key],
+        defaultValue: { value: customParam.value },
+        valueType: customParam.valueType ?? "STRING",
+        description: customParam.description ?? template.parameters[key]?.description,
+      };
+    }
+  }
 
   // Rebuild topic conditions in UI priority order, preserving unrelated conditions.
   const existingConditions = template.conditions ?? [];
@@ -235,7 +363,7 @@ export async function publishTopicSuggestionsConfig(
       conditions: template.conditions,
       parameterGroups: template.parameterGroups,
       version: {
-        updateDescription: `Updated custom topic suggestions via Admin Portal by ${userEmail ?? "admin"}`,
+        updateDescription: `Updated Remote Config parameters via Admin Portal by ${userEmail ?? "admin"}`,
       },
     }),
   });
@@ -248,12 +376,42 @@ export async function publishTopicSuggestionsConfig(
   const updatedTemplate = (await response.json()) as RemoteConfigTemplate;
   const newEtag = response.headers.get("ETag") || response.headers.get("etag") || "*";
 
+  // Re-read current custom parameters
+  const currentCustomParams: Record<string, CustomParamEntry> = {};
+  for (const [key, p] of Object.entries(updatedTemplate.parameters ?? {})) {
+    if (!KNOWN_PARAM_KEYS.has(key)) {
+      currentCustomParams[key] = {
+        value: p.defaultValue?.value ?? "",
+        valueType: p.valueType,
+        description: p.description,
+      };
+    }
+  }
+
   return {
     defaultTopics: newConfig.defaultTopics,
     variants: newConfig.variants.map((v) => ({
       ...v,
       tagColor: normalizeTagColor(v.tagColor),
     })),
+    enableInterstitialAds:
+      newConfig.enableInterstitialAds ??
+      (updatedTemplate.parameters?.["enable_interstitial_ads"]?.defaultValue?.value === "true"),
+    interstitialAdFrequency:
+      newConfig.interstitialAdFrequency ??
+      (parseInt(updatedTemplate.parameters?.["interstitial_ad_frequency_rounds"]?.defaultValue?.value ?? "3", 10) || 3),
+    enableRewardedAds:
+      newConfig.enableRewardedAds ??
+      (updatedTemplate.parameters?.["enable_rewarded_ads"]?.defaultValue?.value !== "false"),
+    enableBannerAds:
+      newConfig.enableBannerAds ??
+      (updatedTemplate.parameters?.["enable_banner_ads"]?.defaultValue?.value === "true"),
+    allowedEmails:
+      newConfig.allowedEmails ??
+      (updatedTemplate.parameters?.["allowed_emails"]?.defaultValue?.value ?? "")
+        .split(/[\s,]+/)
+        .filter(Boolean),
+    customParameters: currentCustomParams,
     etag: newEtag,
     versionNumber: updatedTemplate.version?.versionNumber,
     updatedAt: updatedTemplate.version?.updateTime,

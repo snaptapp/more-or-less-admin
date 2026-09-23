@@ -128,6 +128,7 @@ function ReportCard({ entry }: { entry: Entry }) {
             retireFactId?: string;
             retireFactIds?: string[];
             note?: string;
+            correctedNumber?: number;
           },
     ) => {
       const isObj = typeof params === "object";
@@ -278,10 +279,37 @@ function ReportCard({ entry }: { entry: Entry }) {
         ) : null}
       </dl>
 
+      {pending ? (
+        <>
+          <div className="admin-toolbar" style={{ marginTop: "var(--ds-arena-space-4)" }}>
+            <label className="admin-field">
+              <span>Corrected number</span>
+              <input
+                className="admin-input"
+                type="number"
+                step="any"
+                value={corrected}
+                onChange={(event) => setCorrected(event.target.value)}
+              />
+            </label>
+            <label className="admin-field" style={{ flex: "1 1 240px" }}>
+              <span>Resolution note</span>
+              <input
+                className="admin-input"
+                placeholder="Optional resolution note..."
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+              />
+            </label>
+          </div>
+          <ErrorNote error={mutation.error} />
+        </>
+      ) : null}
+
       {entry.duplicateFacts && entry.duplicateFacts.length > 0 && entry.fact ? (
         <div
           style={{
-            marginTop: "var(--ds-arena-space-4)",
+            marginTop: "var(--ds-arena-space-3)",
             padding: "var(--ds-arena-space-3)",
             background: "rgba(246, 195, 68, 0.05)",
             border: "1px solid rgba(246, 195, 68, 0.25)",
@@ -302,7 +330,7 @@ function ReportCard({ entry }: { entry: Entry }) {
               Duplicate Fact Collisions ({entry.duplicateFacts.length + 1} facts)
             </h4>
             <span style={{ fontSize: "0.8em", color: "var(--ds-arena-color-text-muted)" }}>
-              Compare versions below: pick one to keep active; the other will be retired.
+              Compare versions below: pick one to keep active (applies any corrected number/note above); the other will be retired.
             </span>
           </div>
 
@@ -334,6 +362,26 @@ function ReportCard({ entry }: { entry: Entry }) {
               <div style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
                 ID: <code>{entry.fact.id}</code>
               </div>
+              {entry.fact.quality_flags?.length ? (
+                <div>
+                  <strong style={{ fontSize: "0.85em" }}>Quality flags:</strong>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
+                    {entry.fact.quality_flags.map((flag) => {
+                      const isDup = flag === "duplicate_question" || flag === "conflicting_answer";
+                      return (
+                        <Badge key={flag} tone={isDup ? "amber" : "red"}>
+                          {flag}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                  {entry.fact.quality_flags.some((f) => f !== "duplicate_question" && f !== "conflicting_answer") ? (
+                    <div style={{ fontSize: "0.8em", color: "#f87171", marginTop: 2 }}>
+                      ⚠ Has other issue: {entry.fact.quality_flags.filter((f) => f !== "duplicate_question" && f !== "conflicting_answer").join(", ")}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <div>
                 <strong style={{ fontSize: "0.85em" }}>Subject / Angle:</strong>
                 <div>{entry.fact.subject} &mdash; <em>{entry.fact.angle}</em></div>
@@ -373,6 +421,8 @@ function ReportCard({ entry }: { entry: Entry }) {
                           action: "resolve_duplicate",
                           keepFactId: entry.fact!.id,
                           retireFactIds: entry.duplicateFacts.map((d) => d.id),
+                          note: note.trim() || undefined,
+                          correctedNumber: corrected ? Number(corrected) : undefined,
                         });
                       }
                     }}
@@ -406,6 +456,26 @@ function ReportCard({ entry }: { entry: Entry }) {
                 <div style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
                   ID: <code>{dupFact.id}</code>
                 </div>
+                {dupFact.quality_flags?.length ? (
+                  <div>
+                    <strong style={{ fontSize: "0.85em" }}>Quality flags:</strong>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
+                      {dupFact.quality_flags.map((flag) => {
+                        const isDup = flag === "duplicate_question" || flag === "conflicting_answer";
+                        return (
+                          <Badge key={flag} tone={isDup ? "amber" : "red"}>
+                            {flag}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                    {dupFact.quality_flags.some((f) => f !== "duplicate_question" && f !== "conflicting_answer") ? (
+                      <div style={{ fontSize: "0.8em", color: "#f87171", marginTop: 2 }}>
+                        ⚠ Has other issue: {dupFact.quality_flags.filter((f) => f !== "duplicate_question" && f !== "conflicting_answer").join(", ")}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div>
                   <strong style={{ fontSize: "0.85em" }}>Subject / Angle:</strong>
                   <div>{dupFact.subject} &mdash; <em>{dupFact.angle}</em></div>
@@ -449,6 +519,8 @@ function ReportCard({ entry }: { entry: Entry }) {
                             action: "resolve_duplicate",
                             keepFactId: dupFact.id,
                             retireFactIds: otherRetires,
+                            note: note.trim() || undefined,
+                            correctedNumber: corrected ? Number(corrected) : undefined,
                           });
                         }
                       }}
@@ -471,7 +543,7 @@ function ReportCard({ entry }: { entry: Entry }) {
                     mutation.mutate({
                       action: "resolve_duplicate",
                       retireFactIds: [entry.fact!.id, ...entry.duplicateFacts.map((d) => d.id)],
-                      note: "All duplicate facts retired via moderation",
+                      note: note.trim() || "All duplicate facts retired via moderation",
                     });
                   }
                 }}
@@ -483,7 +555,7 @@ function ReportCard({ entry }: { entry: Entry }) {
                 disabled={mutation.isPending}
                 onClick={() => {
                   if (window.confirm("Reject report and keep all facts active (not duplicates)?")) {
-                    mutation.mutate({ action: "reject", note: "Not a duplicate - kept all active" });
+                    mutation.mutate({ action: "reject", note: note.trim() || "Not a duplicate - kept all active" });
                   }
                 }}
               >
@@ -494,52 +566,38 @@ function ReportCard({ entry }: { entry: Entry }) {
         </div>
       ) : null}
 
-      {pending && (!entry.duplicateFacts || entry.duplicateFacts.length === 0) ? (
-        <>
-          <div className="admin-toolbar" style={{ marginTop: "var(--ds-arena-space-4)" }}>
-            <label className="admin-field">
-              <span>Corrected number</span>
-              <input
-                className="admin-input"
-                type="number"
-                step="any"
-                value={corrected}
-                onChange={(event) => setCorrected(event.target.value)}
-              />
-            </label>
-            <label className="admin-field" style={{ flex: "1 1 240px" }}>
-              <span>Resolution note</span>
-              <input
-                className="admin-input"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-              />
-            </label>
-          </div>
-          <ErrorNote error={mutation.error} />
-          <div className="admin-row-actions" style={{ marginTop: "var(--ds-arena-space-3)" }}>
-            {entry.fact ? (
-              <>
-                <Button
-                  variant="danger"
-                  disabled={mutation.isPending}
-                  onClick={() => {
-                    if (window.confirm("Retire the matched fact and resolve this report?")) {
-                      mutation.mutate("retire_fact");
-                    }
-                  }}
-                >
-                  Accept &amp; retire fact
-                </Button>
-                <Button
-                  variant="primary"
-                  disabled={!corrected || mutation.isPending}
-                  onClick={() => mutation.mutate("fix_number")}
-                >
-                  Accept &amp; fix number
-                </Button>
-              </>
-            ) : (
+      {pending ? (
+        <div className="admin-row-actions" style={{ marginTop: "var(--ds-arena-space-3)" }}>
+          {entry.fact ? (
+            <>
+              <Button
+                variant="danger"
+                disabled={mutation.isPending}
+                onClick={() => {
+                  if (window.confirm("Retire the matched fact and resolve this report?")) {
+                    mutation.mutate("retire_fact");
+                  }
+                }}
+              >
+                Accept &amp; retire fact
+              </Button>
+              <Button
+                variant="primary"
+                disabled={!corrected || mutation.isPending}
+                onClick={() => {
+                  if (entry.duplicateFacts?.length) {
+                    window.alert(
+                      "This fact has duplicate conflicts. To fix the number and resolve the collision, use 'Keep Fact A' or 'Keep Fact B' above with your corrected number.",
+                    );
+                    return;
+                  }
+                  mutation.mutate("fix_number");
+                }}
+              >
+                Accept &amp; fix number
+              </Button>
+            </>
+          ) : (
               <>
                 <Button
                   variant="primary"
@@ -571,8 +629,7 @@ function ReportCard({ entry }: { entry: Entry }) {
               Reject report
             </Button>
           </div>
-        </>
-      ) : null}
+        ) : null}
     </Card>
   );
 }

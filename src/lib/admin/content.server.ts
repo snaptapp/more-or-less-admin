@@ -1214,32 +1214,82 @@ export async function resolveReport(input: {
       }
     }
 
+    let remainingFlags: string[] = [];
     if (keepId) {
+      if (input.correctedNumber !== undefined) {
+        await updateFact({ id: keepId, true_number: input.correctedNumber });
+      }
+
       const keepDoc = await getFact(keepId);
-      if (keepDoc && keepDoc.status === STATUS.disputed) {
-        await setFactStatus({
-          id: keepId,
-          status: STATUS.active,
-          reason: "Reinstated duplicate winner via moderation",
-        });
-        await patchDoc(`fact_bank/${keepId}`, {}, ["quality_flags", "disputed_reason", "disputed_at"]);
+      if (keepDoc) {
+        const currentFlags = Array.isArray(keepDoc.quality_flags) ? keepDoc.quality_flags : [];
+        remainingFlags = currentFlags.filter(
+          (f) => f !== "duplicate_question" && f !== "conflicting_answer",
+        );
+
+        if (remainingFlags.length === 0) {
+          if (keepDoc.status === STATUS.disputed) {
+            await setFactStatus({
+              id: keepId,
+              status: STATUS.active,
+              reason: input.note ?? "Reinstated duplicate winner via moderation",
+            });
+            await patchDoc(`fact_bank/${keepId}`, {}, ["quality_flags", "disputed_reason", "disputed_at"]);
+          }
+        } else {
+          // Fact still carries other linter warnings (e.g. bounds_chart_position).
+          // Keep remaining flags and dispute reason so the fact remains properly quarantined until fixed.
+          await patchDoc(`fact_bank/${keepId}`, {
+            quality_flags: remainingFlags,
+            disputed_reason: `fact_lint: ${remainingFlags.join(",")}`,
+          });
+        }
       }
 
       const keepReportDoc = await getDoc(`trivia_reports/lint_${keepId}`);
       if (keepReportDoc && keepReportDoc.data["status"] === "pending_review" && keepReportDoc.id !== input.reportId) {
-        await patchDoc(`trivia_reports/lint_${keepId}`, {
-          status: "resolved",
-          resolutionNote: `Auto-resolved: duplicate resolved via ${input.reportId}`,
-          resolved_at: now,
-        });
+        if (remainingFlags.length === 0) {
+          await patchDoc(`trivia_reports/lint_${keepId}`, {
+            status: "resolved",
+            resolutionNote: `Auto-resolved: duplicate resolved via ${input.reportId}`,
+            resolved_at: now,
+          });
+        } else {
+          await patchDoc(`trivia_reports/lint_${keepId}`, {
+            qualityFlags: remainingFlags,
+            resolutionNote: `Duplicate resolved via ${input.reportId}; remaining flags: ${remainingFlags.join(", ")}`,
+          });
+        }
       }
     }
 
-    await patchDoc(`trivia_reports/${input.reportId}`, {
-      status: "resolved",
-      resolutionNote: input.note ?? `Kept ${keepId ?? "chosen fact"}, retired duplicate ${retireIds.join(", ") || "other"}`,
-      resolved_at: now,
-    });
+    const defaultNote =
+      remainingFlags.length > 0
+        ? `Kept ${keepId} (retired ${retireIds.join(", ") || "duplicates"}; remaining flags: ${remainingFlags.join(", ")})`
+        : `Kept ${keepId ?? "chosen fact"}, retired duplicate ${retireIds.join(", ") || "other"}`;
+
+    const isKeptFactReport =
+      Boolean(keepId && (input.reportId === `lint_${keepId}` || (input.factId && input.factId === keepId)));
+
+    if (isKeptFactReport && remainingFlags.length > 0) {
+      // Kept fact still has other violations (e.g. bounds_chart_position). Keep report in pending_review
+      // so moderators can review and fix the remaining issue, but clear duplicate relationships.
+      await patchDoc(
+        `trivia_reports/${input.reportId}`,
+        {
+          qualityFlags: remainingFlags,
+          reason: `fact_lint: ${remainingFlags.join(",")}`,
+          resolutionNote: input.note ?? defaultNote,
+        },
+        ["duplicateFactIds", "duplicate_fact_ids"],
+      );
+    } else {
+      await patchDoc(`trivia_reports/${input.reportId}`, {
+        status: "resolved",
+        resolutionNote: input.note ?? defaultNote,
+        resolved_at: now,
+      });
+    }
     return { ok: true };
   }
 
@@ -1332,51 +1382,106 @@ export async function resolveReport(input: {
       : typeof reportData["questionId"] === "string" && (reportData["questionId"] as string).startsWith("fact:")
         ? ((reportData["questionId"] as string).slice("fact:".length).trim() || null)
         : null;
+  let remainingFlags: string[] = [];
   if (
     storedFactId &&
     (reportData["reportSource"] === "round_telemetry" || reportData["reportSource"] === "fact_lint")
   ) {
     const factDoc = await getDoc(`fact_bank/${storedFactId}`);
     if (factDoc && factDoc.data["status"] === STATUS.disputed) {
-      const previous =
-        typeof reportData["factPreviousStatus"] === "string" && reportData["factPreviousStatus"]
-          ? (reportData["factPreviousStatus"] as string)
-          : STATUS.active;
-      await patchDoc(
-        `fact_bank/${storedFactId}`,
-        { status: previous },
-        ["quality_flags", "disputed_reason", "disputed_at"],
-      );
+      const currentFlags = Array.isArray(factDoc.data["quality_flags"])
+        ? (factDoc.data["quality_flags"] as string[])
+        : [];
+      remainingFlags =
+        reportData["reportSource"] === "fact_lint"
+          ? currentFlags.filter((f) => f !== "duplicate_question" && f !== "conflicting_answer")
+          : [];
+
+      if (remainingFlags.length === 0) {
+        const previous =
+          typeof reportData["factPreviousStatus"] === "string" && reportData["factPreviousStatus"]
+            ? (reportData["factPreviousStatus"] as string)
+            : STATUS.active;
+        await patchDoc(
+          `fact_bank/${storedFactId}`,
+          { status: previous },
+          ["quality_flags", "disputed_reason", "disputed_at"],
+        );
+      } else {
+        await patchDoc(`fact_bank/${storedFactId}`, {
+          quality_flags: remainingFlags,
+          disputed_reason: `fact_lint: ${remainingFlags.join(",")}`,
+        });
+      }
     }
 
     if (reportData["reportSource"] === "fact_lint") {
       const duplicateIds = asSources(reportData["duplicateFactIds"] ?? reportData["duplicate_fact_ids"]);
       for (const dupId of duplicateIds) {
         if (!dupId || dupId === storedFactId) continue;
+        let dupRemaining: string[] = [];
         const dupDoc = await getDoc(`fact_bank/${dupId}`);
         if (dupDoc && dupDoc.data["status"] === STATUS.disputed) {
-          await patchDoc(
-            `fact_bank/${dupId}`,
-            { status: STATUS.active },
-            ["quality_flags", "disputed_reason", "disputed_at"],
+          const currentFlags = Array.isArray(dupDoc.data["quality_flags"])
+            ? (dupDoc.data["quality_flags"] as string[])
+            : [];
+          dupRemaining = currentFlags.filter(
+            (f) => f !== "duplicate_question" && f !== "conflicting_answer",
           );
+
+          if (dupRemaining.length === 0) {
+            await patchDoc(
+              `fact_bank/${dupId}`,
+              { status: STATUS.active },
+              ["quality_flags", "disputed_reason", "disputed_at"],
+            );
+          } else {
+            await patchDoc(`fact_bank/${dupId}`, {
+              quality_flags: dupRemaining,
+              disputed_reason: `fact_lint: ${dupRemaining.join(",")}`,
+            });
+          }
         }
         const dupReport = await getDoc(`trivia_reports/lint_${dupId}`);
         if (dupReport && dupReport.data["status"] === "pending_review") {
-          await patchDoc(`trivia_reports/lint_${dupId}`, {
-            status: "rejected",
-            resolutionNote: input.note ?? `Auto-rejected: counterpart report ${input.reportId} rejected`,
-            resolved_at: now,
-          });
+          if (dupRemaining.length === 0) {
+            await patchDoc(`trivia_reports/lint_${dupId}`, {
+              status: "rejected",
+              resolutionNote: input.note ?? `Auto-rejected: counterpart report ${input.reportId} rejected`,
+              resolved_at: now,
+            });
+          } else {
+            await patchDoc(
+              `trivia_reports/lint_${dupId}`,
+              {
+                qualityFlags: dupRemaining,
+                reason: `fact_lint: ${dupRemaining.join(",")}`,
+                resolutionNote: `Duplicate dismissed via ${input.reportId}; remaining flags: ${dupRemaining.join(", ")}`,
+              },
+              ["duplicateFactIds", "duplicate_fact_ids"],
+            );
+          }
         }
       }
     }
   }
 
-  await patchDoc(`trivia_reports/${input.reportId}`, {
-    status: "rejected",
-    resolutionNote: input.note ?? "Report rejected",
-    resolved_at: now,
-  });
+  if (remainingFlags.length > 0) {
+    await patchDoc(
+      `trivia_reports/${input.reportId}`,
+      {
+        qualityFlags: remainingFlags,
+        reason: `fact_lint: ${remainingFlags.join(",")}`,
+        resolutionNote: input.note ?? `Duplicate dismissed; remaining flags: ${remainingFlags.join(", ")}`,
+      },
+      ["duplicateFactIds", "duplicate_fact_ids"],
+    );
+  } else {
+    await patchDoc(`trivia_reports/${input.reportId}`, {
+      status: "rejected",
+      resolutionNote: input.note ?? "Report rejected",
+      resolved_at: now,
+    });
+  }
   return { ok: true };
 }

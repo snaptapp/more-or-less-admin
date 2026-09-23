@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Badge, Button, Card, CardTitle } from "@/index";
 import { fetchRemoteConfigTopics, saveRemoteConfigTopics } from "@/lib/admin/config.functions";
+import type { CustomParamEntry } from "@/lib/firebase/remote_config.server";
 
 export const Route = createFileRoute("/admin/config")({
   head: () => ({ meta: [{ title: "Remote Config & A/B — More or Less Admin" }] }),
@@ -33,7 +34,7 @@ const PRESET_CONDITIONS = [
   {
     label: "iOS Platform Target",
     name: "ios_players",
-    expression: "device.os == 'iOS'", 
+    expression: "device.os == 'iOS'",
     color: "lime",
   },
   {
@@ -85,14 +86,34 @@ function ConfigPage() {
     queryFn: () => fetchConfig(),
   });
 
+  // State: Ad Monetization
+  const [enableInterstitialAds, setEnableInterstitialAds] = useState(false);
+  const [interstitialAdFrequency, setInterstitialAdFrequency] = useState(3);
+  const [enableRewardedAds, setEnableRewardedAds] = useState(true);
+  const [enableBannerAds, setEnableBannerAds] = useState(false);
+
+  // State: Email Allowlist
+  const [allowedEmails, setAllowedEmails] = useState<string[]>([]);
+  const [newEmailInput, setNewEmailInput] = useState("");
+
+  // State: Topics & Variants
   const [defaultTopics, setDefaultTopics] = useState<string[]>([]);
   const [variants, setVariants] = useState<VariantItem[]>([]);
-  const [etag, setEtag] = useState<string>("");
   const [newDefaultTopic, setNewDefaultTopic] = useState("");
+  const [newVariantTopicInputs, setNewVariantTopicInputs] = useState<Record<number, string>>({});
+
+  // State: Custom / Dynamic Parameters
+  const [customParameters, setCustomParameters] = useState<Record<string, CustomParamEntry>>({});
+  const [newParamKey, setNewParamKey] = useState("");
+  const [newParamValue, setNewParamValue] = useState("");
+  const [newParamType, setNewParamType] = useState<"STRING" | "BOOLEAN" | "NUMBER" | "JSON">("STRING");
+  const [newParamDesc, setNewParamDesc] = useState("");
+
+  // Save & Status State
+  const [etag, setEtag] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [newVariantTopicInputs, setNewVariantTopicInputs] = useState<Record<number, string>>({});
 
   // Drag-and-drop state for Default Topics
   const [draggedDefaultTopicIndex, setDraggedDefaultTopicIndex] = useState<number | null>(null);
@@ -115,15 +136,29 @@ function ConfigPage() {
           : DEFAULT_CURATED_TOPICS,
       );
       setVariants(data.variants ?? []);
+      setEnableInterstitialAds(data.enableInterstitialAds ?? false);
+      setInterstitialAdFrequency(data.interstitialAdFrequency ?? 3);
+      setEnableRewardedAds(data.enableRewardedAds ?? true);
+      setEnableBannerAds(data.enableBannerAds ?? false);
+      setAllowedEmails(data.allowedEmails ?? []);
+      setCustomParameters(data.customParameters ?? {});
       setEtag(data.etag ?? "");
     }
   }, [data]);
 
   const hasChanges =
-    data &&
-    (JSON.stringify(defaultTopics) !== JSON.stringify(data.defaultTopics.length > 0 ? data.defaultTopics : DEFAULT_CURATED_TOPICS) ||
-      JSON.stringify(variants) !== JSON.stringify(data.variants));
+    Boolean(data) &&
+    (JSON.stringify(defaultTopics) !==
+      JSON.stringify(data?.defaultTopics?.length ? data.defaultTopics : DEFAULT_CURATED_TOPICS) ||
+      JSON.stringify(variants) !== JSON.stringify(data?.variants ?? []) ||
+      enableInterstitialAds !== (data?.enableInterstitialAds ?? false) ||
+      interstitialAdFrequency !== (data?.interstitialAdFrequency ?? 3) ||
+      enableRewardedAds !== (data?.enableRewardedAds ?? true) ||
+      enableBannerAds !== (data?.enableBannerAds ?? false) ||
+      JSON.stringify(allowedEmails) !== JSON.stringify(data?.allowedEmails ?? []) ||
+      JSON.stringify(customParameters) !== JSON.stringify(data?.customParameters ?? {}));
 
+  // Topic Handlers
   function handleAddDefaultTopic() {
     const trimmed = newDefaultTopic.trim();
     if (!trimmed) return;
@@ -200,6 +235,54 @@ function ConfigPage() {
     setVariants(updated);
   }
 
+  // Email Allowlist Handlers
+  function handleAddEmail() {
+    const trimmed = newEmailInput.trim().toLowerCase();
+    if (!trimmed) return;
+    if (!allowedEmails.some((e) => e.toLowerCase() === trimmed)) {
+      setAllowedEmails([...allowedEmails, trimmed]);
+    }
+    setNewEmailInput("");
+  }
+
+  function handleRemoveEmail(index: number) {
+    setAllowedEmails(allowedEmails.filter((_, i) => i !== index));
+  }
+
+  // Custom Parameter Handlers
+  function handleAddCustomParam() {
+    const key = newParamKey.trim();
+    if (!key) return;
+    setCustomParameters({
+      ...customParameters,
+      [key]: {
+        value: newParamValue,
+        valueType: newParamType,
+        description: newParamDesc.trim() || undefined,
+      },
+    });
+    setNewParamKey("");
+    setNewParamValue("");
+    setNewParamDesc("");
+  }
+
+  function handleRemoveCustomParam(key: string) {
+    const next = { ...customParameters };
+    delete next[key];
+    setCustomParameters(next);
+  }
+
+  function handleUpdateCustomParamValue(key: string, value: string) {
+    setCustomParameters({
+      ...customParameters,
+      [key]: {
+        ...customParameters[key],
+        value,
+      },
+    });
+  }
+
+  // Publish
   async function handlePublish() {
     if (defaultTopics.length === 0) {
       setSaveError("Default topics cannot be empty.");
@@ -230,6 +313,12 @@ function ConfigPage() {
         data: {
           defaultTopics,
           variants,
+          enableInterstitialAds,
+          interstitialAdFrequency,
+          enableRewardedAds,
+          enableBannerAds,
+          allowedEmails,
+          customParameters,
           etag,
         },
       });
@@ -248,9 +337,9 @@ function ConfigPage() {
     <main className="admin-main">
       <div className="admin-page-head">
         <div>
-          <h1>Remote Config & A/B Testing</h1>
+          <h1>Remote Config &amp; Feature Flags</h1>
           <p style={{ color: "var(--ds-arena-color-text-muted)", margin: "4px 0 0" }}>
-            Configure live topic suggestion rotations, percentage A/B splits, and audience targeting.
+            Configure live monetization flags, ad frequencies, email allowlists, topic suggestion rotations, and audience targeting.
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -260,6 +349,7 @@ function ConfigPage() {
           {data?.updatedAt && (
             <span style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13 }}>
               Updated {new Date(data.updatedAt).toLocaleDateString()}
+              {data.updatedBy ? ` by ${data.updatedBy}` : ""}
             </span>
           )}
           <Button
@@ -298,13 +388,226 @@ function ConfigPage() {
         </Card>
       ) : (
         <>
-          {/* Section 1: Default Topics */}
+          {/* Section 1: Monetization & Ad Delivery */}
+          <Card>
+            <div style={{ marginBottom: "16px" }}>
+              <CardTitle>Ad Monetization &amp; Delivery</CardTitle>
+              <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 14, margin: "4px 0 0" }}>
+                Runtime monetization flags enforced by the mobile app. Ad-free purchasers are automatically exempt.
+              </p>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", marginBottom: "16px" }}>
+              {/* Interstitial Ads Toggle */}
+              <div
+                style={{
+                  padding: "16px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--ds-arena-color-border)",
+                  background: "var(--ds-arena-color-surface)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 600, fontSize: "14px" }}>Interstitial Ads</span>
+                  <Badge tone={enableInterstitialAds ? "lime" : "neutral"}>
+                    {enableInterstitialAds ? "ENABLED" : "DISABLED"}
+                  </Badge>
+                </div>
+                <p style={{ fontSize: "13px", color: "var(--ds-arena-color-text-muted)", margin: 0, flex: 1 }}>
+                  Display full-screen ads between finished game rounds on mobile devices.
+                </p>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px", marginTop: "4px" }}>
+                  <input
+                    type="checkbox"
+                    checked={enableInterstitialAds}
+                    onChange={(e) => setEnableInterstitialAds(e.target.checked)}
+                    style={{ width: "16px", height: "16px", accentColor: "var(--ds-arena-color-lime)" }}
+                  />
+                  <span>Enable interstitial ads</span>
+                </label>
+              </div>
+
+              {/* Interstitial Frequency */}
+              <div
+                style={{
+                  padding: "16px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--ds-arena-color-border)",
+                  background: "var(--ds-arena-color-surface)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 600, fontSize: "14px" }}>Interstitial Frequency</span>
+                  <Badge tone="purple">{interstitialAdFrequency} Rounds</Badge>
+                </div>
+                <p style={{ fontSize: "13px", color: "var(--ds-arena-color-text-muted)", margin: 0, flex: 1 }}>
+                  Number of completed rounds or packs required between displaying an interstitial ad.
+                </p>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
+                  <input
+                    className="admin-input"
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={interstitialAdFrequency}
+                    onChange={(e) => setInterstitialAdFrequency(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    style={{ maxWidth: "120px" }}
+                  />
+                  <span style={{ fontSize: "13px", color: "var(--ds-arena-color-text-muted)" }}>rounds / ad</span>
+                </div>
+              </div>
+
+              {/* Rewarded Ads Toggle */}
+              <div
+                style={{
+                  padding: "16px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--ds-arena-color-border)",
+                  background: "var(--ds-arena-color-surface)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 600, fontSize: "14px" }}>Rewarded Video Ads</span>
+                  <Badge tone={enableRewardedAds ? "lime" : "neutral"}>
+                    {enableRewardedAds ? "ENABLED" : "DISABLED"}
+                  </Badge>
+                </div>
+                <p style={{ fontSize: "13px", color: "var(--ds-arena-color-text-muted)", margin: 0, flex: 1 }}>
+                  Allow players to watch opt-in rewarded video ads to revive in Cutthroat sudden-death mode.
+                </p>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px", marginTop: "4px" }}>
+                  <input
+                    type="checkbox"
+                    checked={enableRewardedAds}
+                    onChange={(e) => setEnableRewardedAds(e.target.checked)}
+                    style={{ width: "16px", height: "16px", accentColor: "var(--ds-arena-color-lime)" }}
+                  />
+                  <span>Enable rewarded ads</span>
+                </label>
+              </div>
+
+              {/* Banner Ads Toggle */}
+              <div
+                style={{
+                  padding: "16px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--ds-arena-color-border)",
+                  background: "var(--ds-arena-color-surface)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 600, fontSize: "14px" }}>Banner Ads</span>
+                  <Badge tone={enableBannerAds ? "lime" : "neutral"}>
+                    {enableBannerAds ? "ENABLED" : "DISABLED"}
+                  </Badge>
+                </div>
+                <p style={{ fontSize: "13px", color: "var(--ds-arena-color-text-muted)", margin: 0, flex: 1 }}>
+                  Display banner ads on eligible non-gameplay screens.
+                </p>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px", marginTop: "4px" }}>
+                  <input
+                    type="checkbox"
+                    checked={enableBannerAds}
+                    onChange={(e) => setEnableBannerAds(e.target.checked)}
+                    style={{ width: "16px", height: "16px", accentColor: "var(--ds-arena-color-lime)" }}
+                  />
+                  <span>Enable banner ads</span>
+                </label>
+              </div>
+            </div>
+          </Card>
+
+          {/* Section 2: Runtime Access & Email Allowlist */}
+          <Card>
+            <div style={{ marginBottom: "16px" }}>
+              <CardTitle>Runtime Access &amp; Email Allowlist</CardTitle>
+              <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 14, margin: "4px 0 0" }}>
+                Addresses or domain suffixes (e.g. <code>@snaptapp.us</code>) granted runtime testing access in live builds.
+              </p>
+            </div>
+
+            {/* Email Chips */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
+              {allowedEmails.length === 0 ? (
+                <span style={{ color: "var(--ds-arena-color-text-muted)", fontSize: "13px", fontStyle: "italic" }}>
+                  No extra runtime email allowlist configured. Only build-time defines apply.
+                </span>
+              ) : (
+                allowedEmails.map((email, idx) => (
+                  <span
+                    key={`${email}-${idx}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 12px",
+                      background: "var(--ds-arena-color-surface)",
+                      borderRadius: "20px",
+                      border: "1px solid var(--ds-arena-color-border)",
+                      fontSize: "13px",
+                      fontFamily: "var(--ds-arena-font-mono)",
+                    }}
+                  >
+                    <span>{email}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveEmail(idx)}
+                      aria-label={`Remove ${email}`}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--ds-arena-color-text-muted)",
+                        cursor: "pointer",
+                        padding: "0 2px",
+                        fontSize: "14px",
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+
+            {/* Add Email Input */}
+            <div style={{ display: "flex", gap: "8px", maxWidth: "450px" }}>
+              <input
+                className="admin-input"
+                type="text"
+                placeholder="Add email or domain suffix (e.g. @company.com)"
+                value={newEmailInput}
+                onChange={(e) => setNewEmailInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddEmail();
+                  }
+                }}
+              />
+              <Button onClick={handleAddEmail}>Add</Button>
+            </div>
+          </Card>
+
+          {/* Section 3: Default Topics */}
           <Card>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
               <div>
                 <CardTitle>Default Topic Rotation (All Players)</CardTitle>
                 <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 14, margin: "4px 0 0" }}>
-                  These suggestions cycle on the Solo Config screen when no targeted override applies. <strong>Drag & drop chips to re-order the rotation sequence.</strong>
+                  These suggestions cycle on the Solo Config screen when no targeted override applies. <strong>Drag &amp; drop chips to re-order the rotation sequence.</strong>
                 </p>
               </div>
               <Button
@@ -421,11 +724,11 @@ function ConfigPage() {
             </div>
           </Card>
 
-          {/* Section 2: Targeted Audiences & A/B Variants */}
+          {/* Section 4: Targeted Audiences & A/B Variants */}
           <Card>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
               <div>
-                <CardTitle>Audience Overrides & A/B Tests</CardTitle>
+                <CardTitle>Audience Overrides &amp; A/B Tests</CardTitle>
                 <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 14, margin: "4px 0 0" }}>
                   Tailored topic lists based on platform, country, or random percentage splits.
                 </p>
@@ -756,6 +1059,128 @@ function ConfigPage() {
             )}
           </Card>
 
+          {/* Section 5: Additional / Custom Parameters (Extensible) */}
+          <Card>
+            <div style={{ marginBottom: "16px" }}>
+              <CardTitle>Additional Parameters (Dynamic)</CardTitle>
+              <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 14, margin: "4px 0 0" }}>
+                Inspect and configure custom parameters stored in the Remote Config template. Any new keys added here are preserved and immediately delivered to client apps.
+              </p>
+            </div>
+
+            {Object.keys(customParameters).length === 0 ? (
+              <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: "13px", fontStyle: "italic", marginBottom: "16px" }}>
+                No custom parameters currently defined in the Remote Config template.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }}>
+                {Object.entries(customParameters).map(([key, item]) => (
+                  <div
+                    key={key}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 14px",
+                      borderRadius: "6px",
+                      border: "1px solid var(--ds-arena-color-border)",
+                      background: "var(--ds-arena-color-surface)",
+                      gap: "12px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: "220px" }}>
+                      <code style={{ fontSize: "13px", color: "var(--ds-arena-color-primary, #a3e635)" }}>{key}</code>
+                      <Badge tone="neutral">{item.valueType ?? "STRING"}</Badge>
+                      {item.description && (
+                        <span style={{ fontSize: "12px", color: "var(--ds-arena-color-text-muted)" }}>
+                          ({item.description})
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: "200px" }}>
+                      <input
+                        className="admin-input"
+                        type="text"
+                        value={item.value}
+                        onChange={(e) => handleUpdateCustomParamValue(key, e.target.value)}
+                        style={{ height: "36px", minHeight: "36px" }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCustomParam(key)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--ds-arena-color-danger, #ef4444)",
+                          cursor: "pointer",
+                          fontSize: "13px",
+                          padding: "4px 8px",
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add Custom Parameter Form */}
+            <div
+              style={{
+                padding: "14px",
+                borderRadius: "8px",
+                background: "var(--ds-arena-color-surface-sunken)",
+                border: "1px dashed var(--ds-arena-color-border)",
+              }}
+            >
+              <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>
+                + Add Custom Parameter
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 2fr 2fr auto", gap: "8px", alignItems: "center" }}>
+                <input
+                  className="admin-input"
+                  type="text"
+                  placeholder="Key (e.g. min_app_version)"
+                  value={newParamKey}
+                  onChange={(e) => setNewParamKey(e.target.value)}
+                  style={{ height: "38px", minHeight: "38px" }}
+                />
+                <select
+                  className="admin-select"
+                  value={newParamType}
+                  onChange={(e) => setNewParamType(e.target.value as "STRING" | "BOOLEAN" | "NUMBER" | "JSON")}
+                  style={{ height: "38px", minHeight: "38px" }}
+                >
+                  <option value="STRING">STRING</option>
+                  <option value="BOOLEAN">BOOLEAN</option>
+                  <option value="NUMBER">NUMBER</option>
+                  <option value="JSON">JSON</option>
+                </select>
+                <input
+                  className="admin-input"
+                  type="text"
+                  placeholder="Default value"
+                  value={newParamValue}
+                  onChange={(e) => setNewParamValue(e.target.value)}
+                  style={{ height: "38px", minHeight: "38px" }}
+                />
+                <input
+                  className="admin-input"
+                  type="text"
+                  placeholder="Description (optional)"
+                  value={newParamDesc}
+                  onChange={(e) => setNewParamDesc(e.target.value)}
+                  style={{ height: "38px", minHeight: "38px" }}
+                />
+                <Button onClick={handleAddCustomParam} disabled={!newParamKey.trim()}>
+                  Add
+                </Button>
+              </div>
+            </div>
+          </Card>
+
           {/* Sticky Bottom Save Bar when changes exist */}
           {hasChanges && (
             <div
@@ -773,9 +1198,9 @@ function ConfigPage() {
               }}
             >
               <div>
-                <strong style={{ color: "var(--ds-arena-color-primary)" }}>Unpublished changes</strong>
+                <strong style={{ color: "var(--ds-arena-color-primary, #a3e635)" }}>Unpublished changes</strong>
                 <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--ds-arena-color-text-muted)" }}>
-                  You have modified topics or audience priority order. Publish to apply to live clients.
+                  You have modified Remote Config settings. Publish to apply to live clients.
                 </p>
               </div>
               <Button

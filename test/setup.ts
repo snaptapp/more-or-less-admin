@@ -936,6 +936,12 @@ export function createRemoteConfigDouble(): RemoteConfigDouble {
   function applyTopicSuggestions(config: {
     defaultTopics: string[];
     variants: { conditionName: string; expression: string; tagColor?: string; topics: string[] }[];
+    enableInterstitialAds?: boolean;
+    interstitialAdFrequency?: number;
+    enableRewardedAds?: boolean;
+    enableBannerAds?: boolean;
+    allowedEmails?: string[];
+    customParameters?: Record<string, import("@/lib/firebase/remote_config.server").CustomParamEntry>;
   }): void {
     const priorConditionNames = new Set(
       Object.keys(state.parameters[TOPIC_SUGGESTIONS_PARAM]?.conditionalValues ?? {}),
@@ -953,6 +959,45 @@ export function createRemoteConfigDouble(): RemoteConfigDouble {
       description: "Rotating custom topic suggestions on solo config screen",
       valueType: "JSON",
     };
+    if (config.enableInterstitialAds !== undefined) {
+      state.parameters["enable_interstitial_ads"] = {
+        defaultValue: { value: String(config.enableInterstitialAds) },
+        valueType: "BOOLEAN",
+      };
+    }
+    if (config.interstitialAdFrequency !== undefined) {
+      state.parameters["interstitial_ad_frequency_rounds"] = {
+        defaultValue: { value: String(config.interstitialAdFrequency) },
+        valueType: "NUMBER",
+      };
+    }
+    if (config.enableRewardedAds !== undefined) {
+      state.parameters["enable_rewarded_ads"] = {
+        defaultValue: { value: String(config.enableRewardedAds) },
+        valueType: "BOOLEAN",
+      };
+    }
+    if (config.enableBannerAds !== undefined) {
+      state.parameters["enable_banner_ads"] = {
+        defaultValue: { value: String(config.enableBannerAds) },
+        valueType: "BOOLEAN",
+      };
+    }
+    if (config.allowedEmails !== undefined) {
+      state.parameters["allowed_emails"] = {
+        defaultValue: { value: config.allowedEmails.join(",") },
+        valueType: "STRING",
+      };
+    }
+    if (config.customParameters !== undefined) {
+      for (const [k, v] of Object.entries(config.customParameters)) {
+        state.parameters[k] = {
+          defaultValue: { value: v.value },
+          valueType: v.valueType ?? "STRING",
+          description: v.description,
+        };
+      }
+    }
     const preserved = state.conditions.filter(
       (condition) =>
         !newConditionNames.has(condition.name) && !priorConditionNames.has(condition.name),
@@ -986,9 +1031,45 @@ export function createRemoteConfigDouble(): RemoteConfigDouble {
           topics: parseTopicList(value?.value),
         });
       }
+
+      const enableInterstitialAds =
+        template.parameters?.["enable_interstitial_ads"]?.defaultValue?.value === "true";
+      const rawFreq = template.parameters?.["interstitial_ad_frequency_rounds"]?.defaultValue?.value;
+      const interstitialAdFrequency = rawFreq ? Math.max(1, parseInt(rawFreq, 10) || 3) : 3;
+      const rawRewarded = template.parameters?.["enable_rewarded_ads"]?.defaultValue?.value;
+      const enableRewardedAds = rawRewarded !== undefined ? rawRewarded === "true" : true;
+      const enableBannerAds =
+        template.parameters?.["enable_banner_ads"]?.defaultValue?.value === "true";
+      const rawAllowed = template.parameters?.["allowed_emails"]?.defaultValue?.value ?? "";
+      const allowedEmails = rawAllowed ? rawAllowed.split(/[\s,]+/).filter(Boolean) : [];
+      const customParameters: Record<string, import("@/lib/firebase/remote_config.server").CustomParamEntry> = {};
+      const knownKeys = new Set([
+        TOPIC_SUGGESTIONS_PARAM,
+        "enable_interstitial_ads",
+        "interstitial_ad_frequency_rounds",
+        "enable_rewarded_ads",
+        "enable_banner_ads",
+        "allowed_emails",
+      ]);
+      for (const [key, p] of Object.entries(template.parameters ?? {})) {
+        if (!knownKeys.has(key)) {
+          customParameters[key] = {
+            value: p.defaultValue?.value ?? "",
+            valueType: p.valueType,
+            description: p.description,
+          };
+        }
+      }
+
       return {
         defaultTopics: parseTopicList(parameter?.defaultValue?.value),
         variants,
+        enableInterstitialAds,
+        interstitialAdFrequency,
+        enableRewardedAds,
+        enableBannerAds,
+        allowedEmails,
+        customParameters,
         etag: template.etag,
         versionNumber: template.version?.versionNumber,
         updatedAt: template.version?.updateTime,
@@ -1023,9 +1104,33 @@ export function createRemoteConfigDouble(): RemoteConfigDouble {
         etag: currentEtag(),
         ...(userEmail ? { userEmail } : {}),
       });
+
+      const customParameters: Record<string, import("@/lib/firebase/remote_config.server").CustomParamEntry> = {};
+      if (newConfig.customParameters) {
+        for (const [k, v] of Object.entries(newConfig.customParameters)) {
+          customParameters[k] = { ...v };
+        }
+      }
+
       return {
         defaultTopics: newConfig.defaultTopics.slice(),
         variants,
+        enableInterstitialAds:
+          newConfig.enableInterstitialAds ??
+          (state.parameters["enable_interstitial_ads"]?.defaultValue?.value === "true"),
+        interstitialAdFrequency:
+          newConfig.interstitialAdFrequency ??
+          (parseInt(state.parameters["interstitial_ad_frequency_rounds"]?.defaultValue?.value ?? "3", 10) || 3),
+        enableRewardedAds:
+          newConfig.enableRewardedAds ??
+          (state.parameters["enable_rewarded_ads"]?.defaultValue?.value !== "false"),
+        enableBannerAds:
+          newConfig.enableBannerAds ??
+          (state.parameters["enable_banner_ads"]?.defaultValue?.value === "true"),
+        allowedEmails:
+          newConfig.allowedEmails ??
+          (state.parameters["allowed_emails"]?.defaultValue?.value ?? "").split(/[\s,]+/).filter(Boolean),
+        customParameters,
         etag: currentEtag(),
         versionNumber: String(state.versionNumber),
         updatedAt: state.updateTime,

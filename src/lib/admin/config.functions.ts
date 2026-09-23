@@ -9,6 +9,12 @@ const VariantSchema = z.object({
   topics: z.array(z.string().min(1)).min(1),
 });
 
+const CustomParamSchema = z.object({
+  value: z.string(),
+  valueType: z.enum(["STRING", "BOOLEAN", "NUMBER", "JSON"]).optional(),
+  description: z.string().optional(),
+});
+
 const SaveConfigInputSchema = z.object({
   defaultTopics: z.array(z.string().min(1)).min(1),
   variants: z.array(VariantSchema).superRefine((items, ctx) => {
@@ -20,6 +26,12 @@ const SaveConfigInputSchema = z.object({
       seen.add(item.conditionName);
     });
   }),
+  enableInterstitialAds: z.boolean().optional(),
+  interstitialAdFrequency: z.number().int().min(1).max(50).optional(),
+  enableRewardedAds: z.boolean().optional(),
+  enableBannerAds: z.boolean().optional(),
+  allowedEmails: z.array(z.string()).optional(),
+  customParameters: z.record(CustomParamSchema).optional(),
   etag: z.string(),
 });
 
@@ -42,6 +54,12 @@ export const saveRemoteConfigTopics = createServerFn({ method: "POST" })
       {
         defaultTopics: data.defaultTopics,
         variants: data.variants,
+        enableInterstitialAds: data.enableInterstitialAds,
+        interstitialAdFrequency: data.interstitialAdFrequency,
+        enableRewardedAds: data.enableRewardedAds,
+        enableBannerAds: data.enableBannerAds,
+        allowedEmails: data.allowedEmails,
+        customParameters: data.customParameters,
       },
       data.etag,
       caller.email ?? caller.uid,
@@ -51,10 +69,16 @@ export const saveRemoteConfigTopics = createServerFn({ method: "POST" })
       action: "update_remote_config_topics",
       targetType: "system",
       targetId: "custom_topic_suggestions",
-      details: `${caller.email ?? caller.uid} published ${data.defaultTopics.length} default topics and ${data.variants.length} variant rules (version ${updated.versionNumber ?? "new"})`,
+      details: `${caller.email ?? caller.uid} published Remote Config (${data.defaultTopics.length} default topics, ${data.variants.length} variant rules, version ${updated.versionNumber ?? "new"})`,
       after: {
         defaultTopics: data.defaultTopics,
         variants: data.variants,
+        enableInterstitialAds: updated.enableInterstitialAds,
+        interstitialAdFrequency: updated.interstitialAdFrequency,
+        enableRewardedAds: updated.enableRewardedAds,
+        enableBannerAds: updated.enableBannerAds,
+        allowedEmails: updated.allowedEmails,
+        customParameters: updated.customParameters,
         versionNumber: updated.versionNumber,
       },
     });
