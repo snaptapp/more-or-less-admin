@@ -426,4 +426,81 @@ describe("Duplicate reports handling", () => {
     expect(kept.data["true_number"]).toBe(6);
     expect(kept.data["quality_flags"]).toBeUndefined();
   });
+
+  it("flushStaleReports auto-resolves pending reports for deleted, retired, or active-clean facts", async () => {
+    const { flushStaleReports } = await import("@/lib/admin/content.server");
+
+    // 1. Deleted fact report
+    firestoreDouble().seed("trivia_reports/lint_deleted_fact", {
+      reportSource: "fact_lint",
+      factId: "nonexistent_fact_id",
+      status: "pending_review",
+    });
+
+    // 2. Retired fact report
+    firestoreDouble().seed("fact_bank/fact_is_retired", {
+      status: STATUS.retired,
+      subject: "Retired Subject",
+    });
+    firestoreDouble().seed("trivia_reports/lint_retired_fact", {
+      reportSource: "fact_lint",
+      factId: "fact_is_retired",
+      status: "pending_review",
+    });
+
+    // 3. Active and clean fact report
+    firestoreDouble().seed("fact_bank/fact_is_active_clean", {
+      status: STATUS.active,
+      subject: "Clean Subject",
+      quality_flags: [],
+    });
+    firestoreDouble().seed("trivia_reports/lint_active_clean_fact", {
+      reportSource: "fact_lint",
+      factId: "fact_is_active_clean",
+      status: "pending_review",
+    });
+
+    // 4. Disputed fact with quality flags (MUST NOT be flushed)
+    firestoreDouble().seed("fact_bank/fact_is_still_disputed", {
+      status: STATUS.disputed,
+      subject: "Disputed Subject",
+      quality_flags: ["bounds_chart_position"],
+    });
+    firestoreDouble().seed("trivia_reports/lint_still_disputed", {
+      reportSource: "fact_lint",
+      factId: "fact_is_still_disputed",
+      status: "pending_review",
+    });
+
+    // 5. Round telemetry report (MUST NOT be auto-flushed, requires human review)
+    firestoreDouble().seed("trivia_reports/telemetry_player_report", {
+      reportSource: "round_telemetry",
+      factId: "fact_is_active_clean",
+      status: "pending_review",
+    });
+
+    const result = await flushStaleReports();
+    expect(result.flushed).toBe(3);
+
+    // Assert flushed reports are resolved with explanatory notes
+    const repDeleted = firestoreDouble().document("trivia_reports/lint_deleted_fact")!;
+    expect(repDeleted.data["status"]).toBe("resolved");
+    expect(repDeleted.data["resolutionNote"]).toContain("no longer exists");
+
+    const repRetired = firestoreDouble().document("trivia_reports/lint_retired_fact")!;
+    expect(repRetired.data["status"]).toBe("resolved");
+    expect(repRetired.data["resolutionNote"]).toContain("retired");
+
+    const repClean = firestoreDouble().document("trivia_reports/lint_active_clean_fact")!;
+    expect(repClean.data["status"]).toBe("resolved");
+    expect(repClean.data["resolutionNote"]).toContain("active and passes all lint rules");
+
+    // Assert kept reports remain pending_review
+    const repDisputed = firestoreDouble().document("trivia_reports/lint_still_disputed")!;
+    expect(repDisputed.data["status"]).toBe("pending_review");
+
+    const repTelemetry = firestoreDouble().document("trivia_reports/telemetry_player_report")!;
+    expect(repTelemetry.data["status"]).toBe("pending_review");
+  });
 });
+

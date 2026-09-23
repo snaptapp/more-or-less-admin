@@ -1485,3 +1485,69 @@ export async function resolveReport(input: {
   }
   return { ok: true };
 }
+
+/**
+ * Reconciles and auto-resolves pending `fact_lint` moderation reports whose underlying
+ * facts are already active and clean, retired, or deleted.
+ */
+export async function flushStaleReports(limit = 200): Promise<{
+  flushed: number;
+  totalChecked: number;
+  details: string[];
+}> {
+  const now = new Date().toISOString();
+  const reports = await runQuery({
+    collection: "trivia_reports",
+    filters: [{ field: "status", op: "EQUAL", value: "pending_review" }],
+    limit,
+  });
+
+  let flushed = 0;
+  let totalChecked = 0;
+  const details: string[] = [];
+
+  for (const reportDoc of reports) {
+    const data = reportDoc.data;
+    if (data["reportSource"] !== "fact_lint") continue;
+    totalChecked++;
+
+    const factId =
+      typeof data["factId"] === "string" && data["factId"].trim()
+        ? (data["factId"] as string).trim()
+        : null;
+
+    let autoNote: string | null = null;
+    if (!factId) {
+      autoNote = "Auto-resolved: report missing factId";
+    } else {
+      const factDoc = await getDoc(`fact_bank/${factId}`);
+      if (!factDoc) {
+        autoNote = "Auto-resolved: underlying fact no longer exists";
+      } else {
+        const factData = factDoc.data;
+        const stat = factData["status"];
+        if (stat === STATUS.retired) {
+          autoNote = "Auto-resolved: underlying fact was retired";
+        } else if (stat === STATUS.active) {
+          const qf = Array.isArray(factData["quality_flags"]) ? (factData["quality_flags"] as string[]) : [];
+          if (qf.length === 0) {
+            autoNote = "Auto-resolved: fact is active and passes all lint rules";
+          }
+        }
+      }
+    }
+
+    if (autoNote) {
+      await patchDoc(`trivia_reports/${reportDoc.id}`, {
+        status: "resolved",
+        resolutionNote: autoNote,
+        resolved_at: now,
+      });
+      flushed++;
+      details.push(`${reportDoc.id}: ${autoNote}`);
+    }
+  }
+
+  return { flushed, totalChecked, details };
+}
+

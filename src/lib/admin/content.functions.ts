@@ -326,6 +326,29 @@ export const actOnReport = createServerFn({ method: "POST" }).middleware([authMi
     return result;
   });
 
+export const flushReports = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .inputValidator((data: unknown) =>
+    z.object({ limit: z.number().int().positive().optional() }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const caller = context.user;
+    const { flushStaleReports } = await import("./content.server");
+    const result = await flushStaleReports(data.limit);
+    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    await logAdminAction(caller, {
+      action: "report.flush_stale",
+      targetType: "system",
+      targetId: "trivia_reports",
+      details: `Flushed ${result.flushed} stale reports (checked ${result.totalChecked})`,
+      after: {
+        flushed: result.flushed,
+        totalChecked: result.totalChecked,
+      },
+    });
+    return result;
+  });
+
 export type OverviewSeriesRow = { name: string; count: number };
 
 /** Confirms the admin connection and returns live collection counters via native Firestore count() */
