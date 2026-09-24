@@ -274,7 +274,7 @@ export const fetchReports = createServerFn({ method: "POST" }).middleware([authM
         const fact = report.status === "pending_review" ? await findFactForReport(report) : null;
         const duplicateFacts =
           report.status === "pending_review"
-            ? await findDuplicateFactsForReport(report, fact)
+            ? await findDuplicateFactsForReport(report, fact, reports)
             : [];
         return {
           report,

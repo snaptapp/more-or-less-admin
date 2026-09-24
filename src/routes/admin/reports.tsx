@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, PageHead, statusTone } from "@/admin/AdminShell";
-import { actOnReport, fetchReports, flushReports } from "@/lib/admin/content.functions";
+import { actOnReport, fetchFact, fetchReports, flushReports } from "@/lib/admin/content.functions";
 
 export const Route = createFileRoute("/admin/reports")({
   head: () => ({
@@ -154,6 +154,23 @@ function ReportCard({ entry }: { entry: Entry }) {
 
   const pending = entry.report.status === "pending_review";
   const report = entry.report;
+  const isDuplicate =
+    entry.report.qualityFlags?.some((f) => f === "duplicate_question" || f === "conflicting_answer") ||
+    entry.report.reason?.toLowerCase().includes("duplicate_question") ||
+    entry.report.reason?.toLowerCase().includes("conflicting_answer") ||
+    Boolean(entry.fact?.quality_flags?.some((f) => f === "duplicate_question" || f === "conflicting_answer"));
+
+  const [manualCandidateId, setManualCandidateId] = useState("");
+  const [manualCandidate, setManualCandidate] = useState<NonNullable<Entry["fact"]> | null>(null);
+  const [manualLoading, setManualLoading] = useState(false);
+  const [manualError, setManualError] = useState<string | null>(null);
+  const fetchFactFn = useServerFn(fetchFact);
+
+  const duplicateFactsList = [
+    ...(entry.duplicateFacts || []),
+    ...(manualCandidate && !entry.duplicateFacts?.some((d) => d.id === manualCandidate.id) ? [manualCandidate] : []),
+  ];
+
   const chosenTopic = report.initialTopic || report.topic;
   const questionTopic = report.topic;
   const guess = report.playerGuess?.toUpperCase();
@@ -306,7 +323,7 @@ function ReportCard({ entry }: { entry: Entry }) {
         </>
       ) : null}
 
-      {entry.duplicateFacts && entry.duplicateFacts.length > 0 && entry.fact ? (
+      {duplicateFactsList.length > 0 && entry.fact ? (
         <div
           style={{
             marginTop: "var(--ds-arena-space-3)",
@@ -327,11 +344,32 @@ function ReportCard({ entry }: { entry: Entry }) {
             }}
           >
             <h4 style={{ margin: 0, color: "#f6c344", fontSize: "0.95em", fontWeight: 700 }}>
-              Duplicate Fact Collisions ({entry.duplicateFacts.length + 1} facts)
+              Duplicate Fact Collisions ({duplicateFactsList.length + 1} facts)
             </h4>
-            <span style={{ fontSize: "0.8em", color: "var(--ds-arena-color-text-muted)" }}>
-              Compare versions below: pick one to keep active (applies any corrected number/note above); the other will be retired.
-            </span>
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <span style={{ fontSize: "0.8em", color: "var(--ds-arena-color-text-muted)" }}>
+                Compare versions below: pick one to keep active (applies any corrected number/note above); the other will be retired.
+              </span>
+              {manualCandidate ? (
+                <button
+                  type="button"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#f87171",
+                    fontSize: "0.8em",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                  onClick={() => {
+                    setManualCandidate(null);
+                    setManualCandidateId("");
+                  }}
+                >
+                  Remove manual ({manualCandidate.id})
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <div
@@ -420,7 +458,7 @@ function ReportCard({ entry }: { entry: Entry }) {
                         mutation.mutate({
                           action: "resolve_duplicate",
                           keepFactId: entry.fact!.id,
-                          retireFactIds: entry.duplicateFacts.map((d) => d.id),
+                          retireFactIds: duplicateFactsList.map((d) => d.id),
                           note: note.trim() || undefined,
                           correctedNumber: corrected ? Number(corrected) : undefined,
                         });
@@ -434,7 +472,7 @@ function ReportCard({ entry }: { entry: Entry }) {
             </div>
 
             {/* Duplicate facts */}
-            {entry.duplicateFacts.map((dupFact, idx) => (
+            {duplicateFactsList.map((dupFact, idx) => (
               <div
                 key={dupFact.id}
                 style={{
@@ -513,7 +551,7 @@ function ReportCard({ entry }: { entry: Entry }) {
                         if (window.confirm(`Keep Duplicate (${dupFact.id}) and retire Fact A (${entry.fact!.id})?`)) {
                           const otherRetires = [
                             entry.fact!.id,
-                            ...entry.duplicateFacts.filter((d) => d.id !== dupFact.id).map((d) => d.id),
+                            ...duplicateFactsList.filter((d) => d.id !== dupFact.id).map((d) => d.id),
                           ];
                           mutation.mutate({
                             action: "resolve_duplicate",
@@ -542,7 +580,7 @@ function ReportCard({ entry }: { entry: Entry }) {
                   if (window.confirm("Retire ALL duplicate facts involved in this collision?")) {
                     mutation.mutate({
                       action: "resolve_duplicate",
-                      retireFactIds: [entry.fact!.id, ...entry.duplicateFacts.map((d) => d.id)],
+                      retireFactIds: [entry.fact!.id, ...duplicateFactsList.map((d) => d.id)],
                       note: note.trim() || "All duplicate facts retired via moderation",
                     });
                   }
@@ -563,6 +601,67 @@ function ReportCard({ entry }: { entry: Entry }) {
               </Button>
             </div>
           ) : null}
+        </div>
+      ) : isDuplicate && entry.fact && pending ? (
+        <div
+          style={{
+            marginTop: "var(--ds-arena-space-3)",
+            padding: "var(--ds-arena-space-3)",
+            background: "rgba(246, 195, 68, 0.05)",
+            border: "1px dashed rgba(246, 195, 68, 0.35)",
+            borderRadius: "var(--ds-arena-radius-md)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--ds-arena-space-2)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ color: "#f6c344", fontWeight: 600, fontSize: "0.9em" }}>
+              ⚠ Flagged as duplicate/conflicting, but no counterpart candidate was automatically matched.
+            </span>
+          </div>
+          <p style={{ margin: 0, fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
+            If you know the conflicting fact ID, paste it below to load and compare them side-by-side:
+          </p>
+          <div style={{ display: "flex", gap: "var(--ds-arena-space-2)", alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              className="admin-input"
+              style={{ maxWidth: 300, fontSize: "0.85em" }}
+              placeholder="Candidate Fact ID (e.g. grammys_stevie_...)"
+              value={manualCandidateId}
+              onChange={(e) => {
+                setManualCandidateId(e.target.value);
+                setManualError(null);
+              }}
+            />
+            <Button
+              variant="ghost"
+              disabled={!manualCandidateId.trim() || manualLoading}
+              onClick={async () => {
+                const id = manualCandidateId.trim();
+                if (!id) return;
+                setManualLoading(true);
+                setManualError(null);
+                try {
+                  const res = await fetchFactFn({ data: { factId: id } });
+                  if (res) {
+                    setManualCandidate(res as NonNullable<Entry["fact"]>);
+                  } else {
+                    setManualError(`Fact "${id}" not found.`);
+                  }
+                } catch (err) {
+                  setManualError(err instanceof Error ? err.message : "Failed to load fact.");
+                } finally {
+                  setManualLoading(false);
+                }
+              }}
+            >
+              {manualLoading ? "Searching..." : "Load Fact to Compare"}
+            </Button>
+            {manualError ? (
+              <span style={{ color: "#f87171", fontSize: "0.85em" }}>{manualError}</span>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -585,7 +684,7 @@ function ReportCard({ entry }: { entry: Entry }) {
                 variant="primary"
                 disabled={!corrected || mutation.isPending}
                 onClick={() => {
-                  if (entry.duplicateFacts?.length) {
+                  if (duplicateFactsList.length) {
                     window.alert(
                       "This fact has duplicate conflicts. To fix the number and resolve the collision, use 'Keep Fact A' or 'Keep Fact B' above with your corrected number.",
                     );

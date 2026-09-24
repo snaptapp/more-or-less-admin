@@ -1111,6 +1111,7 @@ export function tokenJaccard(a: string, b: string): number {
 export async function findDuplicateFactsForReport(
   report: ReportRecord,
   primaryFact: FactRecord | null,
+  allReports?: ReportRecord[],
 ): Promise<FactRecord[]> {
   const duplicates = new Map<string, FactRecord>();
   const primaryId = primaryFact?.id ?? report.factId?.trim();
@@ -1125,47 +1126,111 @@ export async function findDuplicateFactsForReport(
     }
   }
 
-  // 2. Query fallback if duplicate_question or conflicting_answer flag/reason is present
   const isDuplicateReport =
     report.qualityFlags?.some((f) => f === "duplicate_question" || f === "conflicting_answer") ||
     report.reason?.toLowerCase().includes("duplicate_question") ||
     report.reason?.toLowerCase().includes("conflicting_answer");
 
+  // 2. Cross-reference other pending reports in the current batch
+  if (isDuplicateReport && duplicates.size === 0 && allReports?.length) {
+    const normStatement = normalizeQuestion(
+      primaryFact?.question || primaryFact?.claim_template || report.claimStatement || "",
+    );
+    const statementTokens = new Set(normStatement.split(" ").filter((t) => t.length > 2));
+
+    for (const other of allReports) {
+      if (other.id === report.id) continue;
+      const otherFactId = other.factId?.trim();
+      if (!otherFactId || otherFactId === primaryId || duplicates.has(otherFactId)) continue;
+
+      // Does the other report already name this primaryId in its duplicateFactIds?
+      if (primaryId && other.duplicateFactIds?.includes(primaryId)) {
+        const doc = await getDoc(`fact_bank/${otherFactId}`);
+        if (doc) duplicates.set(otherFactId, toFact(doc));
+        continue;
+      }
+
+      const otherIsDup =
+        other.qualityFlags?.some((f) => f === "duplicate_question" || f === "conflicting_answer") ||
+        other.reason?.toLowerCase().includes("duplicate_question") ||
+        other.reason?.toLowerCase().includes("conflicting_answer");
+
+      if (otherIsDup) {
+        const otherStatement = normalizeQuestion(other.claimStatement || other.topic || "");
+        const otherTokens = otherStatement.split(" ").filter((t) => t.length > 2);
+        let sharedTokens = 0;
+        for (const t of otherTokens) {
+          if (statementTokens.has(t)) sharedTokens++;
+        }
+        const jaccard = tokenJaccard(normStatement, otherStatement);
+        const sameTopic = Boolean(
+          report.topic && other.topic && report.topic.trim().toLowerCase() === other.topic.trim().toLowerCase(),
+        );
+
+        if (jaccard >= 0.35 || sharedTokens >= 3 || (sameTopic && sharedTokens >= 2)) {
+          const doc = await getDoc(`fact_bank/${otherFactId}`);
+          if (doc) {
+            duplicates.set(otherFactId, toFact(doc));
+            // Backfill duplicate relationship on both reports in Firestore so subsequent loads are immediate
+            await patchDoc(`trivia_reports/${report.id}`, { duplicateFactIds: [otherFactId] }).catch(() => {});
+            if (primaryId) {
+              await patchDoc(`trivia_reports/${other.id}`, { duplicateFactIds: [primaryId] }).catch(() => {});
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Query fallback across fact_bank
   if (isDuplicateReport && duplicates.size === 0 && primaryFact) {
     const subjectKey = primaryFact.subject_key || normalizeKey(primaryFact.subject);
     const normQuestion = normalizeQuestion(primaryFact.question || primaryFact.claim_template || "");
+    const questionTokens = normQuestion.split(" ").filter((w) => w.length > 2);
 
-    // A. Search by same subject_key
-    if (subjectKey) {
+    const candidateSubjectKeys = new Set<string>();
+    if (subjectKey) candidateSubjectKeys.add(subjectKey);
+
+    // Also extract candidate keys from angle or question (e.g. Stevie Wonder in Grammy Awards)
+    if (primaryFact.angle) {
+      candidateSubjectKeys.add(normalizeKey(primaryFact.angle));
+      const angleWords = primaryFact.angle.trim().split(/\s+/);
+      if (angleWords.length >= 2) {
+        candidateSubjectKeys.add(normalizeKey(`${angleWords[0]} ${angleWords[1]}`));
+      }
+    }
+    if (primaryFact.question) {
+      const qWords = primaryFact.question.trim().split(/\s+/);
+      if (qWords.length >= 2) {
+        candidateSubjectKeys.add(normalizeKey(`${qWords[0]} ${qWords[1]}`));
+      }
+    }
+
+    for (const key of candidateSubjectKeys) {
+      if (duplicates.size > 0 || !key) continue;
       const docs = await runQuery({
         collection: "fact_bank",
-        filters: [{ field: "subject_key", op: "EQUAL", value: subjectKey }],
-        limit: 20,
+        filters: [{ field: "subject_key", op: "EQUAL", value: key }],
+        limit: 100,
       });
       for (const d of docs) {
         if (d.id === primaryFact.id || duplicates.has(d.id)) continue;
         const candidate = toFact(d);
         const candidateNorm = normalizeQuestion(candidate.question || candidate.claim_template || "");
+        const jaccard = tokenJaccard(normQuestion, candidateNorm);
+
+        const candidateTokens = new Set(candidateNorm.split(" ").filter((w) => w.length > 2));
+        let commonTokens = 0;
+        for (const t of questionTokens) {
+          if (candidateTokens.has(t)) commonTokens++;
+        }
+
         if (
           normQuestion &&
           candidateNorm &&
-          (normQuestion === candidateNorm || tokenJaccard(normQuestion, candidateNorm) >= 0.6)
+          (normQuestion === candidateNorm || jaccard >= 0.35 || commonTokens >= 3)
         ) {
           duplicates.set(d.id, candidate);
-        }
-      }
-    }
-
-    // B. Search by exact question if across subjects
-    if (duplicates.size === 0 && primaryFact.question) {
-      const docs = await runQuery({
-        collection: "fact_bank",
-        filters: [{ field: "question", op: "EQUAL", value: primaryFact.question }],
-        limit: 10,
-      });
-      for (const d of docs) {
-        if (d.id !== primaryFact.id && !duplicates.has(d.id)) {
-          duplicates.set(d.id, toFact(d));
         }
       }
     }

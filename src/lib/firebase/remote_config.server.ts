@@ -31,7 +31,7 @@ export interface RemoteConfigTemplate {
     versionNumber?: string;
     updateTime?: string;
     updateUser?: { email?: string };
-    updateDescription?: string;
+    description?: string;
     updateOrigin?: string;
     updateType?: string;
   };
@@ -363,7 +363,7 @@ export async function publishTopicSuggestionsConfig(
       conditions: template.conditions,
       parameterGroups: template.parameterGroups,
       version: {
-        updateDescription: `Updated Remote Config parameters via Admin Portal by ${userEmail ?? "admin"}`,
+        description: `Updated Remote Config parameters via Admin Portal by ${userEmail ?? "admin"}`,
       },
     }),
   });
