@@ -16,6 +16,7 @@ import {
 } from "../firebase/firestore.server";
 import { GENRES } from "./taxonomy";
 import { parseDerivationBlock, type FactDerivationBlock } from "./daily-blitz";
+import { isDuplicateFlag, isNonDuplicateFlag } from "./quality-flags";
 import {
   FACT_STATUSES as CONTRACT_FACT_STATUSES,
   QUANTITY_KINDS as CONTRACT_QUANTITY_KINDS,
@@ -1203,7 +1204,7 @@ export async function findDuplicateFactsForReport(
   }
 
   const isDuplicateReport =
-    report.qualityFlags?.some((f) => f === "duplicate_question" || f === "conflicting_answer") ||
+    report.qualityFlags?.some(isDuplicateFlag) ||
     report.reason?.toLowerCase().includes("duplicate_question") ||
     report.reason?.toLowerCase().includes("conflicting_answer");
 
@@ -1217,13 +1218,14 @@ export async function findDuplicateFactsForReport(
       subject_key: normalizeKey(report.topic || ""),
     };
 
+    let newDuplicatesFound = false;
     for (const other of allReports) {
       if (other.id === report.id) continue;
       const otherFactId = other.factId?.trim();
       if (!otherFactId || otherFactId === primaryId || duplicates.has(otherFactId)) continue;
 
       const otherIsDup =
-        other.qualityFlags?.some((f) => f === "duplicate_question" || f === "conflicting_answer") ||
+        other.qualityFlags?.some(isDuplicateFlag) ||
         other.reason?.toLowerCase().includes("duplicate_question") ||
         other.reason?.toLowerCase().includes("conflicting_answer");
 
@@ -1242,9 +1244,7 @@ export async function findDuplicateFactsForReport(
             const fact = toFact(doc);
             if (areFactsDuplicateCandidates(refFact, fact)) {
               duplicates.set(otherFactId, fact);
-              // Backfill duplicate relationship on both reports in Firestore
-              const mergedIds = Array.from(new Set([...(report.duplicateFactIds || []), ...duplicates.keys()]));
-              await patchDoc(`trivia_reports/${report.id}`, { duplicateFactIds: mergedIds }).catch(() => {});
+              newDuplicatesFound = true;
               if (primaryId) {
                 const otherMergedIds = Array.from(new Set([...(other.duplicateFactIds || []), primaryId]));
                 await patchDoc(`trivia_reports/${other.id}`, { duplicateFactIds: otherMergedIds }).catch(() => {});
@@ -1253,6 +1253,11 @@ export async function findDuplicateFactsForReport(
           }
         }
       }
+    }
+
+    if (newDuplicatesFound) {
+      const mergedIds = Array.from(new Set([...(report.duplicateFactIds || []), ...duplicates.keys()]));
+      await patchDoc(`trivia_reports/${report.id}`, { duplicateFactIds: mergedIds }).catch(() => {});
     }
   }
 
@@ -1360,9 +1365,7 @@ export async function resolveReport(input: {
       const keepDoc = await getFact(keepId);
       if (keepDoc) {
         const currentFlags = Array.isArray(keepDoc.quality_flags) ? keepDoc.quality_flags : [];
-        remainingFlags = currentFlags.filter(
-          (f) => f !== "duplicate_question" && f !== "conflicting_answer",
-        );
+        remainingFlags = currentFlags.filter(isNonDuplicateFlag);
 
         if (remainingFlags.length === 0) {
           if (keepDoc.status === STATUS.disputed) {
@@ -1586,7 +1589,7 @@ export async function resolveReport(input: {
         : [];
       remainingFlags =
         reportData["reportSource"] === "fact_lint"
-          ? currentFlags.filter((f) => f !== "duplicate_question" && f !== "conflicting_answer")
+          ? currentFlags.filter(isNonDuplicateFlag)
           : [];
 
       if (remainingFlags.length === 0) {
@@ -1617,9 +1620,7 @@ export async function resolveReport(input: {
           const currentFlags = Array.isArray(dupDoc.data["quality_flags"])
             ? (dupDoc.data["quality_flags"] as string[])
             : [];
-          dupRemaining = currentFlags.filter(
-            (f) => f !== "duplicate_question" && f !== "conflicting_answer",
-          );
+          dupRemaining = currentFlags.filter(isNonDuplicateFlag);
 
           if (dupRemaining.length === 0) {
             await patchDoc(

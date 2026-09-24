@@ -770,5 +770,58 @@ describe("Duplicate reports handling", () => {
     expect(report.data["status"]).toBe("resolved");
     expect(report.data["resolutionNote"]).toBe("Fallback bounds are accurate, acceptable as-is");
   });
+
+  it("isDuplicateFlag and isNonDuplicateFlag classify quality flags correctly", async () => {
+    const { isDuplicateFlag, isNonDuplicateFlag } = await import("@/lib/admin/quality-flags");
+
+    expect(isDuplicateFlag("duplicate_question")).toBe(true);
+    expect(isDuplicateFlag("conflicting_answer")).toBe(true);
+    expect(isDuplicateFlag("missing_bounds_hint")).toBe(false);
+    expect(isDuplicateFlag("bounds_chart_position")).toBe(false);
+
+    expect(isNonDuplicateFlag("duplicate_question")).toBe(false);
+    expect(isNonDuplicateFlag("conflicting_answer")).toBe(false);
+    expect(isNonDuplicateFlag("missing_bounds_hint")).toBe(true);
+    expect(isNonDuplicateFlag("bounds_chart_position")).toBe(true);
+  });
+
+  it("resolve_duplicate preserves kept fact true_number when correctedNumber is omitted", async () => {
+    const { resolveReport } = await import("@/lib/admin/content.server");
+
+    firestoreDouble().seed("fact_bank/fact_a", {
+      subject: "Apollo 11",
+      status: STATUS.disputed,
+      true_number: 1969,
+      quality_flags: ["duplicate_question"],
+    });
+
+    firestoreDouble().seed("fact_bank/fact_b", {
+      subject: "Apollo 11",
+      status: STATUS.active,
+      true_number: 1970, // Different true number
+    });
+
+    firestoreDouble().seed("trivia_reports/lint_apollo", {
+      factId: "fact_a",
+      status: "pending_review",
+      trueNumber: 1969,
+      qualityFlags: ["duplicate_question"],
+    });
+
+    // Keeping Fact B without providing a correctedNumber should NOT overwrite Fact B's 1970 with Fact A's 1969
+    await resolveReport({
+      reportId: "lint_apollo",
+      action: "resolve_duplicate",
+      keepFactId: "fact_b",
+      retireFactId: "fact_a",
+    });
+
+    const factB = firestoreDouble().document("fact_bank/fact_b")!;
+    expect(factB.data["true_number"]).toBe(1970);
+
+    const factA = firestoreDouble().document("fact_bank/fact_a")!;
+    expect(factA.data["status"]).toBe(STATUS.retired);
+  });
 });
+
 

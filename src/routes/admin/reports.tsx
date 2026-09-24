@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, PageHead, statusTone } from "@/admin/AdminShell";
 import { actOnReport, fetchFact, fetchReports, flushReports } from "@/lib/admin/content.functions";
+import { isDuplicateFlag, isNonDuplicateFlag } from "@/lib/admin/quality-flags";
 import { QUANTITY_KINDS } from "../../../shared/fact-lifecycle-contract.gen";
 
 const QUANTITY_KIND_OPTIONS = ["", ...QUANTITY_KINDS] as const;
@@ -173,7 +174,12 @@ function ReportCard({ entry }: { entry: Entry }) {
           reportId: entry.report.id,
           action,
           factId: entry.fact?.id,
-          correctedNumber: corrected ? Number(corrected) : undefined,
+          correctedNumber:
+            isObj && params.correctedNumber !== undefined
+              ? params.correctedNumber
+              : action === "fix_number" || action === "add_to_bank"
+                ? (corrected ? Number(corrected) : undefined)
+                : undefined,
           factUpdates: isObj ? params.factUpdates : undefined,
           note: (isObj && params.note) || note || undefined,
           topic: entry.report.topic,
@@ -194,10 +200,10 @@ function ReportCard({ entry }: { entry: Entry }) {
   const pending = entry.report.status === "pending_review";
   const report = entry.report;
   const isDuplicate =
-    entry.report.qualityFlags?.some((f) => f === "duplicate_question" || f === "conflicting_answer") ||
+    entry.report.qualityFlags?.some(isDuplicateFlag) ||
     entry.report.reason?.toLowerCase().includes("duplicate_question") ||
     entry.report.reason?.toLowerCase().includes("conflicting_answer") ||
-    Boolean(entry.fact?.quality_flags?.some((f) => f === "duplicate_question" || f === "conflicting_answer"));
+    Boolean(entry.fact?.quality_flags?.some(isDuplicateFlag));
 
   const [manualCandidateId, setManualCandidateId] = useState("");
   const [manualCandidate, setManualCandidate] = useState<NonNullable<Entry["fact"]> | null>(null);
@@ -347,7 +353,7 @@ function ReportCard({ entry }: { entry: Entry }) {
         ) : null}
       </dl>
 
-      {pending && duplicateFactsList.length === 0 && entry.fact?.quality_flags?.some((f) => f !== "duplicate_question" && f !== "conflicting_answer") ? (
+      {pending && duplicateFactsList.length === 0 && entry.fact?.quality_flags?.some(isNonDuplicateFlag) ? (
         <div
           style={{
             marginTop: "var(--ds-arena-space-3)",
@@ -365,7 +371,7 @@ function ReportCard({ entry }: { entry: Entry }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Badge tone="purple">Stage 2: Fact Moderation</Badge>
             <span style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
-              Review remaining quality flags ({entry.fact.quality_flags.filter((f) => f !== "duplicate_question" && f !== "conflicting_answer").join(", ")}): edit fields below, accept as-is, or retire if invalid.
+              Review remaining quality flags ({entry.fact.quality_flags.filter(isNonDuplicateFlag).join(", ")}): edit fields below, accept as-is, or retire if invalid.
             </span>
           </div>
           {!showEditor ? (
@@ -576,7 +582,7 @@ function ReportCard({ entry }: { entry: Entry }) {
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Badge tone="amber">
-                {entry.fact?.quality_flags?.some((f) => f !== "duplicate_question" && f !== "conflicting_answer")
+                {entry.fact?.quality_flags?.some(isNonDuplicateFlag)
                   ? "Stage 1 of 2: Duplicate Collision"
                   : "Duplicate Collision"}
               </Badge>
@@ -586,7 +592,7 @@ function ReportCard({ entry }: { entry: Entry }) {
             </div>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               <span style={{ fontSize: "0.8em", color: "var(--ds-arena-color-text-muted)" }}>
-                {entry.fact?.quality_flags?.some((f) => f !== "duplicate_question" && f !== "conflicting_answer")
+                {entry.fact?.quality_flags?.some(isNonDuplicateFlag)
                   ? "Step 1 of 2: Pick which fact to keep active. Secondary quality flags on the kept fact will be reviewed in Step 2."
                   : "Compare versions below: pick one to keep active; the other will be retired."}
               </span>
@@ -645,7 +651,7 @@ function ReportCard({ entry }: { entry: Entry }) {
                   <strong style={{ fontSize: "0.85em" }}>Quality flags:</strong>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
                     {entry.fact.quality_flags.map((flag) => {
-                      const isDup = flag === "duplicate_question" || flag === "conflicting_answer";
+                      const isDup = isDuplicateFlag(flag);
                       return (
                         <Badge key={flag} tone={isDup ? "amber" : "red"}>
                           {flag}
@@ -653,9 +659,9 @@ function ReportCard({ entry }: { entry: Entry }) {
                       );
                     })}
                   </div>
-                  {entry.fact.quality_flags.some((f) => f !== "duplicate_question" && f !== "conflicting_answer") ? (
+                  {entry.fact.quality_flags.some(isNonDuplicateFlag) ? (
                     <div style={{ fontSize: "0.8em", color: "#f87171", marginTop: 2 }}>
-                      ⚠ Has other issue: {entry.fact.quality_flags.filter((f) => f !== "duplicate_question" && f !== "conflicting_answer").join(", ")}
+                      ⚠ Has other issue: {entry.fact.quality_flags.filter(isNonDuplicateFlag).join(", ")}
                     </div>
                   ) : null}
                 </div>
@@ -739,7 +745,7 @@ function ReportCard({ entry }: { entry: Entry }) {
                     <strong style={{ fontSize: "0.85em" }}>Quality flags:</strong>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
                       {dupFact.quality_flags.map((flag) => {
-                        const isDup = flag === "duplicate_question" || flag === "conflicting_answer";
+                        const isDup = isDuplicateFlag(flag);
                         return (
                           <Badge key={flag} tone={isDup ? "amber" : "red"}>
                             {flag}
@@ -747,9 +753,9 @@ function ReportCard({ entry }: { entry: Entry }) {
                         );
                       })}
                     </div>
-                    {dupFact.quality_flags.some((f) => f !== "duplicate_question" && f !== "conflicting_answer") ? (
+                    {dupFact.quality_flags.some(isNonDuplicateFlag) ? (
                       <div style={{ fontSize: "0.8em", color: "#f87171", marginTop: 2 }}>
-                        ⚠ Has other issue: {dupFact.quality_flags.filter((f) => f !== "duplicate_question" && f !== "conflicting_answer").join(", ")}
+                        ⚠ Has other issue: {dupFact.quality_flags.filter(isNonDuplicateFlag).join(", ")}
                       </div>
                     ) : null}
                   </div>
