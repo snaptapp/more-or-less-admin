@@ -5,6 +5,9 @@ import { useState } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, PageHead, statusTone } from "@/admin/AdminShell";
 import { actOnReport, fetchFact, fetchReports, flushReports } from "@/lib/admin/content.functions";
+import { QUANTITY_KINDS } from "../../../shared/fact-lifecycle-contract.gen";
+
+const QUANTITY_KIND_OPTIONS = ["", ...QUANTITY_KINDS] as const;
 
 export const Route = createFileRoute("/admin/reports")({
   head: () => ({
@@ -107,6 +110,22 @@ function ReportCard({ entry }: { entry: Entry }) {
   const [corrected, setCorrected] = useState(
     entry.report.trueNumber === null ? "" : String(entry.report.trueNumber),
   );
+  const [showEditor, setShowEditor] = useState(false);
+  const [editForm, setEditForm] = useState({
+    question: entry.fact?.question || entry.fact?.claim_template || "",
+    true_number:
+      entry.fact?.true_number !== undefined && entry.fact?.true_number !== null
+        ? String(entry.fact.true_number)
+        : entry.report.trueNumber !== null && entry.report.trueNumber !== undefined
+          ? String(entry.report.trueNumber)
+          : "",
+    unit: entry.fact?.unit || entry.report.unit || "",
+    plausible_min: entry.fact?.plausible_min || "",
+    plausible_max: entry.fact?.plausible_max || "",
+    quantity_kind: entry.fact?.quantity_kind || "",
+    context: entry.fact?.context || entry.report.explanation || "",
+    angle: entry.fact?.angle || "",
+  });
 
   const mutation = useMutation({
     mutationFn: (
@@ -116,6 +135,7 @@ function ReportCard({ entry }: { entry: Entry }) {
         | "reject"
         | "resolve_only"
         | "add_to_bank"
+        | "resolve_as_is"
         | {
             action:
               | "retire_fact"
@@ -123,10 +143,25 @@ function ReportCard({ entry }: { entry: Entry }) {
               | "reject"
               | "resolve_only"
               | "add_to_bank"
-              | "resolve_duplicate";
+              | "resolve_duplicate"
+              | "edit_fact"
+              | "resolve_as_is";
+            factId?: string;
             keepFactId?: string;
             retireFactId?: string;
             retireFactIds?: string[];
+            factUpdates?: {
+              question?: string;
+              true_number?: number;
+              unit?: string;
+              plausible_min?: string;
+              plausible_max?: string;
+              quantity_kind?: string;
+              context?: string;
+              surprise_factor?: number;
+              angle?: string;
+              subject?: string;
+            };
             note?: string;
             correctedNumber?: number;
           },
@@ -139,6 +174,7 @@ function ReportCard({ entry }: { entry: Entry }) {
           action,
           factId: entry.fact?.id,
           correctedNumber: corrected ? Number(corrected) : undefined,
+          factUpdates: isObj ? params.factUpdates : undefined,
           note: (isObj && params.note) || note || undefined,
           topic: entry.report.topic,
           claimStatement: entry.report.claimStatement,
@@ -149,7 +185,10 @@ function ReportCard({ entry }: { entry: Entry }) {
         },
       });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["reports"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reports"] });
+      queryClient.invalidateQueries({ queryKey: ["facts"] });
+    },
   });
 
   const pending = entry.report.status === "pending_review";
@@ -284,9 +323,21 @@ function ReportCard({ entry }: { entry: Entry }) {
         <dd>{report.createdAt ?? "Not recorded"}</dd>
         <dt>Matched fact</dt>
         <dd>
-          {entry.fact
-            ? `${entry.fact.subject} / ${entry.fact.angle} (${entry.fact.id})`
-            : "none found (AI-generated claim)"}
+          {entry.fact ? (
+            <span style={{ display: "inline-flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <span>{`${entry.fact.subject} / ${entry.fact.angle} (${entry.fact.id})`}</span>
+              <a
+                href={`/admin/facts?search=${entry.fact.id}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: "0.85em", color: "#10b981", textDecoration: "underline" }}
+              >
+                Open in Fact Bank ↗
+              </a>
+            </span>
+          ) : (
+            "none found (AI-generated claim)"
+          )}
         </dd>
         {report.resolutionNote ? (
           <>
@@ -296,7 +347,36 @@ function ReportCard({ entry }: { entry: Entry }) {
         ) : null}
       </dl>
 
-      {pending && duplicateFactsList.length === 0 ? (
+      {pending && duplicateFactsList.length === 0 && entry.fact?.quality_flags?.some((f) => f !== "duplicate_question" && f !== "conflicting_answer") ? (
+        <div
+          style={{
+            marginTop: "var(--ds-arena-space-3)",
+            padding: "var(--ds-arena-space-2) var(--ds-arena-space-3)",
+            background: "rgba(168, 85, 247, 0.08)",
+            border: "1px solid rgba(168, 85, 247, 0.3)",
+            borderRadius: "var(--ds-arena-radius-sm)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Badge tone="purple">Stage 2: Fact Moderation</Badge>
+            <span style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
+              Review remaining quality flags ({entry.fact.quality_flags.filter((f) => f !== "duplicate_question" && f !== "conflicting_answer").join(", ")}): edit fields below, accept as-is, or retire if invalid.
+            </span>
+          </div>
+          {!showEditor ? (
+            <Button variant="ghost" onClick={() => setShowEditor(true)}>
+              ✏️ Edit Fact Details
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {pending && duplicateFactsList.length === 0 && !showEditor ? (
         <>
           <div className="admin-toolbar" style={{ marginTop: "var(--ds-arena-space-4)" }}>
             <label className="admin-field">
@@ -323,23 +403,154 @@ function ReportCard({ entry }: { entry: Entry }) {
         </>
       ) : null}
 
-      {pending && duplicateFactsList.length === 0 && entry.fact?.quality_flags?.some((f) => f !== "duplicate_question" && f !== "conflicting_answer") ? (
+      {pending && duplicateFactsList.length === 0 && showEditor && entry.fact ? (
         <div
           style={{
             marginTop: "var(--ds-arena-space-3)",
-            padding: "var(--ds-arena-space-2) var(--ds-arena-space-3)",
-            background: "rgba(59, 130, 246, 0.08)",
-            border: "1px solid rgba(59, 130, 246, 0.3)",
-            borderRadius: "var(--ds-arena-radius-sm)",
+            padding: "var(--ds-arena-space-3)",
+            background: "var(--ds-arena-color-surface-elevated, rgba(255, 255, 255, 0.03))",
+            border: "1px solid rgba(168, 85, 247, 0.4)",
+            borderRadius: "var(--ds-arena-radius-md)",
             display: "flex",
-            alignItems: "center",
-            gap: 8,
+            flexDirection: "column",
+            gap: "var(--ds-arena-space-3)",
           }}
         >
-          <Badge tone="purple">Stage 2: Fact Moderation</Badge>
-          <span style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
-            Review remaining quality flags ({entry.fact.quality_flags.filter((f) => f !== "duplicate_question" && f !== "conflicting_answer").join(", ")}): correct the number or retire if invalid.
-          </span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontWeight: 700, fontSize: "0.95em", color: "#c084fc" }}>
+                ✏️ Edit Fact Details &amp; Resolve
+              </span>
+              <span style={{ fontSize: "0.8em", color: "var(--ds-arena-color-text-muted)" }}>
+                ID: <code>{entry.fact.id}</code>
+              </span>
+            </div>
+            <Button variant="ghost" onClick={() => setShowEditor(false)}>
+              ✕ Close Editor
+            </Button>
+          </div>
+
+          <div className="admin-grid">
+            <label className="admin-field" style={{ gridColumn: "1 / -1" }}>
+              <span>Question / Prompt</span>
+              <input
+                className="admin-input"
+                value={editForm.question}
+                onChange={(e) => setEditForm({ ...editForm, question: e.target.value })}
+              />
+            </label>
+            <label className="admin-field">
+              <span>True number</span>
+              <input
+                className="admin-input"
+                type="number"
+                step="any"
+                value={editForm.true_number}
+                onChange={(e) => setEditForm({ ...editForm, true_number: e.target.value })}
+              />
+            </label>
+            <label className="admin-field">
+              <span>Unit (e.g. awards, meters)</span>
+              <input
+                className="admin-input"
+                value={editForm.unit}
+                onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })}
+              />
+            </label>
+            <label className="admin-field">
+              <span>Quantity kind</span>
+              <select
+                className="admin-select"
+                value={editForm.quantity_kind}
+                onChange={(e) => setEditForm({ ...editForm, quantity_kind: e.target.value })}
+              >
+                {QUANTITY_KIND_OPTIONS.map((kind) => (
+                  <option key={kind || "auto"} value={kind}>
+                    {kind === "" ? "auto (classify from unit)" : kind}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="admin-field">
+              <span>Plausible min (Bounds hint)</span>
+              <input
+                className="admin-input"
+                placeholder="e.g. 0"
+                value={editForm.plausible_min}
+                onChange={(e) => setEditForm({ ...editForm, plausible_min: e.target.value })}
+              />
+            </label>
+            <label className="admin-field">
+              <span>Plausible max (Bounds hint)</span>
+              <input
+                className="admin-input"
+                placeholder="e.g. 50"
+                value={editForm.plausible_max}
+                onChange={(e) => setEditForm({ ...editForm, plausible_max: e.target.value })}
+              />
+            </label>
+            <label className="admin-field">
+              <span>Angle</span>
+              <input
+                className="admin-input"
+                value={editForm.angle}
+                onChange={(e) => setEditForm({ ...editForm, angle: e.target.value })}
+              />
+            </label>
+            <label className="admin-field" style={{ gridColumn: "1 / -1" }}>
+              <span>Reveal explanation (Context)</span>
+              <textarea
+                className="admin-textarea"
+                rows={2}
+                value={editForm.context}
+                onChange={(e) => setEditForm({ ...editForm, context: e.target.value })}
+              />
+            </label>
+            <label className="admin-field" style={{ gridColumn: "1 / -1" }}>
+              <span>Resolution note</span>
+              <input
+                className="admin-input"
+                placeholder="Optional resolution note explaining the fix..."
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <div style={{ display: "flex", gap: "var(--ds-arena-space-2)", alignItems: "center", flexWrap: "wrap" }}>
+            <Button
+              variant="primary"
+              disabled={mutation.isPending}
+              onClick={() => {
+                if (!window.confirm("Save changes to this fact and resolve the report?")) return;
+                mutation.mutate({
+                  action: "edit_fact",
+                  factId: entry.fact!.id,
+                  factUpdates: {
+                    question: editForm.question.trim() || undefined,
+                    true_number: editForm.true_number ? Number(editForm.true_number) : undefined,
+                    unit: editForm.unit.trim() || undefined,
+                    plausible_min: editForm.plausible_min.trim() || undefined,
+                    plausible_max: editForm.plausible_max.trim() || undefined,
+                    quantity_kind: editForm.quantity_kind || undefined,
+                    context: editForm.context.trim() || undefined,
+                    angle: editForm.angle.trim() || undefined,
+                  },
+                  note: note.trim() || undefined,
+                });
+              }}
+            >
+              Save Fact &amp; Resolve Report
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={mutation.isPending}
+              onClick={() => setShowEditor(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+          <ErrorNote error={mutation.error} />
         </div>
       ) : null}
 
@@ -717,7 +928,7 @@ function ReportCard({ entry }: { entry: Entry }) {
         </div>
       ) : null}
 
-      {pending && duplicateFactsList.length === 0 ? (
+      {pending && duplicateFactsList.length === 0 && !showEditor ? (
         <div className="admin-row-actions" style={{ marginTop: "var(--ds-arena-space-3)" }}>
           {entry.fact ? (
             <>
@@ -741,6 +952,31 @@ function ReportCard({ entry }: { entry: Entry }) {
               >
                 Accept &amp; fix number
               </Button>
+              <Button
+                variant="ghost"
+                disabled={mutation.isPending}
+                onClick={() => setShowEditor(true)}
+              >
+                ✏️ Edit Fact Details
+              </Button>
+              {entry.fact.quality_flags?.length || entry.report.qualityFlags?.length ? (
+                <Button
+                  variant="ghost"
+                  style={{ color: "#10b981", borderColor: "rgba(16, 185, 129, 0.4)" }}
+                  disabled={mutation.isPending}
+                  onClick={() => {
+                    if (window.confirm("Accept this fact as-is and clear its quality flags?")) {
+                      mutation.mutate({
+                        action: "resolve_as_is",
+                        factId: entry.fact!.id,
+                        note: note.trim() || "Accepted fact as-is via moderation",
+                      });
+                    }
+                  }}
+                >
+                  Accept As-Is (Clear Flags)
+                </Button>
+              ) : null}
             </>
           ) : (
               <>

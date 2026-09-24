@@ -695,5 +695,80 @@ describe("Duplicate reports handling", () => {
     const patchedReport = firestoreDouble().document("trivia_reports/lint_fact_stevie")!;
     expect(patchedReport.data["duplicateFactIds"]).toEqual([]);
   });
+
+  it("resolveReport with action edit_fact updates fact fields, clears quality flags, reinstates to active, and resolves report", async () => {
+    const { resolveReport } = await import("@/lib/admin/content.server");
+
+    firestoreDouble().seed("fact_bank/fact_edit_me", {
+      subject: "Stevie Wonder",
+      angle: "Grammy Awards",
+      status: STATUS.disputed,
+      quality_flags: ["missing_bounds_hint", "label_unit"],
+      true_number: 25,
+      unit: "GRAMMY AWARDS",
+    });
+
+    firestoreDouble().seed("trivia_reports/lint_edit_me", {
+      factId: "fact_edit_me",
+      status: "pending_review",
+      qualityFlags: ["missing_bounds_hint", "label_unit"],
+    });
+
+    await resolveReport({
+      reportId: "lint_edit_me",
+      action: "edit_fact",
+      factId: "fact_edit_me",
+      factUpdates: {
+        unit: "awards",
+        plausible_min: "0",
+        plausible_max: "50",
+      },
+      note: "Fixed unit to awards and provided 0-50 bounds hints",
+    });
+
+    const fact = firestoreDouble().document("fact_bank/fact_edit_me")!;
+    expect(fact.data["status"]).toBe(STATUS.active);
+    expect(fact.data["unit"]).toBe("awards");
+    expect(fact.data["plausible_min"]).toBe("0");
+    expect(fact.data["plausible_max"]).toBe("50");
+    expect(fact.data["quality_flags"]).toBeUndefined();
+
+    const report = firestoreDouble().document("trivia_reports/lint_edit_me")!;
+    expect(report.data["status"]).toBe("resolved");
+    expect(report.data["resolutionNote"]).toContain("Fixed unit to awards");
+  });
+
+  it("resolveReport with action resolve_as_is clears quality flags, reinstates fact, and resolves report", async () => {
+    const { resolveReport } = await import("@/lib/admin/content.server");
+
+    firestoreDouble().seed("fact_bank/fact_as_is", {
+      subject: "Stevie Wonder",
+      status: STATUS.disputed,
+      quality_flags: ["missing_bounds_hint"],
+      true_number: 25,
+      unit: "awards",
+    });
+
+    firestoreDouble().seed("trivia_reports/lint_as_is", {
+      factId: "fact_as_is",
+      status: "pending_review",
+      qualityFlags: ["missing_bounds_hint"],
+    });
+
+    await resolveReport({
+      reportId: "lint_as_is",
+      action: "resolve_as_is",
+      factId: "fact_as_is",
+      note: "Fallback bounds are accurate, acceptable as-is",
+    });
+
+    const fact = firestoreDouble().document("fact_bank/fact_as_is")!;
+    expect(fact.data["status"]).toBe(STATUS.active);
+    expect(fact.data["quality_flags"]).toBeUndefined();
+
+    const report = firestoreDouble().document("trivia_reports/lint_as_is")!;
+    expect(report.data["status"]).toBe("resolved");
+    expect(report.data["resolutionNote"]).toBe("Fallback bounds are accurate, acceptable as-is");
+  });
 });
 

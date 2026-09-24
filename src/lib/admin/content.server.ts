@@ -1304,9 +1304,18 @@ export async function findDuplicateFactsForReport(
 
 export async function resolveReport(input: {
   reportId: string;
-  action: "retire_fact" | "fix_number" | "reject" | "resolve_only" | "add_to_bank" | "resolve_duplicate";
+  action:
+    | "retire_fact"
+    | "fix_number"
+    | "reject"
+    | "resolve_only"
+    | "add_to_bank"
+    | "resolve_duplicate"
+    | "edit_fact"
+    | "resolve_as_is";
   factId?: string;
   correctedNumber?: number;
+  factUpdates?: Partial<FactEditInput>;
   note?: string;
   topic?: string;
   claimStatement?: string;
@@ -1454,6 +1463,61 @@ export async function resolveReport(input: {
     await patchDoc(`trivia_reports/${input.reportId}`, {
       status: "resolved",
       resolutionNote: input.note ?? (input.correctedNumber !== undefined ? `Corrected to ${input.correctedNumber}` : "Report accepted"),
+      resolved_at: now,
+    });
+    return { ok: true };
+  }
+
+  if (input.action === "edit_fact") {
+    if (input.factId && input.factUpdates) {
+      await updateFact({ id: input.factId, ...input.factUpdates });
+      await patchDoc(
+        `fact_bank/${input.factId}`,
+        {},
+        ["quality_flags", "disputed_reason", "disputed_at"],
+      );
+      const factDoc = await getFact(input.factId);
+      if (factDoc) {
+        const reinstateTarget = reinstatementTargetFor(factDoc.status);
+        if (reinstateTarget !== null) {
+          await setFactStatus({
+            id: input.factId,
+            status: reinstateTarget,
+            reason: input.note ?? "Fact updated and reinstated via moderation",
+          });
+        }
+      }
+    }
+    await patchDoc(`trivia_reports/${input.reportId}`, {
+      status: "resolved",
+      resolutionNote: input.note ?? "Fact updated and resolved via moderation",
+      resolved_at: now,
+    });
+    return { ok: true };
+  }
+
+  if (input.action === "resolve_as_is") {
+    if (input.factId) {
+      await patchDoc(
+        `fact_bank/${input.factId}`,
+        {},
+        ["quality_flags", "disputed_reason", "disputed_at"],
+      );
+      const factDoc = await getFact(input.factId);
+      if (factDoc) {
+        const reinstateTarget = reinstatementTargetFor(factDoc.status);
+        if (reinstateTarget !== null) {
+          await setFactStatus({
+            id: input.factId,
+            status: reinstateTarget,
+            reason: input.note ?? "Accepted fact as-is via moderation",
+          });
+        }
+      }
+    }
+    await patchDoc(`trivia_reports/${input.reportId}`, {
+      status: "resolved",
+      resolutionNote: input.note ?? "Report accepted: fact verified as-is",
       resolved_at: now,
     });
     return { ok: true };
