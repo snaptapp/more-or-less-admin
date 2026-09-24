@@ -502,5 +502,118 @@ describe("Duplicate reports handling", () => {
     const repTelemetry = firestoreDouble().document("trivia_reports/telemetry_player_report")!;
     expect(repTelemetry.data["status"]).toBe("pending_review");
   });
+
+  it("areFactsDuplicateCandidates rejects unrelated facts with shared stop/common words", async () => {
+    const { areFactsDuplicateCandidates } = await import("@/lib/admin/content.server");
+
+    const stevieWonder = {
+      id: "fact_stevie",
+      subject: "Grammy Awards",
+      subject_key: "grammy_awards",
+      angle: "Stevie Wonder career Grammy Awards",
+      question: "How many competitive Grammy Awards has Stevie Wonder won throughout his recording career?",
+      claim_template: "Stevie Wonder has earned {n} competitive Grammy Awards throughout his career.",
+    };
+
+    const larryFitzgerald = {
+      id: "fact_larry",
+      subject: "Receiving Yards",
+      subject_key: "receiving_yards",
+      angle: "Larry Fitzgerald's career NFL receiving yards",
+      question: "Larry Fitzgerald's career NFL receiving yards",
+      claim_template: "Larry Fitzgerald accumulated {n} career receiving yards over his NFL career",
+    };
+
+    expect(areFactsDuplicateCandidates(stevieWonder, larryFitzgerald)).toBe(false);
+    expect(areFactsDuplicateCandidates(larryFitzgerald, stevieWonder)).toBe(false);
+  });
+
+  it("areFactsDuplicateCandidates accepts true duplicate facts in the same subject", async () => {
+    const { areFactsDuplicateCandidates } = await import("@/lib/admin/content.server");
+
+    const stevieA = {
+      id: "fact_stevie_1",
+      subject: "Grammy Awards",
+      subject_key: "grammy_awards",
+      angle: "Stevie Wonder career Grammy Awards",
+      question: "How many competitive Grammy Awards has Stevie Wonder won throughout his recording career?",
+      claim_template: "Stevie Wonder has earned {n} competitive Grammy Awards throughout his career.",
+    };
+
+    const stevieB = {
+      id: "fact_stevie_2",
+      subject: "Grammy Awards",
+      subject_key: "grammy_awards",
+      angle: "Stevie Wonder Grammy wins",
+      question: "How many Grammy Awards has Stevie Wonder won in his music career?",
+      claim_template: "Stevie Wonder won {n} Grammy Awards over his career.",
+    };
+
+    expect(areFactsDuplicateCandidates(stevieA, stevieB)).toBe(true);
+    expect(areFactsDuplicateCandidates(stevieB, stevieA)).toBe(true);
+  });
+
+  it("findDuplicateFactsForReport filters out invalid duplicateFactIds and cleans corrupted Firestore reports", async () => {
+    const { findDuplicateFactsForReport } = await import("@/lib/admin/content.server");
+
+    firestoreDouble().seed("fact_bank/fact_stevie", {
+      subject: "Grammy Awards",
+      subject_key: "grammy_awards",
+      angle: "Stevie Wonder career Grammy Awards",
+      question: "How many competitive Grammy Awards has Stevie Wonder won throughout his recording career?",
+      claim_template: "Stevie Wonder has earned {n} competitive Grammy Awards throughout his career.",
+      status: STATUS.disputed,
+    });
+
+    firestoreDouble().seed("fact_bank/fact_larry", {
+      subject: "Receiving Yards",
+      subject_key: "receiving_yards",
+      angle: "Larry Fitzgerald's career NFL receiving yards",
+      question: "Larry Fitzgerald's career NFL receiving yards",
+      claim_template: "Larry Fitzgerald accumulated {n} career receiving yards over his NFL career",
+      status: STATUS.disputed,
+    });
+
+    firestoreDouble().seed("trivia_reports/lint_fact_stevie", {
+      id: "lint_fact_stevie",
+      topic: "Grammy Awards",
+      claimStatement: "Stevie Wonder has earned {n} competitive Grammy Awards throughout his career.",
+      factId: "fact_stevie",
+      duplicateFactIds: ["fact_larry"], // Corrupted ID
+      status: "pending_review",
+      reason: "fact_lint: duplicate_question",
+    });
+
+    const report = {
+      id: "lint_fact_stevie",
+      topic: "Grammy Awards",
+      claimStatement: "Stevie Wonder has earned {n} competitive Grammy Awards throughout his career.",
+      factId: "fact_stevie",
+      duplicateFactIds: ["fact_larry"],
+      status: "pending_review" as const,
+      reason: "fact_lint: duplicate_question",
+      explanation: "",
+      presentedNumber: null,
+      trueNumber: 25,
+      unit: "awards",
+      feedbackText: "",
+      reporterUid: "",
+      createdAt: new Date().toISOString(),
+      resolutionNote: null,
+      ombudsmanSources: [],
+      qualityFlags: ["duplicate_question"],
+    };
+    const { toFact } = await import("@/lib/admin/content.server");
+    const primaryFactDoc = firestoreDouble().document("fact_bank/fact_stevie")!;
+    const primaryFact = toFact(primaryFactDoc);
+
+    const results = await findDuplicateFactsForReport(report, primaryFact);
+    // Larry Fitzgerald is NOT a candidate
+    expect(results.some((f) => f.id === "fact_larry")).toBe(false);
+
+    // Corrupted ID was removed from Firestore
+    const patchedReport = firestoreDouble().document("trivia_reports/lint_fact_stevie")!;
+    expect(patchedReport.data["duplicateFactIds"]).toEqual([]);
+  });
 });
 
