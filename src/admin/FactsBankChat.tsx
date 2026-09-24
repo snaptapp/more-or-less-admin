@@ -3,8 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Badge } from "@/index";
 import { OpsChatRail } from "@/admin/OpsChatRail";
-import { chatFactsBank } from "@/lib/admin/ops.functions";
-import type { ChatCard, ChatMessage, EditableRound } from "@/lib/admin/daily-blitz";
+import { chatFactsBank, fetchFactBankPromptSuggestions } from "@/lib/admin/ops.functions";
+import type { ChatCard, ChatMessage, EditableRound, PromptSuggestion } from "@/lib/admin/daily-blitz";
 
 /**
  * Provides an operations chat interface for querying fact-bank coverage and managing crawl queues.
@@ -17,7 +17,26 @@ export function FactsBankChat({
   onApplyPack?: (rounds: EditableRound[], topic?: string) => void;
 }) {
   const chat = useServerFn(chatFactsBank);
+  const fetchSuggestions = useServerFn(fetchFactBankPromptSuggestions);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [suggestions, setSuggestions] = useState<PromptSuggestion[]>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+
+  const handleFetchSuggestions = async () => {
+    if (mutation.isPending) return;
+    setIsLoadingSuggestions(true);
+    setSuggestionsError(null);
+    try {
+      const res = await fetchSuggestions();
+      setSuggestions(res);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load suggestions";
+      setSuggestionsError(msg);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
 
   const mutation = useMutation({
     mutationFn: (next: ChatMessage[]) =>
@@ -60,6 +79,10 @@ export function FactsBankChat({
       }}
       onApplyCard={onApplyPack ? applyCard : undefined}
       applyLabel="Copy pack for Daily"
+      suggestions={suggestions}
+      onFetchSuggestions={handleFetchSuggestions}
+      isLoadingSuggestions={isLoadingSuggestions}
+      suggestionsError={suggestionsError}
     />
   );
 }

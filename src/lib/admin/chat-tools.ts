@@ -318,7 +318,7 @@ function explainRound(n: number, rounds: EditableRound[]) {
  * @param limit - Maximum number of thin subjects to include
  * @returns Coverage results containing thin subjects, the eight least-covered genres, and the applied fact threshold
  */
-async function coverageGaps(minFacts: number, limit: number) {
+export async function coverageGaps(minFacts: number, limit: number) {
   const { subjects, coverage } = await listSubjects({});
   const thinSubjects = subjects
     .filter((s) => s.fact_count <= minFacts)

@@ -73,6 +73,12 @@ export interface ChatMessage {
   cards?: ChatCard[];
 }
 
+export interface PromptSuggestion {
+  id: string;
+  label: string;
+  prompt: string;
+}
+
 export function utcToday(): string {
   return new Date().toISOString().slice(0, 10);
 }

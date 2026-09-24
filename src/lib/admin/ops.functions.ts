@@ -305,6 +305,12 @@ export const chatFactsBank = createServerFn({ method: "POST" }).middleware([auth
     return runFactsBankChat({ messages: data.messages });
   });
 
+export const fetchFactBankPromptSuggestions = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .handler(async () => {
+    const { getFactBankPromptSuggestions } = await import("./facts-suggestions.server");
+    return getFactBankPromptSuggestions();
+  });
+
 export const preScheduleDailyPack = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z

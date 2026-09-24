@@ -353,6 +353,99 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   margin-top: 12px;
 }
 
+.daily-blitz-chat-suggestions-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.daily-blitz-chat-suggestions-btn {
+  background: transparent;
+  border: 1px dashed var(--ds-arena-color-border, rgba(255, 255, 255, 0.15));
+  border-radius: var(--ds-arena-radius-full, 9999px);
+  color: var(--ds-arena-color-text-muted, #94a3b8);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: all 0.15s ease;
+}
+
+.daily-blitz-chat-suggestions-btn:hover:not(:disabled) {
+  border-color: var(--ds-arena-color-border-hover, rgba(255, 255, 255, 0.3));
+  color: var(--ds-arena-color-text, #fff);
+}
+
+.daily-blitz-chat-suggestions-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.daily-blitz-chat-suggestions-panel {
+  padding: 2px 0 4px;
+}
+
+.daily-blitz-chat-suggestions-hint {
+  font-size: 12px;
+  color: var(--ds-arena-color-text-muted, #94a3b8);
+  margin: 2px 0;
+  font-style: italic;
+}
+
+.daily-blitz-chat-suggestions-error-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0;
+}
+
+.daily-blitz-chat-suggestions-error {
+  font-size: 12px;
+  color: var(--ds-arena-color-red, #f87171);
+  margin: 0;
+}
+
+.daily-blitz-chat-suggestions-retry {
+  background: transparent;
+  border: 1px solid var(--ds-arena-color-border, rgba(255, 255, 255, 0.15));
+  border-radius: var(--ds-arena-radius-full, 9999px);
+  color: var(--ds-arena-color-text, #fff);
+  font-size: 10px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.daily-blitz-chat-suggestions-retry:hover {
+  border-color: var(--ds-arena-color-border-hover, rgba(255, 255, 255, 0.3));
+}
+
+.daily-blitz-chat-bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.daily-blitz-chat-bubble {
+  background: var(--ds-arena-color-surface-raised, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--ds-arena-color-border, rgba(255, 255, 255, 0.12));
+  border-radius: var(--ds-arena-radius-full, 9999px);
+  color: var(--ds-arena-color-text, #fff);
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.3;
+}
+
+.daily-blitz-chat-bubble:hover {
+  border-color: var(--ds-arena-color-lime, #a3e635);
+  background: var(--ds-arena-color-surface-overlay, rgba(255, 255, 255, 0.08));
+}
+
 .daily-blitz-round-table {
   min-width: 560px;
 }

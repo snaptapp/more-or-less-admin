@@ -127,6 +127,86 @@ describe("Duplicate reports handling", () => {
     expect(duplicates[0]?.id).toBe("fact_b");
   });
 
+  it("accumulates all matched duplicate candidates into report duplicateFactIds backfill when multiple duplicates exist", async () => {
+    const { findDuplicateFactsForReport } = await import("@/lib/admin/content.server");
+
+    firestoreDouble().seed("fact_bank/fact_orig", {
+      subject: "Apollo 11",
+      subject_key: "apollo 11",
+      angle: "Moon walk duration",
+      question: "How long was the Apollo 11 moonwalk?",
+      claim_template: "The moonwalk lasted {n} hours.",
+      true_number: 2.5,
+      unit: "hours",
+      status: STATUS.disputed,
+    });
+
+    firestoreDouble().seed("fact_bank/fact_dup1", {
+      subject: "Apollo 11",
+      subject_key: "apollo 11",
+      angle: "Lunar surface eva",
+      question: "What was the Apollo 11 moonwalk duration?",
+      claim_template: "The moonwalk lasted {n} hours.",
+      true_number: 2.5,
+      unit: "hours",
+      status: STATUS.active,
+    });
+
+    firestoreDouble().seed("fact_bank/fact_dup2", {
+      subject: "Apollo 11",
+      subject_key: "apollo 11",
+      angle: "Moonwalk hours",
+      question: "How many hours was the Apollo 11 moonwalk?",
+      claim_template: "The moonwalk lasted {n} hours.",
+      true_number: 2.5,
+      unit: "hours",
+      status: STATUS.active,
+    });
+
+    firestoreDouble().seed("trivia_reports/report_multi", {
+      id: "report_multi",
+      topic: "Apollo 11",
+      claimStatement: "The moonwalk lasted {n} hours.",
+      qualityFlags: ["duplicate_question"],
+      factId: "fact_orig",
+      duplicateFactIds: [],
+    });
+
+    const report = {
+      id: "report_multi",
+      topic: "Apollo 11",
+      claimStatement: "The moonwalk lasted {n} hours.",
+      explanation: "",
+      presentedNumber: null,
+      trueNumber: 2.5,
+      unit: "hours",
+      reason: "fact_lint: duplicate_question",
+      feedbackText: "",
+      reporterUid: "",
+      status: "pending_review",
+      createdAt: new Date().toISOString(),
+      resolutionNote: null,
+      factId: "fact_orig",
+      duplicateFactIds: [],
+      ombudsmanSources: [],
+      qualityFlags: ["duplicate_question"],
+    };
+
+    const primaryFactDoc = firestoreDouble().document("fact_bank/fact_orig")!;
+    const { toFact } = await import("@/lib/admin/content.server");
+    const primaryFact = toFact(primaryFactDoc);
+
+    const duplicates = await findDuplicateFactsForReport(report, primaryFact);
+    expect(duplicates).toHaveLength(2);
+    const returnedIds = duplicates.map((d) => d.id).sort();
+    expect(returnedIds).toEqual(["fact_dup1", "fact_dup2"]);
+
+    // Verify Firestore document received both IDs, not just the last one
+    const patchedReportDoc = firestoreDouble().document("trivia_reports/report_multi");
+    const savedIds = (patchedReportDoc?.data["duplicateFactIds"] as string[])?.slice().sort();
+    expect(savedIds).toEqual(["fact_dup1", "fact_dup2"]);
+  });
+
   it("resolves duplicate choice by retiring loser, keeping winner, and auto-resolving counterpart report", async () => {
     const { resolveReport } = await import("@/lib/admin/content.server");
 

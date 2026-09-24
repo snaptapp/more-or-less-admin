@@ -296,7 +296,7 @@ function ReportCard({ entry }: { entry: Entry }) {
         ) : null}
       </dl>
 
-      {pending ? (
+      {pending && duplicateFactsList.length === 0 ? (
         <>
           <div className="admin-toolbar" style={{ marginTop: "var(--ds-arena-space-4)" }}>
             <label className="admin-field">
@@ -323,6 +323,26 @@ function ReportCard({ entry }: { entry: Entry }) {
         </>
       ) : null}
 
+      {pending && duplicateFactsList.length === 0 && entry.fact?.quality_flags?.some((f) => f !== "duplicate_question" && f !== "conflicting_answer") ? (
+        <div
+          style={{
+            marginTop: "var(--ds-arena-space-3)",
+            padding: "var(--ds-arena-space-2) var(--ds-arena-space-3)",
+            background: "rgba(59, 130, 246, 0.08)",
+            border: "1px solid rgba(59, 130, 246, 0.3)",
+            borderRadius: "var(--ds-arena-radius-sm)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <Badge tone="purple">Stage 2: Fact Moderation</Badge>
+          <span style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
+            Review remaining quality flags ({entry.fact.quality_flags.filter((f) => f !== "duplicate_question" && f !== "conflicting_answer").join(", ")}): correct the number or retire if invalid.
+          </span>
+        </div>
+      ) : null}
+
       {duplicateFactsList.length > 0 && entry.fact ? (
         <div
           style={{
@@ -343,12 +363,21 @@ function ReportCard({ entry }: { entry: Entry }) {
               gap: 8,
             }}
           >
-            <h4 style={{ margin: 0, color: "#f6c344", fontSize: "0.95em", fontWeight: 700 }}>
-              Duplicate Fact Collisions ({duplicateFactsList.length + 1} facts)
-            </h4>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Badge tone="amber">
+                {entry.fact?.quality_flags?.some((f) => f !== "duplicate_question" && f !== "conflicting_answer")
+                  ? "Stage 1 of 2: Duplicate Collision"
+                  : "Duplicate Collision"}
+              </Badge>
+              <h4 style={{ margin: 0, color: "#f6c344", fontSize: "0.95em", fontWeight: 700 }}>
+                {duplicateFactsList.length + 1} Conflicting Facts
+              </h4>
+            </div>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               <span style={{ fontSize: "0.8em", color: "var(--ds-arena-color-text-muted)" }}>
-                Compare versions below: pick one to keep active (applies any corrected number/note above); the other will be retired.
+                {entry.fact?.quality_flags?.some((f) => f !== "duplicate_question" && f !== "conflicting_answer")
+                  ? "Step 1 of 2: Pick which fact to keep active. Secondary quality flags on the kept fact will be reviewed in Step 2."
+                  : "Compare versions below: pick one to keep active; the other will be retired."}
               </span>
               {manualCandidate ? (
                 <button
@@ -454,18 +483,18 @@ function ReportCard({ entry }: { entry: Entry }) {
                     variant="primary"
                     disabled={mutation.isPending}
                     onClick={() => {
-                      if (window.confirm(`Keep Fact A (${entry.fact!.id}) and retire the other duplicate(s)?`)) {
+                      const otherLabel = duplicateFactsList.length === 1 ? "Fact B" : "other duplicate(s)";
+                      if (window.confirm(`Keep Fact A (${entry.fact!.id}) and retire ${otherLabel}?`)) {
                         mutation.mutate({
                           action: "resolve_duplicate",
                           keepFactId: entry.fact!.id,
                           retireFactIds: duplicateFactsList.map((d) => d.id),
                           note: note.trim() || undefined,
-                          correctedNumber: corrected ? Number(corrected) : undefined,
                         });
                       }
                     }}
                   >
-                    Keep Fact A &amp; Retire Other(s)
+                    Keep Fact A &amp; Retire {duplicateFactsList.length === 1 ? "Fact B" : "Other(s)"}
                   </Button>
                 </div>
               ) : null}
@@ -548,7 +577,12 @@ function ReportCard({ entry }: { entry: Entry }) {
                       variant="primary"
                       disabled={mutation.isPending}
                       onClick={() => {
-                        if (window.confirm(`Keep Duplicate (${dupFact.id}) and retire Fact A (${entry.fact!.id})?`)) {
+                        const targetLetter = String.fromCharCode(66 + idx);
+                        const otherLabel =
+                          duplicateFactsList.length === 1
+                            ? "Fact A"
+                            : "Fact A and other duplicates";
+                        if (window.confirm(`Keep Duplicate Fact ${targetLetter} (${dupFact.id}) and retire ${otherLabel}?`)) {
                           const otherRetires = [
                             entry.fact!.id,
                             ...duplicateFactsList.filter((d) => d.id !== dupFact.id).map((d) => d.id),
@@ -558,12 +592,11 @@ function ReportCard({ entry }: { entry: Entry }) {
                             keepFactId: dupFact.id,
                             retireFactIds: otherRetires,
                             note: note.trim() || undefined,
-                            correctedNumber: corrected ? Number(corrected) : undefined,
                           });
                         }
                       }}
                     >
-                      Keep Fact {String.fromCharCode(66 + idx)} &amp; Retire Other(s)
+                      Keep Fact {String.fromCharCode(66 + idx)} &amp; Retire {duplicateFactsList.length === 1 ? "Fact A" : "Other(s)"}
                     </Button>
                   </div>
                 ) : null}
@@ -572,33 +605,52 @@ function ReportCard({ entry }: { entry: Entry }) {
           </div>
 
           {pending ? (
-            <div style={{ display: "flex", gap: "var(--ds-arena-space-2)", marginTop: "var(--ds-arena-space-3)", flexWrap: "wrap" }}>
-              <Button
-                variant="danger"
-                disabled={mutation.isPending}
-                onClick={() => {
-                  if (window.confirm("Retire ALL duplicate facts involved in this collision?")) {
-                    mutation.mutate({
-                      action: "resolve_duplicate",
-                      retireFactIds: [entry.fact!.id, ...duplicateFactsList.map((d) => d.id)],
-                      note: note.trim() || "All duplicate facts retired via moderation",
-                    });
-                  }
-                }}
-              >
-                Retire all duplicates
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={mutation.isPending}
-                onClick={() => {
-                  if (window.confirm("Reject report and keep all facts active (not duplicates)?")) {
-                    mutation.mutate({ action: "reject", note: note.trim() || "Not a duplicate - kept all active" });
-                  }
-                }}
-              >
-                Reject report (Keep all active)
-              </Button>
+            <div
+              style={{
+                marginTop: "var(--ds-arena-space-3)",
+                paddingTop: "var(--ds-arena-space-3)",
+                borderTop: "1px dashed rgba(246, 195, 68, 0.2)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--ds-arena-space-2)",
+              }}
+            >
+              <div style={{ display: "flex", gap: "var(--ds-arena-space-2)", alignItems: "center", flexWrap: "wrap" }}>
+                <input
+                  className="admin-input"
+                  style={{ flex: "1 1 240px", fontSize: "0.85em" }}
+                  placeholder="Optional duplicate resolution note..."
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+                <Button
+                  variant="danger"
+                  disabled={mutation.isPending}
+                  onClick={() => {
+                    if (window.confirm("Retire ALL duplicate facts involved in this collision?")) {
+                      mutation.mutate({
+                        action: "resolve_duplicate",
+                        retireFactIds: [entry.fact!.id, ...duplicateFactsList.map((d) => d.id)],
+                        note: note.trim() || "All duplicate facts retired via moderation",
+                      });
+                    }
+                  }}
+                >
+                  Retire all duplicates
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={mutation.isPending}
+                  onClick={() => {
+                    if (window.confirm("Reject report and keep all facts active (not duplicates)?")) {
+                      mutation.mutate({ action: "reject", note: note.trim() || "Not a duplicate - kept all active" });
+                    }
+                  }}
+                >
+                  Reject report (Keep all active)
+                </Button>
+              </div>
+              <ErrorNote error={mutation.error} />
             </div>
           ) : null}
         </div>
@@ -665,7 +717,7 @@ function ReportCard({ entry }: { entry: Entry }) {
         </div>
       ) : null}
 
-      {pending ? (
+      {pending && duplicateFactsList.length === 0 ? (
         <div className="admin-row-actions" style={{ marginTop: "var(--ds-arena-space-3)" }}>
           {entry.fact ? (
             <>
@@ -684,12 +736,6 @@ function ReportCard({ entry }: { entry: Entry }) {
                 variant="primary"
                 disabled={!corrected || mutation.isPending}
                 onClick={() => {
-                  if (duplicateFactsList.length) {
-                    window.alert(
-                      "This fact has duplicate conflicts. To fix the number and resolve the collision, use 'Keep Fact A' or 'Keep Fact B' above with your corrected number.",
-                    );
-                    return;
-                  }
                   mutation.mutate("fix_number");
                 }}
               >

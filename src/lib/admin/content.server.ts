@@ -1243,9 +1243,11 @@ export async function findDuplicateFactsForReport(
             if (areFactsDuplicateCandidates(refFact, fact)) {
               duplicates.set(otherFactId, fact);
               // Backfill duplicate relationship on both reports in Firestore
-              await patchDoc(`trivia_reports/${report.id}`, { duplicateFactIds: [otherFactId] }).catch(() => {});
+              const mergedIds = Array.from(new Set([...(report.duplicateFactIds || []), ...duplicates.keys()]));
+              await patchDoc(`trivia_reports/${report.id}`, { duplicateFactIds: mergedIds }).catch(() => {});
               if (primaryId) {
-                await patchDoc(`trivia_reports/${other.id}`, { duplicateFactIds: [primaryId] }).catch(() => {});
+                const otherMergedIds = Array.from(new Set([...(other.duplicateFactIds || []), primaryId]));
+                await patchDoc(`trivia_reports/${other.id}`, { duplicateFactIds: otherMergedIds }).catch(() => {});
               }
             }
           }
@@ -1287,9 +1289,12 @@ export async function findDuplicateFactsForReport(
         const candidate = toFact(d);
         if (areFactsDuplicateCandidates(primaryFact, candidate)) {
           duplicates.set(d.id, candidate);
-          // Backfill on the report doc so future loads hit step 1 immediately
-          await patchDoc(`trivia_reports/${report.id}`, { duplicateFactIds: [d.id] }).catch(() => {});
         }
+      }
+      if (duplicates.size > 0) {
+        // Backfill on the report doc so future loads hit step 1 immediately
+        const mergedIds = Array.from(new Set([...(report.duplicateFactIds || []), ...duplicates.keys()]));
+        await patchDoc(`trivia_reports/${report.id}`, { duplicateFactIds: mergedIds }).catch(() => {});
       }
     }
   }
