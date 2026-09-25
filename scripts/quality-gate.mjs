@@ -15,8 +15,9 @@
  *   3. Lint_Step           (eslint .)
  *   4. Suppression_Check       (scripts/check-suppressions.mjs)
  *   5. Contract_Literal_Check  (scripts/check-contract-literals.mjs — Requirement 9.9)
- *   6. Test_Suite              (vitest run)
- *   7. Contract_Drift_Check    (only once contract-adoption.json records adoption — 10.7)
+ *   6. Shared_Artifact_Integrity_Check (network-free local handoff digest/adoption gate)
+ *   7. Test_Suite              (vitest run)
+ *   8. Contract_Drift_Check    (only once contract-adoption.json records adoption — 10.7)
  *
  * Contract:
  *   - Each member is spawned as a child process with inherited stdio, so its diagnostics
@@ -137,6 +138,16 @@ export const GATE_MEMBERS = Object.freeze([
     npmScript: "check:contract-literals",
     kind: "script",
     script: "scripts/check-contract-literals.mjs",
+    args: Object.freeze([]),
+    requiresContractAdoption: false,
+  }),
+  Object.freeze({
+    // The local handoff gate is deliberately unconditional: an absent, stale,
+    // or partially synchronized generated bundle must never be deployable.
+    name: "Shared_Artifact_Integrity_Check",
+    npmScript: "check:artifacts",
+    kind: "script",
+    script: "scripts/check-shared-artifacts.mjs",
     args: Object.freeze([]),
     requiresContractAdoption: false,
   }),

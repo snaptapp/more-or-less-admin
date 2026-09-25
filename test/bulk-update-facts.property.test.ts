@@ -7,11 +7,9 @@
  *
  * Property 14: `bulkUpdateFacts` persists a valid batch exactly and completely
  *   *For any* batch of 1 to 200 edits that each satisfy the edit schema,
- *   `bulkUpdateFacts` persists every edit and returns a count equal to the
- *   number of edits, and writes exactly one audit entry whose `targetType` is
- *   `fact` and whose `targetId` is the single edited fact id when the batch has
- *   one edit or a non-empty batch id (with the full edited-id list in the entry
- *   payload) when the batch has two or more edits.
+ *   `bulkUpdateFacts` persists every edit in input order and returns a count
+ *   equal to the number of edits. Each edit commits its fact and exactly one
+ *   audit in one transaction; the batch itself is explicitly non-atomic.
  *   Validates: Requirements 3.2, 3.3
  *
  * Property 15: `bulkUpdateFacts` rejects an invalid batch with no side effects
@@ -24,8 +22,8 @@
  * Property 16: `bulkUpdateFacts` applies a persisted prefix on partial failure
  *   *For any* batch and any failure position k (1-indexed) at which persistence
  *   fails, `bulkUpdateFacts` stops applying further edits, returns an error
- *   naming the fact id whose edit failed, and writes at most one audit entry
- *   listing exactly the identifiers of the edits persisted before the failure.
+ *   naming the fact id whose edit failed, and commits exactly one audit for
+ *   each edit in the persisted prefix.
  *   Validates: Requirements 3.5
  *
  * Design notes
@@ -36,7 +34,7 @@
  *     which owns pre-write validation, ordered application, and the persisted
  *     prefix on failure;
  *   - the `bulkUpdateFacts` server function in `src/lib/admin/content.functions.ts`,
- *     which owns the *single* audit entry per batch that wrote anything.
+ *     which prepares one stable audit identity per edit before transactions run.
  *
  * Requirements 3.3 and 3.5 are audit claims, so every assertion about audit
  * entries goes through the handler. Reaching the handler needs the same
@@ -190,8 +188,6 @@ import {
   bulkUpdateFacts,
   type FactEditInput,
 } from "@/lib/admin/content.server";
-import { normalizeKey } from "@/lib/firebase/firestore.server";
-
 const contentFunctions = await import("@/lib/admin/content.functions");
 
 const capturedBulkUpdate: CapturedServerFn | undefined = harness.registry.get(
@@ -274,8 +270,12 @@ const idFragmentArb = fc
  */
 const editFieldsArb = fc.record({
   question: fc.string({ minLength: 1, maxLength: 40 }),
-  subject: optional(fc.string({ minLength: 1, maxLength: 24 })),
-  angle: optional(fc.string({ minLength: 1, maxLength: 24 })),
+  // Identity fields are optional compatibility fields on the wire. Generate
+  // only omitted or exact persisted values here; changed values belong to the
+  // dedicated identity-rejection property and must never be treated as valid
+  // bulk edits.
+  subject: optional(fc.constant(SEED_DOC.subject)),
+  angle: optional(fc.constant(SEED_DOC.angle)),
   claim_template: optional(fc.string({ maxLength: 40 })),
   context: optional(fc.string({ maxLength: 40 })),
   unit: optional(fc.string({ maxLength: 12 })),
@@ -341,10 +341,29 @@ function seedTargets(updates: readonly FactEditInput[], skipIndex: number | null
   });
 }
 
+function preparedAudits(updates: readonly FactEditInput[]) {
+  return updates.map((update, index) =>
+    auditDouble().module.buildAuditEntry(
+      ADMIN,
+      {
+        action: "fact.bulk_update",
+        targetType: "fact",
+        targetId: update.id,
+        details: `Bulk update item ${index + 1} of ${updates.length}`,
+        after: update as unknown as Record<string, unknown>,
+      },
+      {
+        id: `prepared_bulk_${index + 1}`,
+        createdAt: new Date(Date.UTC(2024, 0, 1, 0, 0, 0, index + 1)).toISOString(),
+      },
+    ),
+  );
+}
+
 /** Fields `updateFact` assigns straight from the edit input. */
 const ASSIGNED_KEYS = [
-  "subject",
-  "angle",
+  // Subject and angle are intentionally absent: identity is immutable, and
+  // exact-value compatibility fields are no-ops rather than assigned writes.
   "unit",
   "claim_template",
   "context",
@@ -366,9 +385,8 @@ function expectedStoredFields(edit: FactEditInput): Record<string, Json> {
     if (value === undefined) continue;
     expected[key] = toJson(value);
   }
-  // Derived keys, via the same pure helper production uses.
-  if (edit.subject !== undefined) expected["subject_key"] = normalizeKey(edit.subject);
-  if (edit.angle !== undefined) expected["angle_key"] = normalizeKey(edit.angle);
+  // Subject/angle and their canonical keys are not part of an ordinary patch.
+  // The dedicated identity suite covers changed values and exact-value no-ops.
   return expected;
 }
 
@@ -392,50 +410,33 @@ function expectTargetUntouched(edit: FactEditInput): void {
   expect(doc.data, `untouched document ${edit.id}`).toEqual(SEED_DOC_JSON);
 }
 
-/** The `after` payload of a bulk-update audit entry, read without a cast. */
-function readAuditAfter(entry: RecordedAuditEntry): {
-  count: number | null;
-  editedIds: string[];
-  failedId: string | null;
-} {
-  const after = entry.after;
-  if (after === null || typeof after !== "object" || Array.isArray(after)) {
-    return { count: null, editedIds: [], failedId: null };
-  }
-  const count = typeof after["count"] === "number" ? after["count"] : null;
-  const rawIds = after["editedIds"];
-  return {
-    count,
-    editedIds: Array.isArray(rawIds)
-      ? rawIds.filter((value): value is string => typeof value === "string")
-      : [],
-    failedId: typeof after["failedId"] === "string" ? after["failedId"] : null,
-  };
+function transactionalAudits(): RecordedAuditEntry[] {
+  return firestoreDouble()
+    .documents()
+    .filter((doc) => doc.path.startsWith("admin_audit_logs/"))
+    .map((doc) => ({
+      id: doc.id,
+      adminUid: String(doc.data["adminUid"] ?? ""),
+      adminEmail: typeof doc.data["adminEmail"] === "string" ? doc.data["adminEmail"] : null,
+      action: String(doc.data["action"] ?? ""),
+      targetType: "fact",
+      targetId: String(doc.data["targetId"] ?? ""),
+      details: typeof doc.data["details"] === "string" ? doc.data["details"] : undefined,
+      before: doc.data["before"] ?? null,
+      after: doc.data["after"] ?? null,
+      createdAt: typeof doc.data["createdAt"] === "string" ? doc.data["createdAt"] : "",
+    }));
 }
 
-/**
- * The single audit entry Requirements 3.3 / 3.5 mandate: `fact.bulk_update`,
- * `targetType: "fact"`, a non-empty `targetId` that is the fact id itself for a
- * one-edit batch, and the persisted-id list in the payload.
- */
-function expectSingleBulkAuditEntry(
-  persistedIds: readonly string[],
-  failedId: string | null = null,
-): void {
-  const entries = auditDouble().entries();
-  expect(entries).toHaveLength(1);
-  const entry = entries[0];
-
-  expect(entry.action).toBe("fact.bulk_update");
-  expect(entry.targetType).toBe("fact");
-  expect(entry.targetId.length).toBeGreaterThan(0);
-  if (persistedIds.length === 1) expect(entry.targetId).toBe(persistedIds[0]);
-  expect(entry.adminUid).toBe(ADMIN.uid);
-
-  const after = readAuditAfter(entry);
-  expect(after.count).toBe(persistedIds.length);
-  expect(after.editedIds).toEqual([...persistedIds]);
-  expect(after.failedId).toBe(failedId);
+function expectPerFactAudits(persistedIds: readonly string[]): void {
+  const entries = transactionalAudits();
+  expect(entries).toHaveLength(persistedIds.length);
+  expect(entries.map((entry) => entry.targetId)).toEqual([...persistedIds]);
+  for (const entry of entries) {
+    expect(entry.action).toBe("fact.bulk_update");
+    expect(entry.targetType).toBe("fact");
+    expect(entry.adminUid).toBe(ADMIN.uid);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -443,7 +444,7 @@ function expectSingleBulkAuditEntry(
 // ---------------------------------------------------------------------------
 
 describe("Feature: admin-quality-gates-and-shared-contracts, Property 14: `bulkUpdateFacts` persists a valid batch exactly and completely", () => {
-  it("persists every edit of a 1..200 batch, returns the exact count and ids, and writes exactly one audit entry", async () => {
+  it("persists every edit of a 1..200 batch, returns the exact prefix ids, and audits each fact", async () => {
     await fc.assert(
       fc.asyncProperty(batchOfSize(validBatchSizeArb), async (updates) => {
         resetDoubles();
@@ -462,11 +463,11 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Property 14: `bulkU
 
         for (const edit of updates) expectEditPersisted(edit);
 
-        // One write per edit: the batch touched exactly its own targets.
-        expect(firestoreDouble().writeCount()).toBe(updates.length);
+        // One fact write and one audit write per item transaction.
+        expect(firestoreDouble().writeCount()).toBe(updates.length * 2);
 
-        // Requirement 3.3: exactly one audit entry for the whole batch.
-        expectSingleBulkAuditEntry(updates.map((update) => update.id));
+        // Requirement 3.3: exactly one audit entry for each persisted fact.
+        expectPerFactAudits(updates.map((update) => update.id));
 
         expect(blockedNetworkAttempts()).toEqual([]);
         return true;
@@ -475,44 +476,32 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Property 14: `bulkU
     );
   });
 
-  it("attributes a one-edit batch to the fact itself and a multi-edit batch to a generated batch id", async () => {
+  it("attributes every audit to its own fact rather than a synthetic batch target", async () => {
     await fc.assert(
       fc.asyncProperty(batchOfSize(fc.integer({ min: 2, max: 6 })), async (updates) => {
         resetDoubles();
         seedTargets(updates);
 
         await invokeHandler(updates);
-        const multiTargetId = auditDouble().entries()[0].targetId;
-        expect(multiTargetId.length).toBeGreaterThan(0);
-        // A multi-edit batch has no single document to key on, so the id is a
-        // generated batch id rather than any one edited fact.
-        expect(updates.map((update) => update.id)).not.toContain(multiTargetId);
 
-        // The same batch reduced to its first edit is attributed to that fact.
-        const single = [updates[0]];
-        resetDoubles();
-        seedTargets(single);
-        await invokeHandler(single);
-        expect(auditDouble().entries()[0].targetId).toBe(single[0].id);
-
+        expectPerFactAudits(updates.map((update) => update.id));
         return true;
       }),
       { numRuns: 100 },
     );
   });
 
-  it("agrees with the module export: the handler adds the audit entry and nothing else", async () => {
+  it("agrees with the module export when the caller supplies the per-fact audits", async () => {
     await fc.assert(
       fc.asyncProperty(batchOfSize(fc.integer({ min: 1, max: 6 })), async (updates) => {
         resetDoubles();
         seedTargets(updates);
 
-        // The module export is the persistence authority and writes no audit
-        // entry of its own (Requirement 3.3: exactly one, from the handler).
-        const direct = await bulkUpdateFacts(updates);
+        const direct = await bulkUpdateFacts(updates, preparedAudits(updates));
         expect(direct.count).toBe(updates.length);
         expect(direct.editedIds).toEqual(updates.map((update) => update.id));
         expect(auditDouble().entryCount()).toBe(0);
+        expectPerFactAudits(updates.map((update) => update.id));
         for (const edit of updates) expectEditPersisted(edit);
 
         return true;
@@ -670,7 +659,7 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Property 15: `bulkU
         resetDoubles();
         const seeded = seedInvalidTargets(testCase.updates);
         await expectRejectedWithoutSideEffects(
-          () => bulkUpdateFacts(testCase.updates),
+          () => bulkUpdateFacts(testCase.updates, preparedAudits(testCase.updates)),
           testCase,
           seeded,
         );
@@ -721,8 +710,9 @@ function expectPersistedPrefix(updates: readonly FactEditInput[], failureIndex: 
     if (index === failureIndex) return; // handled by the caller: absent or write-failed
     expectTargetUntouched(edit);
   });
-  // One write per persisted edit and not one more.
-  expect(firestoreDouble().writeCount()).toBe(failureIndex);
+  // One fact write and one audit write per persisted edit, and no writes for
+  // the failed or unattempted suffix.
+  expect(firestoreDouble().writeCount()).toBe(failureIndex * 2);
 }
 
 describe("Feature: admin-quality-gates-and-shared-contracts, Property 16: `bulkUpdateFacts` applies a persisted prefix on partial failure", () => {
@@ -763,13 +753,9 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Property 16: `bulkU
         expect(firestoreDouble().document(factPath(updates[failureIndex].id))).toBeNull();
         expectPersistedPrefix(updates, failureIndex);
 
-        // At most one audit entry, listing exactly the persisted ids.
-        expect(auditDouble().entryCount()).toBeLessThanOrEqual(1);
-        if (failureIndex > 0) {
-          expectSingleBulkAuditEntry(persistedIds, updates[failureIndex].id);
-        } else if (auditDouble().entryCount() === 1) {
-          expectSingleBulkAuditEntry(persistedIds, updates[failureIndex].id);
-        }
+        // Each persisted prefix item has exactly one audit; failed and
+        // unattempted items have none.
+        expectPerFactAudits(persistedIds);
 
         expect(blockedNetworkAttempts()).toEqual([]);
         return true;
@@ -805,12 +791,7 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Property 16: `bulkU
         expect(firestoreDouble().writeCount()).toBe(0);
         for (const edit of updates) expectTargetUntouched(edit);
 
-        expect(auditDouble().entryCount()).toBeLessThanOrEqual(1);
-        const entries = auditDouble().entries();
-        if (entries.length === 1) {
-          expect(readAuditAfter(entries[0]).editedIds).toEqual([]);
-          expect(entries[0].targetId.length).toBeGreaterThan(0);
-        }
+        expect(transactionalAudits()).toEqual([]);
 
         expect(blockedNetworkAttempts()).toEqual([]);
         return true;

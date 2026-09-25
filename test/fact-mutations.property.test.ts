@@ -9,10 +9,10 @@
  *   *For any* status value in `FACT_STATUSES` at run time, the patch
  *   `setFactStatus` persists sets `status` to that value and carries an
  *   ISO-8601 `updated_at`; the `retired` case carries a non-empty
- *   `retired_reason`; the `disputed` case sets no `verified_at`; and the
- *   `active` case sets an ISO-8601 `verified_at`, sets `verifier_model` to the
- *   supplied model or the declared default when none is supplied, and sets
- *   `retired_reason` to `null`.
+ *   `retired_reason`; the `disputed` case sets no `retired_reason`; and the
+ *   `active` case clears `retired_reason`. No transition writes
+ *   `verified_at` or `verifier_model`; those fields belong to the banked-fact
+ *   auditor, not an admin moderation operation.
  *   Validates: Requirements 6.5, 6.6
  *
  * Property 21: `toFact` canonicalizes `surprise_factor` across the legacy range
@@ -30,10 +30,9 @@
  * to the declaration (Requirement 9.1 does exactly that in Phase 2) extends
  * this property instead of silently leaving the new status unasserted.
  *
- * The `verifier_model` default is likewise read out of the source rather than
- * transcribed: a small TypeScript-AST probe pulls the literal out of the
- * `input.verifierModel ?? …` fallback inside `setFactStatus`, so "the declared
- * default" in Requirement 6.6 stays the declaration, not a copy of it.
+ * Verification metadata is intentionally absent from every transition patch;
+ * the dedicated CAS/audit suite proves that a transition cannot smuggle those
+ * fields into the transaction payload.
  *
  * Only Firestore is replaced (the in-memory double from `test/setup.ts`);
  * `content.server` itself is the real module, so the patch asserted on is the
@@ -42,10 +41,6 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import ts from "typescript";
 
 import {
   blockedNetworkAttempts,
@@ -76,64 +71,7 @@ function adminAuthorizedSourceFor(target: string): string | null {
   return transition ? transition.from : null;
 }
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const CONTENT_SERVER = "src/lib/admin/content.server.ts";
 
-// ---------------------------------------------------------------------------
-// Reading the declared `verifier_model` default out of the source
-// ---------------------------------------------------------------------------
-
-function parseSourceFile(repoRelativeFile: string): ts.SourceFile {
-  const absolute = path.join(REPO_ROOT, repoRelativeFile);
-  return ts.createSourceFile(
-    absolute,
-    readFileSync(absolute, "utf8"),
-    ts.ScriptTarget.ESNext,
-    true,
-    ts.ScriptKind.TS,
-  );
-}
-
-/**
- * The literal on the right of `patch["verifier_model"] = input.verifierModel ?? …`
- * inside `setFactStatus` — the default Requirement 6.6 calls "declared".
- */
-function declaredVerifierModelDefault(): string {
-  const sourceFile = parseSourceFile(CONTENT_SERVER);
-  const defaults: string[] = [];
-
-  const collect = (node: ts.Node): void => {
-    if (
-      ts.isBinaryExpression(node) &&
-      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-      ts.isElementAccessExpression(node.left) &&
-      ts.isStringLiteral(node.left.argumentExpression) &&
-      node.left.argumentExpression.text === "verifier_model" &&
-      ts.isBinaryExpression(node.right) &&
-      node.right.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken &&
-      ts.isStringLiteral(node.right.right)
-    ) {
-      defaults.push(node.right.right.text);
-    }
-    ts.forEachChild(node, collect);
-  };
-
-  const visit = (node: ts.Node): void => {
-    if (ts.isFunctionDeclaration(node) && node.name?.text === "setFactStatus") collect(node);
-    ts.forEachChild(node, visit);
-  };
-  visit(sourceFile);
-
-  if (defaults.length !== 1) {
-    throw new Error(
-      `expected exactly one declared verifier_model default inside setFactStatus in ${CONTENT_SERVER}, ` +
-      `found ${defaults.length}`,
-    );
-  }
-  return defaults[0];
-}
-
-const DECLARED_VERIFIER_MODEL = declaredVerifierModelDefault();
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -220,48 +158,35 @@ function expectPatchSatisfiesContract(
 ): void {
   const where = `status ${input.status}`;
 
-  // Requirement 6.5, common clauses: the requested status and an ISO timestamp.
+  // Every transition carries the requested status and an ISO timestamp.
   expect(patch["status"], where).toBe(input.status);
   expect(isIsoTimestamp(patch["updated_at"]), `${where}: updated_at ${String(patch["updated_at"])}`).toBe(
     true,
   );
 
+  // Admin transitions are moderation operations, never verification events.
+  // Existing verification fields are preserved by the merge, but no transition
+  // may add or rewrite either one.
+  expect("verified_at" in patch, `${where}: verified_at must not be written`).toBe(false);
+  expect("verifier_model" in patch, `${where}: verifier_model must not be written`).toBe(false);
+
   if (input.status === "retired") {
-    // Requirement 6.5: a non-empty reason, supplied or defaulted.
     const reason = patch["retired_reason"];
     expect(typeof reason, where).toBe("string");
     expect(String(reason).length, where).toBeGreaterThan(0);
     if (input.reason !== undefined) expect(reason).toBe(input.reason);
-    // Retirement is not a verification event.
-    expect("verified_at" in patch, `${where}: verified_at must not be set`).toBe(false);
-    expect("verifier_model" in patch, `${where}: verifier_model must not be set`).toBe(false);
   }
 
   if (input.status === "disputed") {
-    // Requirement 6.5: a dispute records no verification.
-    expect("verified_at" in patch, `${where}: verified_at must not be set`).toBe(false);
-    expect("verifier_model" in patch, `${where}: verifier_model must not be set`).toBe(false);
     expect("retired_reason" in patch, `${where}: retired_reason must not be set`).toBe(false);
   }
 
   if (input.status === "active") {
-    // Requirement 6.6, all three clauses.
-    expect(isIsoTimestamp(patch["verified_at"]), `${where}: verified_at ${String(patch["verified_at"])}`).toBe(
-      true,
-    );
-    expect(patch["verifier_model"], where).toBe(input.verifierModel ?? DECLARED_VERIFIER_MODEL);
     expect(patch["retired_reason"], where).toBeNull();
-    expect("retired_reason" in patch, `${where}: retired_reason key present`).toBe(true);
   }
 
-  // Nothing outside the declared patch surface is written.
-  const allowed = new Set([
-    "status",
-    "updated_at",
-    "retired_reason",
-    "verified_at",
-    "verifier_model",
-  ]);
+  // Nothing outside the declared transition patch surface is written.
+  const allowed = new Set(["status", "updated_at", "retired_reason"]);
   expect(Object.keys(patch).filter((key) => !allowed.has(key)), where).toEqual([]);
 }
 
@@ -270,15 +195,14 @@ function expectPatchSatisfiesContract(
 // ---------------------------------------------------------------------------
 
 describe("Feature: admin-quality-gates-and-shared-contracts, Property 20: `setFactStatus` builds the correct patch for every status", () => {
-  it("declares a non-empty status set and a single verifier_model default, so the sweep below is not vacuous", () => {
+  it("declares a non-empty status set, so the sweep below is not vacuous", () => {
     expect(FACT_STATUSES.length).toBeGreaterThan(0);
     expect(new Set(FACT_STATUSES).size).toBe(FACT_STATUSES.length);
-    // The three clauses of Requirements 6.5/6.6 are about these statuses; if a
-    // future contract drops one of them this test says so rather than skipping.
+    // The contract must retain the lifecycle states exercised below; a future
+    // contract change should fail loudly rather than silently skip a status.
     expect(FACT_STATUSES).toContain("active");
     expect(FACT_STATUSES).toContain("disputed");
     expect(FACT_STATUSES).toContain("retired");
-    expect(DECLARED_VERIFIER_MODEL.length).toBeGreaterThan(0);
   });
 
   it("covers every FACT_STATUSES value declared at run time, once each", async () => {
@@ -312,7 +236,7 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Property 20: `setFa
     expect(blockedNetworkAttempts()).toEqual([]);
   });
 
-  it("builds a patch satisfying every clause for any status, reason and verifier model", async () => {
+  it("builds a metadata-free patch for any status, reason and legacy verifier input", async () => {
     // `reason` is either absent or a non-empty string: the two forms the portal
     // produces. (An explicitly supplied empty reason is pinned as an
     // observation below — it is outside this property's quantifier.)

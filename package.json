@@ -21,6 +21,10 @@
     "check:suppressions": "node scripts/check-suppressions.mjs",
     "check:contract-literals": "node scripts/check-contract-literals.mjs",
     "check:contract": "node scripts/check-contract-drift.mjs",
+    "check:artifacts": "node scripts/check-shared-artifacts.mjs",
+    "check:artifact-freshness": "node scripts/check-artifact-freshness.mjs",
+    "sync:artifacts": "node scripts/sync-shared-artifacts.mjs",
+    "sync:shared-artifacts": "node scripts/sync-shared-artifacts.mjs",
     "sync:contract": "node scripts/sync-contract-source.mjs",
     "test": "vitest run"
   },

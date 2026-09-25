@@ -1,0 +1,3461 @@
+{
+  "schema": "derivation_corpus/1",
+  "model_version": "ddm-4",
+  "description": "Deterministic adversarial numeric-ingest and derivation corpus for the Distractor Derivation Model. Every incoming_numeric_token is preserved verbatim as text (never normalized/re-spelled) and every expected outcome is generated through the Go reference derive() and serialized with the canonical encoder. Rows are enumerated by a single stable counter (the `index` is the replay_identity), so regeneration is byte-identical. Replayed byte-for-byte by the Go reference (task 8.3), the Worker port (task 11.2), and the Functions port (task 10.4). Do not hand-edit; regenerate with GEN_DERIVATION_CORPUS=1 go test ./agent-go -run TestGenerateDerivationCorpus.",
+  "rows": [
+    {
+      "index": 0,
+      "name": "anchor_0_07",
+      "class": "ingest_anchor",
+      "notes": "named decimal anchor 0.07 (scale-2)",
+      "input": {
+        "incoming_numeric_token": "0.07",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.07",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 2
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 1,
+      "name": "anchor_0_07_below",
+      "class": "ingest_anchor",
+      "notes": "immediately below 0.07",
+      "input": {
+        "incoming_numeric_token": "0.069",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.069",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 69,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 2,
+      "name": "anchor_0_07_above",
+      "class": "ingest_anchor",
+      "notes": "immediately above 0.07",
+      "input": {
+        "incoming_numeric_token": "0.071",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.071",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 71,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 3,
+      "name": "anchor_0_29",
+      "class": "ingest_anchor",
+      "notes": "named decimal anchor 0.29 (scale-2)",
+      "input": {
+        "incoming_numeric_token": "0.29",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 29,
+          "scale": 2
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 4,
+      "name": "anchor_0_29_below",
+      "class": "ingest_anchor",
+      "notes": "immediately below 0.29",
+      "input": {
+        "incoming_numeric_token": "0.289",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 289,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 5,
+      "name": "anchor_0_29_above",
+      "class": "ingest_anchor",
+      "notes": "immediately above 0.29",
+      "input": {
+        "incoming_numeric_token": "0.291",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 291,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 6,
+      "name": "anchor_1_005",
+      "class": "ingest_anchor",
+      "notes": "named decimal anchor 1.005 (scale-3)",
+      "input": {
+        "incoming_numeric_token": "1.005",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1005,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 7,
+      "name": "anchor_1_005_below",
+      "class": "ingest_anchor",
+      "notes": "immediately below 1.005 (rounds down at scale 3)",
+      "input": {
+        "incoming_numeric_token": "1.0049",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1005,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 8,
+      "name": "anchor_1_005_above",
+      "class": "ingest_anchor",
+      "notes": "immediately above 1.005 (rounds up at scale 3)",
+      "input": {
+        "incoming_numeric_token": "1.0051",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1005,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 9,
+      "name": "half_step_0_0005",
+      "class": "ingest_half_step",
+      "notes": "exact scale-3 half step rounds away from zero -\u003e 0.001",
+      "input": {
+        "incoming_numeric_token": "0.0005",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.0005",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 1,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 10,
+      "name": "half_step_neg_0_0005",
+      "class": "ingest_half_step",
+      "notes": "negative exact scale-3 half step rounds away from zero -\u003e -0.001",
+      "input": {
+        "incoming_numeric_token": "-0.0005",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "-0.0005",
+        "fixed_point_value": {
+          "negative": true,
+          "mantissa": 1,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -3,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 11,
+      "name": "half_step_0_0015",
+      "class": "ingest_half_step",
+      "notes": "exact scale-3 half step at 0.0015 rounds to 0.002",
+      "input": {
+        "incoming_numeric_token": "0.0015",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.0015",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 2,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 12,
+      "name": "half_step_0_0025",
+      "class": "ingest_half_step",
+      "notes": "exact scale-3 half step at 0.0025 rounds to 0.003",
+      "input": {
+        "incoming_numeric_token": "0.0025",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.0025",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 13,
+      "name": "carry_0_9995",
+      "class": "ingest_carry",
+      "notes": "scale-3 carry: rounds up to 1.000",
+      "input": {
+        "incoming_numeric_token": "0.9995",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 6,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 6,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 14,
+      "name": "carry_9_9995",
+      "class": "ingest_carry",
+      "notes": "scale-3 carry across the ones place -\u003e 10.000",
+      "input": {
+        "incoming_numeric_token": "9.9995",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 61,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 10,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 61,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 15,
+      "name": "carry_neg_0_9995",
+      "class": "ingest_carry",
+      "notes": "negative scale-3 carry -\u003e -1.000",
+      "input": {
+        "incoming_numeric_token": "-0.9995",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": true,
+          "mantissa": 6,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": true,
+          "mantissa": 1,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": true,
+          "mantissa": 6,
+          "scale": 1
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 16,
+      "name": "carry_99_9995",
+      "class": "ingest_carry",
+      "notes": "scale-3 carry across two places -\u003e 100.000",
+      "input": {
+        "incoming_numeric_token": "99.9995",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 61,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 61,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 17,
+      "name": "sign_positive_42",
+      "class": "ingest_sign",
+      "notes": "positive integer",
+      "input": {
+        "incoming_numeric_token": "42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 28,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 28,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 18,
+      "name": "sign_negative_42",
+      "class": "ingest_sign",
+      "notes": "negative counterpart of 42",
+      "input": {
+        "incoming_numeric_token": "-42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": true,
+          "mantissa": 25,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": true,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": true,
+          "mantissa": 25,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 19,
+      "name": "sign_positive_0_07",
+      "class": "ingest_sign",
+      "notes": "positive decimal",
+      "input": {
+        "incoming_numeric_token": "0.07",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.07",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 2
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 20,
+      "name": "sign_negative_0_07",
+      "class": "ingest_sign",
+      "notes": "negative counterpart of 0.07",
+      "input": {
+        "incoming_numeric_token": "-0.07",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "-0.07",
+        "fixed_point_value": {
+          "negative": true,
+          "mantissa": 7,
+          "scale": 2
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 21,
+      "name": "sign_explicit_plus",
+      "class": "ingest_sign",
+      "notes": "explicit-plus spelling equals 42",
+      "input": {
+        "incoming_numeric_token": "+42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "INVALID_NUMERIC_TOKEN",
+        "incoming_numeric_token": "+42"
+      }
+    },
+    {
+      "index": 22,
+      "name": "neg_zero_bare",
+      "class": "ingest_negative_zero",
+      "notes": "negative zero normalizes to canonical zero",
+      "input": {
+        "incoming_numeric_token": "-0",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "zero_value",
+        "remedy_stage": "zero_value"
+      }
+    },
+    {
+      "index": 23,
+      "name": "neg_zero_decimal",
+      "class": "ingest_negative_zero",
+      "notes": "negative zero decimal spelling",
+      "input": {
+        "incoming_numeric_token": "-0.0",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "zero_value",
+        "remedy_stage": "zero_value"
+      }
+    },
+    {
+      "index": 24,
+      "name": "neg_zero_scale3",
+      "class": "ingest_negative_zero",
+      "notes": "negative zero scale-3 spelling",
+      "input": {
+        "incoming_numeric_token": "-0.000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "zero_value",
+        "remedy_stage": "zero_value"
+      }
+    },
+    {
+      "index": 25,
+      "name": "neg_zero_exponent",
+      "class": "ingest_negative_zero",
+      "notes": "negative zero exponent spelling",
+      "input": {
+        "incoming_numeric_token": "-0e0",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "zero_value",
+        "remedy_stage": "zero_value"
+      }
+    },
+    {
+      "index": 26,
+      "name": "exp_7e_neg2",
+      "class": "ingest_exponent",
+      "notes": "exponent spelling equals 0.07",
+      "input": {
+        "incoming_numeric_token": "7e-2",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "7e-2",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 2
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 27,
+      "name": "exp_7E_neg2_upper",
+      "class": "ingest_exponent",
+      "notes": "uppercase-E exponent equals 0.07",
+      "input": {
+        "incoming_numeric_token": "7E-2",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "7E-2",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 2
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 28,
+      "name": "exp_2_9e_neg1",
+      "class": "ingest_exponent",
+      "notes": "exponent spelling equals 0.29",
+      "input": {
+        "incoming_numeric_token": "2.9e-1",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 29,
+          "scale": 2
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 29,
+      "name": "exp_1_5e3",
+      "class": "ingest_exponent",
+      "notes": "exponent spelling equals 1500",
+      "input": {
+        "incoming_numeric_token": "1.5e3",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1500,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 30,
+      "name": "exp_1_5e_plus3",
+      "class": "ingest_exponent",
+      "notes": "explicit-plus exponent equals 1500",
+      "input": {
+        "incoming_numeric_token": "1.5e+3",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1500,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 31,
+      "name": "exp_4_2e1",
+      "class": "ingest_exponent",
+      "notes": "exponent spelling equals 42",
+      "input": {
+        "incoming_numeric_token": "4.2e1",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 28,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 28,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 32,
+      "name": "trailing_0_070",
+      "class": "ingest_trailing_zero",
+      "notes": "trailing zero equals 0.07",
+      "input": {
+        "incoming_numeric_token": "0.070",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.070",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 2
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 33,
+      "name": "trailing_0_290",
+      "class": "ingest_trailing_zero",
+      "notes": "trailing zero equals 0.29",
+      "input": {
+        "incoming_numeric_token": "0.290",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 29,
+          "scale": 2
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 34,
+      "name": "trailing_1_0050",
+      "class": "ingest_trailing_zero",
+      "notes": "trailing zero equals 1.005",
+      "input": {
+        "incoming_numeric_token": "1.0050",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1005,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 35,
+      "name": "trailing_42_00",
+      "class": "ingest_trailing_zero",
+      "notes": "trailing zeros equal 42",
+      "input": {
+        "incoming_numeric_token": "42.00",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 28,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 28,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 36,
+      "name": "trailing_42_0",
+      "class": "ingest_trailing_zero",
+      "notes": "single trailing zero equals 42",
+      "input": {
+        "incoming_numeric_token": "42.0",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 28,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 28,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 37,
+      "name": "round_1_23456",
+      "class": "ingest_rounding",
+      "notes": "more than three places rounds to 1.235",
+      "input": {
+        "incoming_numeric_token": "1.23456",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 9,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1235,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 9,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 38,
+      "name": "round_1_23449",
+      "class": "ingest_rounding",
+      "notes": "more than three places rounds down to 1.234",
+      "input": {
+        "incoming_numeric_token": "1.23449",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 8,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1234,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 8,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 39,
+      "name": "round_neg_1_23456",
+      "class": "ingest_rounding",
+      "notes": "negative more-than-three-places rounds away from zero to -1.235",
+      "input": {
+        "incoming_numeric_token": "-1.23456",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": true,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": true,
+          "mantissa": 1235,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": true,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 40,
+      "name": "round_0_00051",
+      "class": "ingest_rounding",
+      "notes": "fourth place rounds up to 0.001",
+      "input": {
+        "incoming_numeric_token": "0.00051",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.00051",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 1,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 41,
+      "name": "round_2_71828",
+      "class": "ingest_rounding",
+      "notes": "irrational-looking token rounds to 2.718",
+      "input": {
+        "incoming_numeric_token": "2.71828",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 18,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 2718,
+          "scale": 3
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 18,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 42,
+      "name": "underflow_0_0004",
+      "class": "ingest_underflow",
+      "notes": "nonzero scale-3 underflow -\u003e OUT_OF_SAFE_RANGE",
+      "input": {
+        "incoming_numeric_token": "0.0004",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "0.0004",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 43,
+      "name": "underflow_neg_0_0004",
+      "class": "ingest_underflow",
+      "notes": "negative nonzero underflow -\u003e OUT_OF_SAFE_RANGE",
+      "input": {
+        "incoming_numeric_token": "-0.0004",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "-0.0004",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 44,
+      "name": "underflow_0_00049",
+      "class": "ingest_underflow",
+      "notes": "just below half step -\u003e OUT_OF_SAFE_RANGE",
+      "input": {
+        "incoming_numeric_token": "0.00049",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "0.00049",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 45,
+      "name": "underflow_exp",
+      "class": "ingest_underflow",
+      "notes": "exponent underflow -\u003e OUT_OF_SAFE_RANGE",
+      "input": {
+        "incoming_numeric_token": "4e-4",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "4e-4",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 46,
+      "name": "envelope_max_safe",
+      "class": "ingest_envelope",
+      "notes": "2^53-1 is the maximum safe integer (in-envelope)",
+      "input": {
+        "incoming_numeric_token": "9007199254740991",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-90071992547409910",
+          "max_token": "90071992547409910"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "9007199254740991"
+      }
+    },
+    {
+      "index": 47,
+      "name": "envelope_one_past_max",
+      "class": "ingest_envelope",
+      "notes": "one past 2^53-1 -\u003e OUT_OF_SAFE_RANGE",
+      "input": {
+        "incoming_numeric_token": "9007199254740992",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-90071992547409910",
+          "max_token": "90071992547409910"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "9007199254740992"
+      }
+    },
+    {
+      "index": 48,
+      "name": "envelope_far_overflow",
+      "class": "ingest_envelope",
+      "notes": "far past the envelope -\u003e OUT_OF_SAFE_RANGE",
+      "input": {
+        "incoming_numeric_token": "90071992547409920",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-90071992547409910",
+          "max_token": "90071992547409910"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "90071992547409920"
+      }
+    },
+    {
+      "index": 49,
+      "name": "envelope_neg_max_safe",
+      "class": "ingest_envelope",
+      "notes": "negative maximum safe integer (in-envelope)",
+      "input": {
+        "incoming_numeric_token": "-9007199254740991",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-90071992547409910",
+          "max_token": "90071992547409910"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "-9007199254740991"
+      }
+    },
+    {
+      "index": 50,
+      "name": "malformed_double_dot",
+      "class": "ingest_malformed",
+      "notes": "two decimal points -\u003e INVALID_NUMERIC_TOKEN",
+      "input": {
+        "incoming_numeric_token": "12.3.4",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "INVALID_NUMERIC_TOKEN",
+        "incoming_numeric_token": "12.3.4"
+      }
+    },
+    {
+      "index": 51,
+      "name": "malformed_trailing_dot",
+      "class": "ingest_malformed",
+      "notes": "trailing decimal point -\u003e INVALID_NUMERIC_TOKEN",
+      "input": {
+        "incoming_numeric_token": "42.",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "INVALID_NUMERIC_TOKEN",
+        "incoming_numeric_token": "42."
+      }
+    },
+    {
+      "index": 52,
+      "name": "malformed_letters",
+      "class": "ingest_malformed",
+      "notes": "non-numeric text -\u003e INVALID_NUMERIC_TOKEN",
+      "input": {
+        "incoming_numeric_token": "not-a-number",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "INVALID_NUMERIC_TOKEN",
+        "incoming_numeric_token": "not-a-number"
+      }
+    },
+    {
+      "index": 53,
+      "name": "malformed_empty",
+      "class": "ingest_malformed",
+      "notes": "empty token -\u003e INVALID_NUMERIC_TOKEN",
+      "input": {
+        "incoming_numeric_token": "",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "INVALID_NUMERIC_TOKEN",
+        "incoming_numeric_token": ""
+      }
+    },
+    {
+      "index": 54,
+      "name": "malformed_lone_sign",
+      "class": "ingest_malformed",
+      "notes": "lone sign -\u003e INVALID_NUMERIC_TOKEN",
+      "input": {
+        "incoming_numeric_token": "-",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "INVALID_NUMERIC_TOKEN",
+        "incoming_numeric_token": "-"
+      }
+    },
+    {
+      "index": 55,
+      "name": "kind_year",
+      "class": "kind",
+      "notes": "year kind representative derivation",
+      "input": {
+        "incoming_numeric_token": "1897",
+        "unit": "year",
+        "quantity_kind": "year",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 1908,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1897,
+          "scale": 0
+        },
+        "normalized_unit": "year",
+        "quantity_kind": "year",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 1747,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 2026,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 1908,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 56,
+      "name": "kind_count",
+      "class": "kind",
+      "notes": "count kind representative derivation",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 57,
+      "name": "kind_percentage",
+      "class": "kind",
+      "notes": "percentage kind inside [0,100]",
+      "input": {
+        "incoming_numeric_token": "40",
+        "unit": "%",
+        "quantity_kind": "percentage",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 37,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 40,
+          "scale": 0
+        },
+        "normalized_unit": "%",
+        "quantity_kind": "percentage",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 37,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 58,
+      "name": "kind_ratio",
+      "class": "kind",
+      "notes": "ratio kind representative derivation",
+      "input": {
+        "incoming_numeric_token": "8",
+        "unit": "ratio",
+        "quantity_kind": "ratio",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 52,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 8,
+          "scale": 0
+        },
+        "normalized_unit": "ratio",
+        "quantity_kind": "ratio",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 8,
+          "scale": 1
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 64,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 52,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 59,
+      "name": "kind_physical_measure",
+      "class": "kind",
+      "notes": "physical_measure kind representative derivation",
+      "input": {
+        "incoming_numeric_token": "42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 17,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 1
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 420,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 17,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 60,
+      "name": "kind_money",
+      "class": "kind",
+      "notes": "money kind representative derivation",
+      "input": {
+        "incoming_numeric_token": "500",
+        "unit": "dollars",
+        "quantity_kind": "money",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 300,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 500,
+          "scale": 0
+        },
+        "normalized_unit": "dollars",
+        "quantity_kind": "money",
+        "surprise_factor": 1,
+        "magnitude_scale": 2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 50,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 5000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 300,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 61,
+      "name": "kind_duration",
+      "class": "kind",
+      "notes": "duration kind representative derivation",
+      "input": {
+        "incoming_numeric_token": "90",
+        "unit": "seconds",
+        "quantity_kind": "duration",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 58,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 90,
+          "scale": 0
+        },
+        "normalized_unit": "seconds",
+        "quantity_kind": "duration",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 9,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 900,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 58,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 62,
+      "name": "kind_rating",
+      "class": "kind",
+      "notes": "rating kind representative derivation",
+      "input": {
+        "incoming_numeric_token": "7",
+        "unit": "rating",
+        "quantity_kind": "rating",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 6,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 0
+        },
+        "normalized_unit": "rating",
+        "quantity_kind": "rating",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 10,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 6,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 63,
+      "name": "zero_count_recovers",
+      "class": "zero_strategy",
+      "notes": "zero count with usable bounds recovers a nonzero offset",
+      "input": {
+        "incoming_numeric_token": "0",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "zero_value",
+        "remedy_stage": "zero_value"
+      }
+    },
+    {
+      "index": 64,
+      "name": "zero_count_default_recovers",
+      "class": "zero_strategy",
+      "notes": "zero count with default bounds recovers a nonzero offset",
+      "input": {
+        "incoming_numeric_token": "0",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 50,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "zero_value",
+        "remedy_stage": "zero_value"
+      }
+    },
+    {
+      "index": 65,
+      "name": "zero_rounded_rejected",
+      "class": "zero_strategy",
+      "notes": "nonzero token rounding to zero abstains instead of mutating truth",
+      "input": {
+        "incoming_numeric_token": "0.0004",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "0.0004",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 66,
+      "name": "zero_forced_more",
+      "class": "zero_strategy",
+      "notes": "zero count forced side MORE recovers within bounds without crossing",
+      "input": {
+        "incoming_numeric_token": "0",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1,
+        "forced_side": "MORE"
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "index": 67,
+      "name": "zero_year_abstains",
+      "class": "zero_strategy",
+      "notes": "year zero is outside the calendar domain -\u003e ZERO_OUTSIDE_YEAR_DOMAIN",
+      "input": {
+        "incoming_numeric_token": "0",
+        "unit": "year",
+        "quantity_kind": "year",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "ZERO_OUTSIDE_YEAR_DOMAIN",
+        "incoming_numeric_token": "0",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "year",
+        "quantity_kind": "year",
+        "surprise_factor": 1
+      }
+    },
+    {
+      "index": 68,
+      "name": "surprise_canonical_0",
+      "class": "derivation",
+      "notes": "canonical surprise 0 band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 0
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 850,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 0,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 850,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 69,
+      "name": "surprise_canonical_1",
+      "class": "derivation",
+      "notes": "canonical surprise 1 band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 740,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 740,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 70,
+      "name": "surprise_canonical_2",
+      "class": "derivation",
+      "notes": "canonical surprise 2 band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 2
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 2,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 71,
+      "name": "surprise_canonical_3",
+      "class": "derivation",
+      "notes": "canonical surprise 3 band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 3
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 270,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 3,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 270,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 72,
+      "name": "surprise_legacy_4",
+      "class": "derivation",
+      "notes": "legacy surprise 4 canonicalized before band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 4
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 740,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 740,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 73,
+      "name": "surprise_legacy_6",
+      "class": "derivation",
+      "notes": "legacy surprise 6 canonicalized before band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 6
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 2,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 74,
+      "name": "surprise_legacy_8",
+      "class": "derivation",
+      "notes": "legacy surprise 8 canonicalized before band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 8
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 270,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 3,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 270,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 75,
+      "name": "surprise_legacy_10",
+      "class": "derivation",
+      "notes": "legacy surprise 10 canonicalized before band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 10
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 270,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 3,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 270,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 76,
+      "name": "trap_overestimate",
+      "class": "derivation",
+      "notes": "accepted trap OVERESTIMATE prefers a candidate above truth",
+      "input": {
+        "incoming_numeric_token": "42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "trap_direction": "OVERESTIMATE",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 2
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 110,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2,
+        "magnitude_scale": 1,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 110,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 77,
+      "name": "trap_underestimate",
+      "class": "derivation",
+      "notes": "accepted trap UNDERESTIMATE prefers a candidate below truth",
+      "input": {
+        "incoming_numeric_token": "42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "trap_direction": "UNDERESTIMATE",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 2
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 18,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 18,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "index": 78,
+      "name": "negative_measure_derivation",
+      "class": "derivation",
+      "notes": "negative physical measure derives with signed arithmetic",
+      "input": {
+        "incoming_numeric_token": "-42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000000",
+          "max_token": "1000000"
+        },
+        "surprise_factor": 2
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": true,
+          "mantissa": 15,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": true,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2,
+        "magnitude_scale": 1,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": true,
+          "mantissa": 15,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    }
+  ]
+}

@@ -1,4 +1,6 @@
 {
-    "adopted": true,
-    "contractVersion": 1
+  "adopted": true,
+  "adoptedAt": "2026-09-24T10:05:30.918Z",
+  "contractVersion": 2,
+  "sourceCommit": "db2340905d6706a14cf8677bc491bf6fae541772"
 }

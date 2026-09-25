@@ -126,7 +126,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     let message = text;
     try {
-      message = (JSON.parse(text) as { error?: { message?: string } }).error?.message ?? text;
+      const parsed = JSON.parse(text) as {
+        error?: { message?: string; status?: string };
+      };
+      const detail = parsed.error?.message ?? text;
+      message = parsed.error?.status ? `${parsed.error.status}: ${detail}` : detail;
     } catch {
       /* keep raw text */
     }
@@ -295,15 +299,59 @@ function documentResourceName(path: string): string {
   return `${databaseResourceName()}/documents/${path.replace(/^\//, "")}`;
 }
 
+/** A Firestore document precondition. `updateTime` is an exact server timestamp. */
+export interface FirestoreTransactionPrecondition {
+  updateTime?: string;
+  exists?: boolean;
+}
+
+/** Optional compare-and-swap conditions and field deletions for a transaction update. */
+export interface FirestoreTransactionUpdateOptions extends FirestoreTransactionPrecondition {
+  /** Field paths to delete in the same masked update. */
+  deletePaths?: readonly string[];
+}
+
 export interface FirestoreTransaction {
+  /** Read a document. Transaction reads must be issued before queued writes. */
   get: (path: string) => Promise<FirestoreDoc | null>;
+  /** Queue a full-document write with replace semantics; omitted fields are removed. */
   set: (path: string, data: Record<string, unknown>) => void;
+  /** Queue a partial update with an explicit update mask and optional precondition. */
+  update: (
+    path: string,
+    data: Record<string, unknown>,
+    options?: FirestoreTransactionUpdateOptions,
+  ) => void;
+  /** Queue a document delete. */
   delete: (path: string) => void;
+}
+
+function transactionPrecondition(
+  options: FirestoreTransactionUpdateOptions | undefined,
+): FirestoreTransactionPrecondition | undefined {
+  if (!options) return undefined;
+  if (options.updateTime !== undefined && options.exists !== undefined) {
+    throw new Error("Firestore transaction update accepts only one precondition");
+  }
+  if (options.updateTime !== undefined) return { updateTime: options.updateTime };
+  if (options.exists !== undefined) return { exists: options.exists };
+  return undefined;
 }
 
 function isTransactionContention(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /ABORTED|too much contention|FAILED_PRECONDITION.*transaction/i.test(message);
+  if (
+    /\b(?:FAILED_PRECONDITION|PERMISSION_DENIED|INVALID_ARGUMENT|NOT_FOUND|ALREADY_EXISTS|UNAUTHENTICATED)\b/.test(
+      message,
+    )
+  ) {
+    return false;
+  }
+  return (
+    /\bABORTED\b/i.test(message) ||
+    /too much contention/i.test(message) ||
+    /aborted due to .*contention/i.test(message)
+  );
 }
 
 async function rollbackTransaction(transaction: string): Promise<void> {
@@ -324,9 +372,13 @@ async function runTransactionOnce<T>(work: (tx: FirestoreTransaction) => Promise
   });
   const transaction = started.transaction;
   const writes: Record<string, unknown>[] = [];
+  let writesQueued = false;
   try {
     const tx: FirestoreTransaction = {
       get: async (path: string) => {
+        if (writesQueued) {
+          throw new Error("Firestore transaction reads must occur before queued writes");
+        }
         const raw = await request<unknown>(`${baseUrl()}:batchGet`, {
           method: "POST",
           body: JSON.stringify({
@@ -343,6 +395,8 @@ async function runTransactionOnce<T>(work: (tx: FirestoreTransaction) => Promise
         return null;
       },
       set: (path: string, data: Record<string, unknown>) => {
+        // Deliberately no updateMask: Firestore treats set as full-document replace semantics.
+        writesQueued = true;
         writes.push({
           update: {
             name: documentResourceName(path),
@@ -350,7 +404,25 @@ async function runTransactionOnce<T>(work: (tx: FirestoreTransaction) => Promise
           },
         });
       },
+      update: (path: string, data: Record<string, unknown>, options) => {
+        const currentDocument = transactionPrecondition(options);
+        writesQueued = true;
+        const fieldPaths = [
+          ...Object.keys(data),
+          ...(options?.deletePaths ?? []),
+        ];
+        const write: Record<string, unknown> = {
+          update: {
+            name: documentResourceName(path),
+            fields: encodeFields(data),
+          },
+          updateMask: { fieldPaths },
+        };
+        if (currentDocument) write["currentDocument"] = currentDocument;
+        writes.push(write);
+      },
       delete: (path: string) => {
+        writesQueued = true;
         writes.push({ delete: documentResourceName(path) });
       },
     };
@@ -371,7 +443,9 @@ async function runTransactionOnce<T>(work: (tx: FirestoreTransaction) => Promise
 }
 
 /**
- * Runs read/write work in a Firestore transaction, retrying on contention.
+ * Runs read/write work in a Firestore transaction, retrying only ABORTED or
+ * contention failures. Authorization, validation, and precondition failures
+ * are surfaced to the caller without another transaction attempt.
  *
  * @param work - Reads and queued writes against a single transaction
  * @returns The value returned by `work`
@@ -456,7 +530,7 @@ export async function factId(subjectKey: string, angleKey: string): Promise<stri
 export function normalizeKey(value: string): string {
   return value
     .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }

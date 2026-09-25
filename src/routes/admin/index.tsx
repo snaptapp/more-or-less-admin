@@ -46,6 +46,12 @@ function OverviewPage() {
               </p>
             </Card>
             <Card>
+              <CardLabel>Pending facts</CardLabel>
+              <p className="admin-stat" data-tone="amber">
+                {data.pendingFacts}
+              </p>
+            </Card>
+            <Card>
               <CardLabel>Disputed</CardLabel>
               <p className="admin-stat" data-tone="amber">
                 {data.disputed}
@@ -60,7 +66,7 @@ function OverviewPage() {
             <Card>
               <CardLabel>Reports pending</CardLabel>
               <p className="admin-stat" data-tone="purple">
-                {data.pending}
+                {data.reportsPending}
               </p>
             </Card>
             <Card>
@@ -96,7 +102,7 @@ function OverviewPage() {
               </Link>
               <Link to="/admin/reports" style={{ textDecoration: "none" }}>
                 <Button size="sm" variant="primary">
-                  Clear moderation queue ({data.pending}) →
+                  Clear moderation queue ({data.reportsPending}) →
                 </Button>
               </Link>
               <Link to="/admin/analytics" style={{ textDecoration: "none" }}>

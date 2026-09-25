@@ -461,13 +461,6 @@ interface DynamicTargetIdEntry {
 const DYNAMIC_TARGET_IDS: Readonly<Record<string, Readonly<Record<string, DynamicTargetIdEntry>>>> =
 {
   "src/lib/admin/content.functions.ts": {
-    "data.id": {
-      coverage: "schema-min-1",
-      schemaField: "id",
-      reason:
-        "`editInput` and the changeFactStatus validator both declare `id: z.string().min(1)`, " +
-        "and both handlers are invoked behind the doubles by Property 19.",
-    },
     "data.reportId": {
       coverage: "schema-min-1",
       schemaField: "reportId",
@@ -480,12 +473,6 @@ const DYNAMIC_TARGET_IDS: Readonly<Record<string, Readonly<Record<string, Dynami
       reason:
         "`createFact` returns the digest-derived fact id it just wrote; Property 19 invokes " +
         "addFact and asserts the recorded targetId is non-empty.",
-    },
-    "bulkUpdateTargetId(result.editedIds)": {
-      coverage: "property-19",
-      reason:
-        "Returns the single edited id or a generated `bulk_update_…` id; covered dynamically by " +
-        "Property 19 here and by Property 14 in test/bulk-update-facts.property.test.ts.",
     },
   },
   "src/lib/admin/ops.functions.ts": {
@@ -569,7 +556,10 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Property 18: Every 
     // The known call sites, so a silent drop in coverage is visible.
     const byFile = new Map<string, number>();
     for (const site of CALL_SITES) byFile.set(site.file, (byFile.get(site.file) ?? 0) + 1);
-    expect(byFile.get("src/lib/admin/content.functions.ts")).toBeGreaterThanOrEqual(6);
+    // Ordinary edit/status/import/bulk handlers now stage one audit per fact in
+    // the item transaction rather than calling logAdminAction afterwards; the
+    // remaining handler call sites are still checked here.
+    expect(byFile.get("src/lib/admin/content.functions.ts")).toBeGreaterThanOrEqual(3);
     expect(byFile.get("src/lib/admin/ops.functions.ts")).toBeGreaterThanOrEqual(7);
     expect(byFile.get("src/lib/admin/ops.server.ts")).toBeGreaterThanOrEqual(5);
     expect(byFile.get("src/lib/admin/roles.functions.ts")).toBe(1);
@@ -656,7 +646,10 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Property 18: Every 
         checked.push(`${file}::${field}`);
       }
     }
-    expect(checked.length).toBeGreaterThanOrEqual(4);
+    // The two removed `data.id` sites are now checked by the dedicated
+    // transaction-audit suite; the remaining handler call sites retain their
+    // schema-backed non-empty proof.
+    expect(checked.length).toBeGreaterThanOrEqual(3);
 
     // Negative control for the schema probe itself.
     expect(

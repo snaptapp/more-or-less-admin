@@ -8,7 +8,7 @@
 //   scripts/contract-transitions.json       (status transitions + lifecycle fields)
 //   contract.version                        (CONTRACT_VERSION)
 
-export const CONTRACT_VERSION = 1;
+export const CONTRACT_VERSION = 2;
 
 export const FACT_STATUSES = ["pending", "active", "disputed", "retired"] as const;
 export type FactStatus = (typeof FACT_STATUSES)[number];
@@ -20,7 +20,7 @@ export interface StatusTransition {
 }
 
 export const STATUS_TRANSITIONS: readonly StatusTransition[] = [
-  { from: "pending", to: "active", adminAuthorized: true },
+  { from: "pending", to: "active", adminAuthorized: false },
   { from: "pending", to: "retired", adminAuthorized: true },
   { from: "active", to: "disputed", adminAuthorized: true },
   { from: "active", to: "retired", adminAuthorized: true },
@@ -33,6 +33,7 @@ export const QUANTITY_KINDS = [
   "year",
   "count",
   "percentage",
+  "percent_change",
   "ratio",
   "physical_measure",
   "money",
@@ -48,8 +49,8 @@ export interface FieldDescriptor {
 }
 
 export const LIFECYCLE_FIELDS: readonly FieldDescriptor[] = [
-  { name: "plausible_min", type: "number", required: false },
-  { name: "plausible_max", type: "number", required: false },
+  { name: "plausible_min", type: "string", required: false },
+  { name: "plausible_max", type: "string", required: false },
   { name: "quality_flags", type: "string[]", required: false },
   { name: "verified_at", type: "string", required: false },
   { name: "derivation_input_fingerprint", type: "string", required: false },

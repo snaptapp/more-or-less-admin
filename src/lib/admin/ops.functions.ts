@@ -143,6 +143,7 @@ export const queueCrawl = createServerFn({ method: "POST" }).middleware([authMid
         subject: z.string().min(1),
         priority: z.number().int().min(0).max(100),
         refresh: z.boolean(),
+        category: z.string().optional(),
       })
       .parse(data),
   )
@@ -180,6 +181,13 @@ export const updateCrawlPriority = createServerFn({ method: "POST" }).middleware
       after: { priority: data.priority },
     });
     return updated;
+  });
+
+export const fetchFoundryDispatchStatus = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async () => {
+    const { getFoundryDispatchStatus } = await import("./ops.server");
+    return getFoundryDispatchStatus();
   });
 
 export const triggerCrawlAction = createServerFn({ method: "POST" }).middleware([authMiddleware]).handler(async ({ context }) => {

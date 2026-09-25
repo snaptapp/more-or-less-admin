@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "./middleware";
 import { auditDerivation, type DerivationAuditTrace } from "./derivation-audit";
+import { numericIngest } from "../../../shared/ddm/derivation";
 
 export const auditDerivationFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -77,9 +78,13 @@ export const probeGoAgentPackFn = createServerFn({ method: "POST" })
     const rounds: ProbedRoundAudit[] = pack.rounds.map((r) => {
       let trace: DerivationAuditTrace | null = null;
       try {
-        if (r.true_number !== "" && Number.isFinite(Number(r.true_number))) {
+        const trueToken = String(r.true_number).trim();
+        if (trueToken !== "" && numericIngest(trueToken).fixedPointValue !== undefined) {
           trace = auditDerivation({
-            trueNumber: Number(r.true_number),
+            // Preserve the source numeric spelling until the DDM's exact
+            // Numeric_Ingest stage. Converting to Number here would erase
+            // trailing zeroes, exponent spelling, and scale-3 edge cases.
+            trueNumber: trueToken,
             unit: r.unit,
             surpriseFactor: r.surprise_factor,
             quantityKind: r.quantity_kind,

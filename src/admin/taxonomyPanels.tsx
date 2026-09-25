@@ -8,6 +8,7 @@ import {
   createPlaylistAction,
   createTopic,
   fetchCrawlQueue,
+  fetchFoundryDispatchStatus,
   fetchPlaylists,
   fetchSubjects,
   queueCrawl,
@@ -682,10 +683,47 @@ export function PlaylistsPanel() {
   );
 }
 
+export function FoundryDispatchControl({
+  configured,
+  pending,
+  onDispatch,
+}: {
+  configured: boolean;
+  pending: boolean;
+  onDispatch: () => void;
+}) {
+  const statusId = "foundry-dispatch-availability";
+  const disabled = pending || !configured;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+      <Button
+        variant="daily"
+        size="sm"
+        disabled={disabled}
+        aria-describedby={configured ? undefined : statusId}
+        onClick={onDispatch}
+      >
+        {pending ? "Triggering…" : "Run Fact Foundry now"}
+      </Button>
+      {configured ? null : (
+        <span
+          id={statusId}
+          role="note"
+          style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 12, textAlign: "right" }}
+        >
+          On-demand dispatch is unavailable. Topics remain queued for nightly hydration.
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function CrawlQueue() {
   const listQueue = useServerFn(fetchCrawlQueue);
   const enqueue = useServerFn(queueCrawl);
   const setPriority = useServerFn(updateCrawlPriority);
+  const checkDispatch = useServerFn(fetchFoundryDispatchStatus);
   const runTrigger = useServerFn(triggerCrawlAction);
   const queryClient = useQueryClient();
   const [status, setStatus] = useState("");
@@ -696,6 +734,13 @@ export function CrawlQueue() {
     queryKey: ["crawl", status],
     queryFn: () => listQueue({ data: { status: status || undefined } }),
     retry: false,
+  });
+
+  const dispatchStatus = useQuery({
+    queryKey: ["foundry-dispatch-config"],
+    queryFn: () => checkDispatch(),
+    retry: false,
+    staleTime: Infinity,
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["crawl"] });
@@ -737,18 +782,15 @@ export function CrawlQueue() {
     <Card>
       <div className="admin-page-head">
         <CardTitle>Crawl queue</CardTitle>
-        <Button
-          variant="daily"
-          size="sm"
-          disabled={triggerMutation.isPending}
-          onClick={() => {
+        <FoundryDispatchControl
+          configured={dispatchStatus.data?.configured ?? false}
+          pending={triggerMutation.isPending}
+          onDispatch={() => {
             if (window.confirm("Trigger Fact Foundry crawler workflow now?")) {
               triggerMutation.mutate();
             }
           }}
-        >
-          {triggerMutation.isPending ? "Triggering…" : "Run Fact Foundry now"}
-        </Button>
+        />
       </div>
       {dispatchMsg ? (
         <p style={{ color: dispatchMsg.ok ? "var(--ds-arena-color-lime)" : "var(--ds-arena-color-red)", fontSize: 13, margin: "6px 0" }}>
@@ -807,7 +849,15 @@ export function CrawlQueue() {
           </select>
         </label>
       </div>
-      <ErrorNote error={query.error ?? enqueueMutation.error ?? priorityMutation.error} />
+      <ErrorNote
+        error={
+          query.error ??
+          enqueueMutation.error ??
+          priorityMutation.error ??
+          dispatchStatus.error ??
+          triggerMutation.error
+        }
+      />
       <div className="admin-table-wrap" style={{ marginTop: "var(--ds-arena-space-3)" }}>
         <table className="admin-table">
           <thead>

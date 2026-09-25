@@ -7,11 +7,11 @@
  * `variant` declared in the design-system `ButtonVariant` union. The defect this
  * pins was `variant="secondary"` in `src/admin/DerivationInspector.tsx`.
  *
- * Requirement 3.8 — every `logAdminAction` call site passes a `targetType` from
- * the declared `AuditLogEntry` target-type union and a non-empty `targetId`. The
+ * Requirement 3.8 — every audit construction passes a `targetType` from the
+ * declared `AuditLogEntry` target-type union and a non-empty `targetId`. The
  * defect this pins was `targetType: "fact_bank"` in the `bulkImportFacts` server
- * function, which is not a member of that union. (Property 18, task 6.5, owns the
- * bank-wide sweep of every call site; this file stays on `bulkImportFacts`.)
+ * function, which is not a member of that union. Its per-fact audit now commits
+ * in the import transaction rather than through a later `logAdminAction` call.
  *
  * Why the variant check is static, not a render
  * ---------------------------------------------
@@ -39,8 +39,8 @@
  * reached through a recording `createServerFn` (the pattern established in
  * `test/server-functions.property.test.ts`), and it runs against the in-memory
  * Firestore and audit doubles from `test/setup.ts`. Its real input validator
- * parses the payload first, `importFactsBatch` really writes to the Firestore
- * double, and the audit entry asserted on is the one `logAdminAction` received.
+ * parses the payload first, `importFactsBatch` really writes each fact and its
+ * prepared audit in one transaction, and the assertions read those audit docs.
  * Nothing reaches a credential, an emulator, or the network.
  */
 import { describe, expect, it, vi } from "vitest";
@@ -49,7 +49,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-import { auditDouble, blockedNetworkAttempts, firestoreDouble, type AdminUser } from "./setup";
+import { blockedNetworkAttempts, firestoreDouble, type AdminUser } from "./setup";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SRC_ROOT = path.join(REPO_ROOT, "src");
@@ -495,7 +495,7 @@ function declaredAuditTargetTypes(): string[] {
 
 const AUDIT_TARGET_TYPES = declaredAuditTargetTypes();
 
-/** The `targetType` literal passed to `logAdminAction` inside one exported declaration. */
+/** The `targetType` literal passed to `buildAuditEntry` inside one exported declaration. */
 function auditTargetTypeLiteralsIn(file: string, exportedSymbol: string): string[] {
   const sourceFile = parseSourceFile(path.join(REPO_ROOT, file));
   const literals: string[] = [];
@@ -508,7 +508,7 @@ function auditTargetTypeLiteralsIn(file: string, exportedSymbol: string): string
         : ts.isPropertyAccessExpression(callee)
           ? callee.name.text
           : null;
-      if (calleeName === "logAdminAction") {
+      if (calleeName === "buildAuditEntry") {
         for (const argument of node.arguments) {
           if (!ts.isObjectLiteralExpression(argument)) continue;
           for (const property of argument.properties) {
@@ -586,8 +586,8 @@ vi.mock("@/lib/admin/middleware", () => ({
   authedServerFn: harness.authedServerFn,
 }));
 
-// The real `importFactsBatch` runs, writing to the in-memory Firestore double,
-// and the real `logAdminAction` call site records into the audit double.
+// The real `importFactsBatch` runs, writing each fact and its prepared audit to
+// the in-memory Firestore double.
 vi.mock("@/lib/firebase/firestore.server", async () => {
   const { firestoreDouble: double } = await import("./setup");
   return double().module;
@@ -625,6 +625,18 @@ interface ImportResult {
   errors: string[];
 }
 
+function importAuditEntries() {
+  return firestoreDouble()
+    .documents()
+    .filter((doc) => doc.path.startsWith("admin_audit_logs/"))
+    .map((doc) => ({
+      action: String(doc.data["action"] ?? ""),
+      targetType: String(doc.data["targetType"] ?? ""),
+      targetId: String(doc.data["targetId"] ?? ""),
+      adminUid: String(doc.data["adminUid"] ?? ""),
+    }));
+}
+
 /** Runs the real validator then the real handler, in TanStack's order. */
 async function runBulkImport(payload: unknown): Promise<ImportResult> {
   const captured = await captureServerFn("bulkImportFacts");
@@ -648,7 +660,7 @@ describe("Requirement 3.8: bulkImportFacts logs a declared audit targetType", ()
     expect(AUDIT_TARGET_TYPES).not.toContain("fact_bank");
   });
 
-  it("records exactly one audit entry whose targetType is a union member and targetId is non-empty", async () => {
+  it("records one audit per imported fact with a union-member targetType and non-empty targetId", async () => {
     const result = await runBulkImport({
       facts: [
         {
@@ -671,19 +683,20 @@ describe("Requirement 3.8: bulkImportFacts logs a declared audit targetType", ()
     // The privileged path really ran: two fact_bank documents were written.
     expect(result.imported).toBe(2);
     expect(result.errors).toEqual([]);
-    expect(firestoreDouble().writeCount()).toBe(2);
+    expect(firestoreDouble().writeCount()).toBe(4);
 
-    // Requirement 3.8 for this call site.
-    const entries = auditDouble().entries();
-    expect(auditDouble().entryCount()).toBe(1);
-    const entry = entries[0];
-    expect(entry.action).toBe("fact.bulk_import");
-    expect(AUDIT_TARGET_TYPES).toContain(String(entry.targetType));
-    expect(entry.targetType).toBe("fact");
-    expect(entry.targetType).not.toBe("fact_bank");
-    expect(entry.targetId.length).toBeGreaterThan(0);
-    expect(entry.targetId.trim()).toBe(entry.targetId);
-    expect(entry.adminUid).toBe(ADMIN.uid);
+    // Requirement 3.8 for this call site: one atomic audit per imported fact.
+    const entries = importAuditEntries();
+    expect(entries).toHaveLength(2);
+    for (const entry of entries) {
+      expect(entry.action).toBe("fact.bulk_import");
+      expect(AUDIT_TARGET_TYPES).toContain(entry.targetType);
+      expect(entry.targetType).toBe("fact");
+      expect(entry.targetType).not.toBe("fact_bank");
+      expect(entry.targetId.length).toBeGreaterThan(0);
+      expect(entry.targetId.trim()).toBe(entry.targetId);
+      expect(entry.adminUid).toBe(ADMIN.uid);
+    }
 
     // No credential, emulator, or deployed service was reached.
     expect(blockedNetworkAttempts()).toEqual([]);
@@ -703,9 +716,10 @@ describe("Requirement 3.8: bulkImportFacts logs a declared audit targetType", ()
     });
 
     expect(result.imported).toBe(1);
-    const entry = auditDouble().entries()[0];
-    expect(auditDouble().entryCount()).toBe(1);
-    expect(AUDIT_TARGET_TYPES).toContain(String(entry.targetType));
+    const entries = importAuditEntries();
+    expect(entries).toHaveLength(1);
+    const entry = entries[0];
+    expect(AUDIT_TARGET_TYPES).toContain(entry.targetType);
     expect(entry.targetId.length).toBeGreaterThan(0);
     expect(blockedNetworkAttempts()).toEqual([]);
   });

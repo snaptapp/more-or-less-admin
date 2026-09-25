@@ -589,7 +589,11 @@ export async function executeTool(
     case "trigger_foundry": {
       const dispatched = await triggerFoundryWorkflow();
       return {
-        result: dispatched,
+        result: {
+          configured: dispatched.configured,
+          ok: dispatched.ok,
+          message: dispatched.message,
+        },
         card: {
           id: newCardId("foundry"),
           tool: name,

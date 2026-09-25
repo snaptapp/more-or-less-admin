@@ -83,6 +83,7 @@ const FIXED_ORDER = [
   "Lint_Step",
   "Suppression_Check",
   "Contract_Literal_Check",
+  "Shared_Artifact_Integrity_Check",
   "Test_Suite",
   "Contract_Drift_Check",
 ] as const;
@@ -137,7 +138,7 @@ describe("Property 22: The Quality_Gate runs members in order, short-circuits, a
   });
 
   it("invokes exactly members 0..i, skips the rest, and reports the failing + not-invoked members", () => {
-    // The five always-selected members (Contract_Drift_Check is excluded pre-adoption).
+    // The always-selected members (Contract_Drift_Check is excluded pre-adoption).
     const selectable = FIXED_ORDER.filter((name) => name !== "Contract_Drift_Check");
 
     fc.assert(

@@ -1,0 +1,4222 @@
+{
+  "schema": "derivation_parity/1",
+  "model_version": "ddm-4",
+  "description": "Cross-runtime parity authority for the Distractor Derivation Model. Every expected outcome is generated through the Go reference derive() / stmtGateApply() and serialized with the canonical encoder; replayed byte-for-byte by the Go reference (task 8.2), the Worker port (task 11.1), and the Functions port (task 10.3). Do not hand-edit; regenerate with GEN_DERIVATION_PARITY=1 go test ./agent-go -run TestGenerateDerivationParityFixture.",
+  "derivation_cases": [
+    {
+      "name": "kind_year_success",
+      "notes": "year kind, calendar-year true value, additive band",
+      "input": {
+        "incoming_numeric_token": "1897",
+        "unit": "year",
+        "quantity_kind": "year",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 1908,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1897,
+          "scale": 0
+        },
+        "normalized_unit": "year",
+        "quantity_kind": "year",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 1747,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 2026,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 1908,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "kind_count_success",
+      "notes": "count kind, non-negative integer, multiplicative band",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "count_integer_band_recovery",
+      "notes": "count candidates sample integers inside the selected band; seven vertebrae derives two",
+      "input": {
+        "incoming_numeric_token": "7",
+        "unit": "vertebrae",
+        "surprise_factor": 3
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 2,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 0
+        },
+        "normalized_unit": "vertebrae",
+        "quantity_kind": "count",
+        "surprise_factor": 3,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 56,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 2,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "count_integer_band_forced_abstain",
+      "notes": "forced below side cannot cross above truth when the only below integer is a landmark",
+      "input": {
+        "incoming_numeric_token": "1",
+        "unit": "songs",
+        "surprise_factor": 0,
+        "forced_side": "MORE"
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1,
+          "scale": 0
+        },
+        "normalized_unit": "songs",
+        "quantity_kind": "count",
+        "surprise_factor": 0,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "kind_percentage_success",
+      "notes": "percentage kind inside [0,100] hard boundary",
+      "input": {
+        "incoming_numeric_token": "40",
+        "unit": "%",
+        "quantity_kind": "percentage",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 37,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 40,
+          "scale": 0
+        },
+        "normalized_unit": "%",
+        "quantity_kind": "percentage",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 37,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "kind_ratio_success",
+      "notes": "ratio kind via coherent hint (no exact unit maps to ratio)",
+      "input": {
+        "incoming_numeric_token": "8",
+        "unit": "ratio",
+        "quantity_kind": "ratio",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 52,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 8,
+          "scale": 0
+        },
+        "normalized_unit": "ratio",
+        "quantity_kind": "ratio",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 8,
+          "scale": 1
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 64,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 52,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "kind_physical_measure_success",
+      "notes": "physical_measure kind, signed-admitting domain",
+      "input": {
+        "incoming_numeric_token": "42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 17,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 1
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 420,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 17,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "kind_money_success",
+      "notes": "money kind",
+      "input": {
+        "incoming_numeric_token": "500",
+        "unit": "dollars",
+        "quantity_kind": "money",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 300,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 500,
+          "scale": 0
+        },
+        "normalized_unit": "dollars",
+        "quantity_kind": "money",
+        "surprise_factor": 1,
+        "magnitude_scale": 2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 50,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 5000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 300,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "kind_duration_success",
+      "notes": "duration kind",
+      "input": {
+        "incoming_numeric_token": "90",
+        "unit": "seconds",
+        "quantity_kind": "duration",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 58,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 90,
+          "scale": 0
+        },
+        "normalized_unit": "seconds",
+        "quantity_kind": "duration",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 9,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 900,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 58,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "kind_rating_success",
+      "notes": "rating kind via coherent hint",
+      "input": {
+        "incoming_numeric_token": "7",
+        "unit": "rating",
+        "quantity_kind": "rating",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 6,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 0
+        },
+        "normalized_unit": "rating",
+        "quantity_kind": "rating",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 10,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 6,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "kind_rating_hint_out_of_domain_reresolves",
+      "notes": "a rating hint whose truth is outside the generated 0..10 domain is rejected as incoherent; the fact resolves to count and derives instead of abstaining BOUNDS_INCOHERENT against its own kind",
+      "input": {
+        "incoming_numeric_token": "50",
+        "unit": "stars",
+        "quantity_kind": "rating",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 31,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 50,
+          "scale": 0
+        },
+        "normalized_unit": "stars",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 5,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 400,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 31,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "kind_percent_change_success",
+      "notes": "percent_change kind: unbounded signed percent delta above 100 via coherent hint",
+      "input": {
+        "incoming_numeric_token": "340",
+        "unit": "percent change",
+        "quantity_kind": "percent_change",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 252,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 340,
+          "scale": 0
+        },
+        "normalized_unit": "percent change",
+        "quantity_kind": "percent_change",
+        "surprise_factor": 1,
+        "magnitude_scale": 2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 34,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 3400,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 252,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_canonical_0",
+      "notes": "canonical surprise 0 identity mapping",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 0
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 780,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 0,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 780,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_canonical_1",
+      "notes": "canonical surprise 1 identity mapping",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_canonical_2",
+      "notes": "canonical surprise 2 identity mapping",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 2
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 470,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 2,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 470,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_canonical_3",
+      "notes": "canonical surprise 3 identity mapping",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 3
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 3,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_legacy_4",
+      "notes": "legacy surprise 4 canonicalized before band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 4
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_legacy_5",
+      "notes": "legacy surprise 5 canonicalized before band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 5
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 470,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 2,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 470,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_legacy_6",
+      "notes": "legacy surprise 6 canonicalized before band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 6
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 470,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 2,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 470,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_legacy_7",
+      "notes": "legacy surprise 7 canonicalized before band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 7
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 470,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 2,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 470,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_legacy_8",
+      "notes": "legacy surprise 8 canonicalized before band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 8
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 3,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_legacy_9",
+      "notes": "legacy surprise 9 canonicalized before band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 9
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 3,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_legacy_10",
+      "notes": "legacy surprise 10 canonicalized before band selection",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 10
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 3,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_negative_clamps_to_zero",
+      "notes": "negative surprise clamps to canonical 0",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": -5
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 780,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 0,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 780,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "surprise_above_legacy_clamps_to_three",
+      "notes": "surprise above the legacy range clamps to canonical 3",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 99
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 3,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 360,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_unit_normalization",
+      "notes": "mixed-case, padded, internal-whitespace unit normalizes to a known unit",
+      "input": {
+        "incoming_numeric_token": "50",
+        "unit": "  Per   Cent  ",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 47,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 50,
+          "scale": 0
+        },
+        "normalized_unit": "per cent",
+        "quantity_kind": "percentage",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 47,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_accepted_model_hint",
+      "notes": "coherent model kind hint is accepted over inference",
+      "input": {
+        "incoming_numeric_token": "50",
+        "unit": "widgets",
+        "quantity_kind": "count",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 35,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 50,
+          "scale": 0
+        },
+        "normalized_unit": "widgets",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 5,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 400,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 35,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_out_of_set_hint_falls_to_inference",
+      "notes": "out-of-set kind hint is discarded; inference classifies the unit",
+      "input": {
+        "incoming_numeric_token": "42",
+        "unit": "km",
+        "quantity_kind": "not-a-kind",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 31,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 1
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 420,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 31,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_incoherent_hint_falls_to_inference",
+      "notes": "incoherent hint (year for a small integer) discarded; inference used",
+      "input": {
+        "incoming_numeric_token": "50",
+        "unit": "widgets",
+        "quantity_kind": "year",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 35,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 50,
+          "scale": 0
+        },
+        "normalized_unit": "widgets",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 5,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 400,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 35,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_inference_percentage_precedence",
+      "notes": "percentage marker wins ordered inference precedence",
+      "input": {
+        "incoming_numeric_token": "40",
+        "unit": "percent",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 37,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 40,
+          "scale": 0
+        },
+        "normalized_unit": "percent",
+        "quantity_kind": "percentage",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 37,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_inference_percent_change_marker",
+      "notes": "a change-marked percent unit infers percent_change at any magnitude, including in-domain",
+      "input": {
+        "incoming_numeric_token": "12",
+        "unit": "Percent Growth",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 75,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 12,
+          "scale": 0
+        },
+        "normalized_unit": "percent growth",
+        "quantity_kind": "percent_change",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 12,
+          "scale": 1
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 120,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 75,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_inference_percent_out_of_domain",
+      "notes": "a percent unit outside the proportion domain infers percent_change instead of abstaining",
+      "input": {
+        "incoming_numeric_token": "340",
+        "unit": "percent",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 206,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 340,
+          "scale": 0
+        },
+        "normalized_unit": "percent",
+        "quantity_kind": "percent_change",
+        "surprise_factor": 1,
+        "magnitude_scale": 2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 34,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 3400,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 206,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_inference_percent_out_of_domain_negative",
+      "notes": "a negative percent infers percent_change; percent_change admits negative truths",
+      "input": {
+        "incoming_numeric_token": "-8",
+        "unit": "percent",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": true,
+          "mantissa": 59,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": true,
+          "mantissa": 8,
+          "scale": 0
+        },
+        "normalized_unit": "percent",
+        "quantity_kind": "percent_change",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 80,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": true,
+          "mantissa": 8,
+          "scale": 1
+        },
+        "presented_number": {
+          "negative": true,
+          "mantissa": 59,
+          "scale": 1
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_inference_percent_in_domain_stays_percentage",
+      "notes": "a percent unit inside the proportion domain stays a bounded percentage",
+      "input": {
+        "incoming_numeric_token": "76",
+        "unit": "percent",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 72,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 76,
+          "scale": 0
+        },
+        "normalized_unit": "percent",
+        "quantity_kind": "percentage",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 72,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_out_of_domain_percentage_hint_discarded",
+      "notes": "an out-of-domain percentage hint is incoherent, is discarded, and inference recovers percent_change",
+      "input": {
+        "incoming_numeric_token": "340",
+        "unit": "percent",
+        "quantity_kind": "percentage",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 206,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 340,
+          "scale": 0
+        },
+        "normalized_unit": "percent",
+        "quantity_kind": "percent_change",
+        "surprise_factor": 1,
+        "magnitude_scale": 2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 34,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 3400,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 206,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_exact_percent_change_unit",
+      "notes": "a change-marked unit resolves percent_change through the exact-unit map",
+      "input": {
+        "incoming_numeric_token": "9",
+        "unit": "percentage change",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 56,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 9,
+          "scale": 0
+        },
+        "normalized_unit": "percentage change",
+        "quantity_kind": "percent_change",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 9,
+          "scale": 1
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 90,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 56,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_inference_calendar_year",
+      "notes": "calendar-year window inference for a bare year unit",
+      "input": {
+        "incoming_numeric_token": "1500",
+        "unit": "year",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 1512,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1500,
+          "scale": 0
+        },
+        "normalized_unit": "year",
+        "quantity_kind": "year",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 1350,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1650,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 1512,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_inference_bare_noun_count",
+      "notes": "bare discrete noun with a non-negative integer infers count",
+      "input": {
+        "incoming_numeric_token": "12",
+        "unit": "apples",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 8,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 12,
+          "scale": 0
+        },
+        "normalized_unit": "apples",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 1,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 96,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 8,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "classify_fallback_physical_measure",
+      "notes": "non-integer with no matching rule falls back to physical_measure",
+      "input": {
+        "incoming_numeric_token": "3.5",
+        "unit": "sparkles",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 25,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 35,
+          "scale": 1
+        },
+        "normalized_unit": "sparkles",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 35,
+          "scale": 2
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 35,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 25,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "bounds_fact_bank_precedence",
+      "notes": "valid Fact Bank bounds take precedence over model bounds and defaults",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "fact_bank_bounds": {
+          "min_token": "100",
+          "max_token": "5000"
+        },
+        "model_bounds": {
+          "min_token": "1",
+          "max_token": "999999"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 720,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 5000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 720,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "bounds_model_precedence",
+      "notes": "valid model bounds used when no Fact Bank pair is present",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "500",
+          "max_token": "4000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 500,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 4000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "bounds_derived_default",
+      "notes": "generated kind/unit default bounds when no hint is present",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "bounds_incomplete_pair_falls_to_default",
+      "notes": "incomplete bounds hint (missing max) is discarded; default used",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "100",
+          "max_token": ""
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "bounds_reversed_pair_falls_to_default",
+      "notes": "reversed bounds hint (min\u003emax) is discarded; default used",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "5000",
+          "max_token": "100"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "bounds_excluding_truth_falls_to_default",
+      "notes": "bounds hint that excludes the true value is discarded; default used",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "1",
+          "max_token": "500"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "bounds_incoherent_abstains",
+      "notes": "truth above a unit's hard ceiling (passer rating caps at 158.3) -\u003e BOUNDS_INCOHERENT",
+      "input": {
+        "incoming_numeric_token": "200",
+        "unit": "passer rating",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "BOUNDS_INCOHERENT",
+        "incoming_numeric_token": "200",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 200,
+          "scale": 0
+        },
+        "normalized_unit": "passer rating",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1
+      }
+    },
+    {
+      "name": "bounds_percent_change_multiplicative_band",
+      "notes": "percent_change derives multiplicative [0.1x, 10x] default bounds from |truth|",
+      "input": {
+        "incoming_numeric_token": "340",
+        "unit": "percent change",
+        "quantity_kind": "percent_change",
+        "surprise_factor": 2
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 175,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 340,
+          "scale": 0
+        },
+        "normalized_unit": "percent change",
+        "quantity_kind": "percent_change",
+        "surprise_factor": 2,
+        "magnitude_scale": 2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 34,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 3400,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 175,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "bounds_percent_change_negative_truth",
+      "notes": "percent_change negative truth swaps multiplicative roles so direction math holds",
+      "input": {
+        "incoming_numeric_token": "-8",
+        "unit": "percent change",
+        "quantity_kind": "percent_change",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": true,
+          "mantissa": 55,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": true,
+          "mantissa": 8,
+          "scale": 0
+        },
+        "normalized_unit": "percent change",
+        "quantity_kind": "percent_change",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 80,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": true,
+          "mantissa": 8,
+          "scale": 1
+        },
+        "presented_number": {
+          "negative": true,
+          "mantissa": 55,
+          "scale": 1
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "trap_accepted_model_overestimate",
+      "notes": "accepted model trap OVERESTIMATE prefers a candidate above truth (LESS)",
+      "input": {
+        "incoming_numeric_token": "42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "trap_direction": "OVERESTIMATE",
+        "surprise_factor": 2
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 120,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2,
+        "magnitude_scale": 1,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 1
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 420,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 120,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "trap_accepted_model_underestimate",
+      "notes": "accepted model trap UNDERESTIMATE prefers a candidate below truth (MORE)",
+      "input": {
+        "incoming_numeric_token": "42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "trap_direction": "UNDERESTIMATE",
+        "surprise_factor": 2
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 17,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 1
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 420,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 17,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "trap_rejected_model_hint_inferred",
+      "notes": "out-of-set trap hint discarded; trap inferred deterministically",
+      "input": {
+        "incoming_numeric_token": "42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "trap_direction": "sideways",
+        "surprise_factor": 2
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 17,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 1
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 420,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 17,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "forced_side_more_success",
+      "notes": "Pack Balance forced side MORE takes precedence and succeeds",
+      "input": {
+        "incoming_numeric_token": "42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2,
+        "forced_side": "MORE"
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 17,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 1
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 420,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 17,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "forced_side_less_success",
+      "notes": "Pack Balance forced side LESS takes precedence and succeeds",
+      "input": {
+        "incoming_numeric_token": "42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2,
+        "forced_side": "LESS"
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 110,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 2,
+        "magnitude_scale": 1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 42,
+          "scale": 1
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 420,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 110,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "forced_side_abstains_rather_than_cross",
+      "notes": "forced side MORE for count 1000 s1 abstains rather than cross to LESS",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "forced_side": "MORE"
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "precompute_version_mismatch_abstains",
+      "notes": "precompute block with a mismatched model version -\u003e TABLE_VERSION_MISMATCH",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "precomputed": {
+          "model_version": "ddm-999",
+          "quantity_kind": "",
+          "trap_direction": "",
+          "plausible_min": "",
+          "plausible_max": "",
+          "distractors": null
+        }
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "TABLE_VERSION_MISMATCH",
+        "incoming_numeric_token": "1000",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "name": "precompute_empty_falls_through_to_live",
+      "notes": "version-matching precompute with no distractors falls through to live derivation",
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "precomputed": {
+          "model_version": "ddm-4",
+          "quantity_kind": "",
+          "trap_direction": "",
+          "plausible_min": "",
+          "plausible_max": "",
+          "distractors": null
+        }
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "ingest_0_07",
+      "notes": "numeric ingest: canonical scale-2 decimal",
+      "input": {
+        "incoming_numeric_token": "0.07",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.07",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 2
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "name": "ingest_0_07_below",
+      "notes": "numeric ingest: immediately below 0.07",
+      "input": {
+        "incoming_numeric_token": "0.069",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.069",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 69,
+          "scale": 3
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "name": "ingest_0_07_above",
+      "notes": "numeric ingest: immediately above 0.07",
+      "input": {
+        "incoming_numeric_token": "0.071",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.071",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 71,
+          "scale": 3
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "name": "ingest_0_29",
+      "notes": "numeric ingest: canonical scale-2 decimal",
+      "input": {
+        "incoming_numeric_token": "0.29",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 29,
+          "scale": 2
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "ingest_0_29_below",
+      "notes": "numeric ingest: immediately below 0.29",
+      "input": {
+        "incoming_numeric_token": "0.289",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 289,
+          "scale": 3
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "ingest_0_29_above",
+      "notes": "numeric ingest: immediately above 0.29",
+      "input": {
+        "incoming_numeric_token": "0.291",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 291,
+          "scale": 3
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -1,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "ingest_1_005",
+      "notes": "numeric ingest: canonical scale-3 decimal",
+      "input": {
+        "incoming_numeric_token": "1.005",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1005,
+          "scale": 3
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "ingest_1_005_below",
+      "notes": "numeric ingest: just below the scale-3 half step (rounds down)",
+      "input": {
+        "incoming_numeric_token": "1.0049",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1005,
+          "scale": 3
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "ingest_1_005_above",
+      "notes": "numeric ingest: just above the scale-3 half step (rounds up)",
+      "input": {
+        "incoming_numeric_token": "1.0051",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1005,
+          "scale": 3
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "ingest_scale3_half_step",
+      "notes": "numeric ingest: exact scale-3 half step rounds away from zero",
+      "input": {
+        "incoming_numeric_token": "0.0005",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.0005",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 1,
+          "scale": 3
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "name": "ingest_scale3_carry",
+      "notes": "numeric ingest: scale-3 half-step carry boundary",
+      "input": {
+        "incoming_numeric_token": "0.9995",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "ingest_negative",
+      "notes": "numeric ingest: negative counterpart (physical_measure admits negatives)",
+      "input": {
+        "incoming_numeric_token": "-42",
+        "unit": "km",
+        "quantity_kind": "physical_measure",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": true,
+          "mantissa": 31,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": true,
+          "mantissa": 42,
+          "scale": 0
+        },
+        "normalized_unit": "km",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 1,
+        "trap_direction": "OVERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": true,
+          "mantissa": 31,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "ingest_negative_zero",
+      "notes": "numeric ingest: negative zero normalizes to canonical zero",
+      "input": {
+        "incoming_numeric_token": "-0",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "zero_value",
+        "remedy_stage": "zero_value"
+      }
+    },
+    {
+      "name": "ingest_negative_zero_decimal",
+      "notes": "numeric ingest: negative zero decimal spelling",
+      "input": {
+        "incoming_numeric_token": "-0.0000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "zero_value",
+        "remedy_stage": "zero_value"
+      }
+    },
+    {
+      "name": "ingest_exponent",
+      "notes": "numeric ingest: exponent spelling equals 0.07",
+      "input": {
+        "incoming_numeric_token": "7e-2",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "7e-2",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 2
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "name": "ingest_exponent_positive",
+      "notes": "numeric ingest: exponent spelling equals 1500",
+      "input": {
+        "incoming_numeric_token": "1.5e3",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 950,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1500,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 150,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 12000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 950,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "ingest_trailing_zero",
+      "notes": "numeric ingest: trailing-zero spelling equals 0.07",
+      "input": {
+        "incoming_numeric_token": "0.070",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.070",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 7,
+          "scale": 2
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": -2,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "name": "ingest_more_than_three_places",
+      "notes": "numeric ingest: more than three places rounds to scale 3",
+      "input": {
+        "incoming_numeric_token": "1.23456",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 8,
+          "scale": 1
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1235,
+          "scale": 3
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "physical_measure",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 8,
+          "scale": 1
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "ingest_underflow_rejected",
+      "notes": "numeric ingest: nonzero scale-3 underflow -\u003e OUT_OF_SAFE_RANGE",
+      "input": {
+        "incoming_numeric_token": "0.0004",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "0.0004",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "name": "ingest_overflow_out_of_safe_range",
+      "notes": "numeric ingest: one past 2^53-1 -\u003e OUT_OF_SAFE_RANGE",
+      "input": {
+        "incoming_numeric_token": "9007199254740992",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "9007199254740992"
+      }
+    },
+    {
+      "name": "ingest_malformed_token",
+      "notes": "numeric ingest: malformed token -\u003e INVALID_NUMERIC_TOKEN",
+      "input": {
+        "incoming_numeric_token": "12.3.4",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "INVALID_NUMERIC_TOKEN",
+        "incoming_numeric_token": "12.3.4"
+      }
+    },
+    {
+      "name": "zero_count_recovers_with_bounds",
+      "notes": "zero count with usable bounds recovers a nonzero offset via Zero Value Strategy",
+      "input": {
+        "incoming_numeric_token": "0",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "zero_value",
+        "remedy_stage": "zero_value"
+      }
+    },
+    {
+      "name": "zero_count_default_bounds_recovers",
+      "notes": "zero count with default bounds recovers a nonzero offset via Zero Value Strategy",
+      "input": {
+        "incoming_numeric_token": "0",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 50,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 3,
+          "scale": 0
+        },
+        "correct_direction": "LESS",
+        "source": "zero_value",
+        "remedy_stage": "zero_value"
+      }
+    },
+    {
+      "name": "zero_rounded_token_rejected",
+      "notes": "nonzero token 0.0004 abstains rather than silently changing truth to zero",
+      "input": {
+        "incoming_numeric_token": "0.0004",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "0.0004",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "name": "zero_forced_side_more",
+      "notes": "zero count, forced side MORE, recovers within bounds without crossing",
+      "input": {
+        "incoming_numeric_token": "0",
+        "unit": "people",
+        "quantity_kind": "count",
+        "model_bounds": {
+          "min_token": "0",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1,
+        "forced_side": "MORE"
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        }
+      }
+    },
+    {
+      "name": "zero_percent_change_recovers_with_bounds",
+      "notes": "zero percent_change with usable signed bounds recovers a nonzero offset via Zero Value Strategy",
+      "input": {
+        "incoming_numeric_token": "0",
+        "unit": "percent change",
+        "quantity_kind": "percent_change",
+        "model_bounds": {
+          "min_token": "-1000",
+          "max_token": "1000"
+        },
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": true,
+          "mantissa": 2,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 0,
+          "scale": 0
+        },
+        "normalized_unit": "percent change",
+        "quantity_kind": "percent_change",
+        "surprise_factor": 1,
+        "magnitude_scale": 0,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": true,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": true,
+          "mantissa": 2,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "zero_value",
+        "remedy_stage": "zero_value"
+      }
+    },
+    {
+      "name": "abstain_invalid_numeric_token",
+      "notes": "malformed required numeric token abstains and preserves the token",
+      "input": {
+        "incoming_numeric_token": "not-a-number",
+        "unit": "people",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "INVALID_NUMERIC_TOKEN",
+        "incoming_numeric_token": "not-a-number"
+      }
+    },
+    {
+      "name": "abstain_out_of_safe_range",
+      "notes": "token beyond the 2^53-1 envelope abstains OUT_OF_SAFE_RANGE",
+      "input": {
+        "incoming_numeric_token": "90071992547409920",
+        "unit": "people",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "abstain",
+        "reason": "OUT_OF_SAFE_RANGE",
+        "incoming_numeric_token": "90071992547409920"
+      }
+    },
+    {
+      "name": "metadata_variant_absent",
+      "notes": "paired metadata case: NO pack/round difficulty metadata",
+      "metadata": null,
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "metadata_variant_easy",
+      "notes": "paired metadata case: easy pack/round difficulty metadata (must be ignored)",
+      "metadata": {
+        "pack_difficulty": "easy",
+        "round_difficulty": 1,
+        "round_number": 3,
+        "topic": "geography"
+      },
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    },
+    {
+      "name": "metadata_variant_hard",
+      "notes": "paired metadata case: hard pack/round difficulty metadata (must be ignored)",
+      "metadata": {
+        "pack_difficulty": "hard",
+        "round_difficulty": 9,
+        "round_number": 5,
+        "topic": "physics"
+      },
+      "input": {
+        "incoming_numeric_token": "1000",
+        "unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1
+      },
+      "expected": {
+        "outcome": "success",
+        "fixed_point_value": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "true_number": {
+          "negative": false,
+          "mantissa": 1000,
+          "scale": 0
+        },
+        "normalized_unit": "people",
+        "quantity_kind": "count",
+        "surprise_factor": 1,
+        "magnitude_scale": 3,
+        "trap_direction": "UNDERESTIMATE",
+        "plausible_min": {
+          "negative": false,
+          "mantissa": 100,
+          "scale": 0
+        },
+        "plausible_max": {
+          "negative": false,
+          "mantissa": 8000,
+          "scale": 0
+        },
+        "presented_number": {
+          "negative": false,
+          "mantissa": 650,
+          "scale": 0
+        },
+        "correct_direction": "MORE",
+        "source": "live",
+        "remedy_stage": "preferred_side"
+      }
+    }
+  ],
+  "statement_cases": [
+    {
+      "name": "statement_governed_rewrite_strict",
+      "notes": "governed literal rewritten to presented; consistent under strict",
+      "statement": "The bridge spans 350 meters.",
+      "truth": {
+        "negative": false,
+        "mantissa": 500,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 200,
+        "scale": 0
+      },
+      "policy": "strict",
+      "expected": {
+        "ok": true,
+        "policy": "strict",
+        "reason": "",
+        "statement": "The bridge spans 200 meters."
+      }
+    },
+    {
+      "name": "statement_truth_leak_rewritten_strict",
+      "notes": "a literal equal to truth is forbidden and rewritten under strict",
+      "statement": "Was 500, now 350 give or take.",
+      "truth": {
+        "negative": false,
+        "mantissa": 500,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 200,
+        "scale": 0
+      },
+      "policy": "strict",
+      "expected": {
+        "ok": true,
+        "policy": "strict",
+        "reason": "",
+        "statement": "Was 200, now 200 gives or take."
+      }
+    },
+    {
+      "name": "statement_no_numbers_strict",
+      "notes": "a statement with no numeric literals is consistent under strict",
+      "statement": "This statement mentions no numbers at all.",
+      "truth": {
+        "negative": false,
+        "mantissa": 5,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 3,
+        "scale": 0
+      },
+      "policy": "strict",
+      "expected": {
+        "ok": true,
+        "policy": "strict",
+        "reason": "",
+        "statement": "This statement mentions no numbers at all."
+      }
+    },
+    {
+      "name": "statement_unrecoverable_truth_equals_presented_strict",
+      "notes": "truth equals presented is unrecoverable under strict",
+      "statement": "The value is 42 units.",
+      "truth": {
+        "negative": false,
+        "mantissa": 42,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 42,
+        "scale": 0
+      },
+      "policy": "strict",
+      "expected": {
+        "ok": false,
+        "policy": "strict",
+        "reason": "STATEMENT_UNRECOVERABLE",
+        "statement": "The value is 42 units."
+      }
+    },
+    {
+      "name": "statement_grammar_singular_strict",
+      "notes": "presented value 1 forces singular noun under strict",
+      "statement": "There are 5 dogs in the yard.",
+      "truth": {
+        "negative": false,
+        "mantissa": 5,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 1,
+        "scale": 0
+      },
+      "policy": "strict",
+      "expected": {
+        "ok": true,
+        "policy": "strict",
+        "reason": "",
+        "statement": "There are 1 dog in the yard."
+      }
+    },
+    {
+      "name": "statement_governed_rewrite_governed_incidental",
+      "notes": "governed literal rewritten to presented; consistent under governed_incidental",
+      "statement": "The bridge spans 350 meters.",
+      "truth": {
+        "negative": false,
+        "mantissa": 500,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 200,
+        "scale": 0
+      },
+      "policy": "governed_incidental",
+      "expected": {
+        "ok": true,
+        "policy": "governed_incidental",
+        "reason": "",
+        "statement": "The bridge spans 200 meters."
+      }
+    },
+    {
+      "name": "statement_truth_leak_rewritten_governed_incidental",
+      "notes": "a literal equal to truth is forbidden and rewritten under governed_incidental",
+      "statement": "Was 500, now 350 give or take.",
+      "truth": {
+        "negative": false,
+        "mantissa": 500,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 200,
+        "scale": 0
+      },
+      "policy": "governed_incidental",
+      "expected": {
+        "ok": true,
+        "policy": "governed_incidental",
+        "reason": "",
+        "statement": "Was 200, now 200 gives or take."
+      }
+    },
+    {
+      "name": "statement_no_numbers_governed_incidental",
+      "notes": "a statement with no numeric literals is consistent under governed_incidental",
+      "statement": "This statement mentions no numbers at all.",
+      "truth": {
+        "negative": false,
+        "mantissa": 5,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 3,
+        "scale": 0
+      },
+      "policy": "governed_incidental",
+      "expected": {
+        "ok": true,
+        "policy": "governed_incidental",
+        "reason": "",
+        "statement": "This statement mentions no numbers at all."
+      }
+    },
+    {
+      "name": "statement_unrecoverable_truth_equals_presented_governed_incidental",
+      "notes": "truth equals presented is unrecoverable under governed_incidental",
+      "statement": "The value is 42 units.",
+      "truth": {
+        "negative": false,
+        "mantissa": 42,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 42,
+        "scale": 0
+      },
+      "policy": "governed_incidental",
+      "expected": {
+        "ok": false,
+        "policy": "governed_incidental",
+        "reason": "STATEMENT_UNRECOVERABLE",
+        "statement": "The value is 42 units."
+      }
+    },
+    {
+      "name": "statement_grammar_singular_governed_incidental",
+      "notes": "presented value 1 forces singular noun under governed_incidental",
+      "statement": "There are 5 dogs in the yard.",
+      "truth": {
+        "negative": false,
+        "mantissa": 5,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 1,
+        "scale": 0
+      },
+      "policy": "governed_incidental",
+      "expected": {
+        "ok": true,
+        "policy": "governed_incidental",
+        "reason": "",
+        "statement": "There are 1 dog in the yard."
+      }
+    },
+    {
+      "name": "statement_incidental_apollo_strict",
+      "notes": "strict rewrites the incidental 11 in 'Apollo 11'",
+      "statement": "Apollo 11 carried 12 astronauts on that mission.",
+      "truth": {
+        "negative": false,
+        "mantissa": 3,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 12,
+        "scale": 0
+      },
+      "policy": "strict",
+      "expected": {
+        "ok": true,
+        "policy": "strict",
+        "reason": "",
+        "statement": "Apollo 12 carried 12 astronauts on that mission."
+      }
+    },
+    {
+      "name": "statement_incidental_apollo_governed",
+      "notes": "governed_incidental may keep the incidental 11 in 'Apollo 11'",
+      "statement": "Apollo 11 carried 12 astronauts on that mission.",
+      "truth": {
+        "negative": false,
+        "mantissa": 3,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 12,
+        "scale": 0
+      },
+      "policy": "governed_incidental",
+      "expected": {
+        "ok": true,
+        "policy": "governed_incidental",
+        "reason": "",
+        "statement": "Apollo 11 carried 12 astronauts on that mission."
+      }
+    },
+    {
+      "name": "statement_numberless_drop_clean",
+      "notes": "numberless_drop keeps a numberless claim unchanged",
+      "statement": "Number of vertebrae in a giraffe's neck",
+      "truth": {
+        "negative": false,
+        "mantissa": 7,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 9,
+        "scale": 0
+      },
+      "policy": "numberless_drop",
+      "expected": {
+        "ok": true,
+        "policy": "numberless_drop",
+        "reason": "",
+        "statement": "Number of vertebrae in a giraffe's neck"
+      }
+    },
+    {
+      "name": "statement_numberless_drop_truth_leak",
+      "notes": "numberless_drop drops a claim containing the truth literal",
+      "statement": "A giraffe's neck has 7 vertebrae.",
+      "truth": {
+        "negative": false,
+        "mantissa": 7,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 9,
+        "scale": 0
+      },
+      "policy": "numberless_drop",
+      "expected": {
+        "ok": false,
+        "policy": "numberless_drop",
+        "reason": "STATEMENT_UNRECOVERABLE",
+        "statement": "A giraffe's neck has 7 vertebrae."
+      }
+    },
+    {
+      "name": "statement_numberless_drop_presented_literal",
+      "notes": "numberless_drop drops a claim containing the presented literal",
+      "statement": "A giraffe's neck has 9 vertebrae.",
+      "truth": {
+        "negative": false,
+        "mantissa": 7,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 9,
+        "scale": 0
+      },
+      "policy": "numberless_drop",
+      "expected": {
+        "ok": false,
+        "policy": "numberless_drop",
+        "reason": "STATEMENT_UNRECOVERABLE",
+        "statement": "A giraffe's neck has 9 vertebrae."
+      }
+    },
+    {
+      "name": "statement_numberless_drop_incidental",
+      "notes": "numberless_drop keeps unrelated numerals incl. a governed third value",
+      "statement": "Apollo 11 flew 12 missions worth of crew.",
+      "truth": {
+        "negative": false,
+        "mantissa": 7,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 9,
+        "scale": 0
+      },
+      "policy": "numberless_drop",
+      "expected": {
+        "ok": true,
+        "policy": "numberless_drop",
+        "reason": "",
+        "statement": "Apollo 11 flew 12 missions worth of crew."
+      }
+    }
+  ]
+}

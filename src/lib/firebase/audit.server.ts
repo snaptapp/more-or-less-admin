@@ -1,4 +1,9 @@
-import { createDoc, runQuery, type FirestoreDoc } from "./firestore.server";
+import {
+  createDoc,
+  runQuery,
+  type FirestoreDoc,
+  type FirestoreTransaction,
+} from "./firestore.server";
 import type { AdminUser } from "./verify.server";
 
 export type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
@@ -41,21 +46,62 @@ export type AuditLogInput = Omit<
   after?: AuditPayload | null;
 };
 
-export async function logAdminAction(adminUser: AdminUser, entry: AuditLogInput): Promise<void> {
-  const payload = {
-    adminUid: adminUser.uid,
-    adminEmail: adminUser.email,
-    action: entry.action,
-    targetType: entry.targetType,
-    targetId: entry.targetId,
-    details: entry.details ?? null,
-    before: entry.before ?? null,
-    after: entry.after ?? null,
+/** The immutable identity allocated before a transaction starts retrying. */
+export interface AuditIdentity {
+  readonly id: string;
+  readonly createdAt: string;
+}
+
+/** A Firestore-ready audit document plus the document id used for its path. */
+export interface PreparedAuditEntry {
+  readonly id: string;
+  readonly data: Record<string, unknown>;
+}
+
+/** Allocate a path-safe, non-empty audit identity for one logical operation. */
+export function createAuditIdentity(): AuditIdentity {
+  return {
+    id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
     createdAt: new Date().toISOString(),
   };
+}
 
-  const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await createDoc("admin_audit_logs", id, payload);
+/**
+ * Build the Firestore payload for an audit entry without performing I/O.
+ *
+ * Callers that stage the entry in a transaction should allocate the identity
+ * once and pass it here. A transaction retry can then rebuild the payload from
+ * a fresh document read without changing either the audit id or its timestamp.
+ */
+export function buildAuditEntry(
+  adminUser: AdminUser,
+  entry: AuditLogInput,
+  identity: AuditIdentity = createAuditIdentity(),
+): PreparedAuditEntry {
+  return {
+    id: identity.id,
+    data: {
+      adminUid: adminUser.uid,
+      adminEmail: adminUser.email,
+      action: entry.action,
+      targetType: entry.targetType,
+      targetId: entry.targetId,
+      details: entry.details ?? null,
+      before: entry.before ?? null,
+      after: entry.after ?? null,
+      createdAt: identity.createdAt,
+    },
+  };
+}
+
+/** Stage a prebuilt audit entry in the caller's existing Firestore transaction. */
+export function stageAuditEntry(tx: FirestoreTransaction, entry: PreparedAuditEntry): void {
+  tx.set(`admin_audit_logs/${entry.id}`, entry.data);
+}
+
+export async function logAdminAction(adminUser: AdminUser, entry: AuditLogInput): Promise<void> {
+  const prepared = buildAuditEntry(adminUser, entry);
+  await createDoc("admin_audit_logs", prepared.id, prepared.data);
 }
 
 export async function listAuditLogs(limitCount = 100): Promise<AuditLogEntry[]> {
