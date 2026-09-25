@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState, Fragment, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, Fragment, type FormEvent } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import {
   adminAuthorizedTargetsFor,
@@ -17,7 +17,9 @@ import {
   addFact,
   bulkImportFacts,
   changeFactStatus,
+  createCorrectedReplacement,
   exportFactsData,
+  fetchBankObservability,
   fetchFacts,
   saveFact,
 } from "@/lib/admin/content.functions";
@@ -29,7 +31,14 @@ import {
   type FactStatus,
   type QuantityKind,
 } from "../../../shared/fact-lifecycle-contract.gen";
-import { STATUS } from "@/lib/admin/contract";
+import { QK, STATUS } from "@/lib/admin/contract";
+import type { BankObservability } from "@/lib/admin/content.server";
+
+const HYDRATION_EXPLANATION =
+  "Firestore changes go live only after export, hydration PR merge, and Worker deployment.";
+
+const EXPORTED_DELTA_DEFINITION =
+  "Firestore active lifecycle count minus deployed fact_count; export filters can make the populations differ.";
 
 /** The `quantity_kind` values the editor offers: the contract's closed set
  * (Requirement 9.5, derived) plus the empty-string "auto" sentinel. */
@@ -131,9 +140,13 @@ const EMPTY_DRAFT = {
   angle: "",
   true_number: "",
   unit: "",
-  context: "",
+  claim_template: "",
+  explanation: "",
   question: "",
   surprise_factor: "2",
+  quantity_kind: QK.count,
+  plausible_min: "",
+  plausible_max: "",
   content_rating: "standard",
   source_urls: "",
 };
@@ -145,7 +158,674 @@ function quantityKindLabel(kind: (typeof QUANTITY_KIND_OPTIONS)[number]): string
   return kind === "" ? "auto (classify from unit)" : kind;
 }
 
-function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
+/** The single user-facing admission message shared by create and import paths. */
+export const PENDING_ADMISSION_COPY =
+  "Saved as pending; the nightly Foundry audit promotes it.";
+
+/** Make the authority boundary explicit wherever a pending row is surfaced. */
+export const PENDING_PROMOTION_COPY =
+  "Pending facts are admission candidates only. The Foundry audit is the only promoter to active; admin controls cannot approve them, and pending facts are not served or exported.";
+
+function PendingAdmissionNotice() {
+  return (
+    <div
+      role="note"
+      aria-label="Pending fact admission"
+      style={{
+        margin: 0,
+        padding: "12px 14px",
+        border: "1px solid var(--ds-arena-color-border)",
+        borderLeft: "3px solid var(--ds-arena-color-amber)",
+        borderRadius: "var(--ds-arena-radius-md)",
+        background: "var(--ds-arena-color-surface)",
+        color: "var(--ds-arena-color-text-muted)",
+        fontSize: 13,
+        lineHeight: 1.5,
+      }}
+    >
+      <strong style={{ color: "var(--ds-arena-color-text)" }}>Pending admission.</strong>{" "}
+      {PENDING_ADMISSION_COPY} {PENDING_PROMOTION_COPY}
+    </div>
+  );
+}
+
+function signedDelta(value: number): string {
+  if (value > 0) return `+${value}`;
+  return String(value);
+}
+
+export function BankObservabilityPanel({
+  data,
+  isLoading = false,
+  error = null,
+}: {
+  data?: BankObservability;
+  isLoading?: boolean;
+  error?: unknown;
+}) {
+  return (
+    <Card>
+      <div style={{ display: "grid", gap: "var(--ds-arena-space-3)" }}>
+        <div className="admin-page-head">
+          <div>
+            <CardTitle>Deployed vs Firestore</CardTitle>
+            <p style={{ margin: "4px 0 0", color: "var(--ds-arena-color-text-muted)", fontSize: 13 }}>
+              Source lifecycle state and the exact bank embedded in the current Game Worker.
+            </p>
+          </div>
+          {data?.deployed.state === "known" ? (
+            <Badge tone="lime">Deployed</Badge>
+          ) : data ? (
+            <Badge tone="amber">Unknown / stale</Badge>
+          ) : (
+            <Badge tone="neutral">Checking</Badge>
+          )}
+        </div>
+
+        {isLoading ? <p className="admin-empty">Checking deployed bank version…</p> : null}
+        <ErrorNote error={error} />
+
+        {data ? (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{ display: "grid", gap: "var(--ds-arena-space-3)" }}
+          >
+            {data.deployed.state === "known" ? (
+              <dl
+                className="admin-kv"
+                style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}
+              >
+                <div><dt>Deployed bank_version</dt><dd><code>{data.deployed.bankVersion}</code></dd></div>
+                <div><dt>Deployed fact_count</dt><dd>{data.deployed.factCount}</dd></div>
+                <div><dt>Deployed ddm_version</dt><dd><code>{data.deployed.ddmVersion}</code></dd></div>
+                <div>
+                  <dt>Exported vs Firestore delta</dt>
+                  <dd>{data.exportedDelta === null ? "Unknown" : signedDelta(data.exportedDelta)}</dd>
+                </div>
+              </dl>
+            ) : (
+              <div
+                role="note"
+                style={{
+                  padding: "12px 14px",
+                  border: "1px solid var(--ds-arena-color-border)",
+                  borderLeft: "3px solid var(--ds-arena-color-amber)",
+                  borderRadius: "var(--ds-arena-radius-md)",
+                  color: "var(--ds-arena-color-text-muted)",
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong style={{ color: "var(--ds-arena-color-text)" }}>
+                  Deployed bank version unknown or stale.
+                </strong>{" "}
+                {data.deployed.reason} No deployed version is shown because the endpoint could not be
+                verified; the exported delta is unknown.
+              </div>
+            )}
+
+            <div>
+              <strong style={{ fontSize: 13 }}>Firestore lifecycle counts</strong>
+              <dl
+                className="admin-kv"
+                style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}
+              >
+                {FACT_STATUSES.map((status) => (
+                  <div key={status}>
+                    <dt>{status}</dt>
+                    <dd>{data.firestore.lifecycle[status]}</dd>
+                  </div>
+                ))}
+                <div><dt>Total</dt><dd>{data.firestore.total}</dd></div>
+              </dl>
+            </div>
+
+            <p style={{ margin: 0, color: "var(--ds-arena-color-text-muted)", fontSize: 12 }}>
+              <strong>Delta definition.</strong> {data.exportedDeltaDefinition || EXPORTED_DELTA_DEFINITION}
+            </p>
+          </div>
+        ) : null}
+
+        <p
+          role="note"
+          style={{
+            margin: 0,
+            padding: "10px 12px",
+            borderLeft: "3px solid var(--ds-arena-color-lime)",
+            background: "var(--ds-arena-color-surface)",
+            color: "var(--ds-arena-color-text-muted)",
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ color: "var(--ds-arena-color-text)" }}>Hydration path.</strong>{" "}
+          {HYDRATION_EXPLANATION} Firestore itself is never the live serving source.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+type ReplacementFormState = {
+  subject: string;
+  category: string;
+  sub_category: string;
+  angle: string;
+  true_number: string;
+  unit: string;
+  claim_template: string;
+  explanation: string;
+  question: string;
+  surprise_factor: string;
+  quantity_kind: QuantityKind | "";
+  plausible_min: string;
+  plausible_max: string;
+  content_rating: "standard" | "after_dark";
+  source_urls: string;
+  number_pinned: boolean;
+  pinned_reason: string;
+  reason: string;
+};
+
+export interface CorrectedReplacementResult {
+  original: Fact;
+  replacement: Fact;
+}
+
+function normalizeSurpriseFactor(value: number | null | undefined): number {
+  if (value === null || value === undefined) return 2;
+  if (value > 3) return value >= 8 ? 3 : value >= 5 ? 2 : value >= 3 ? 1 : 0;
+  return Math.min(3, Math.max(0, Math.round(value)));
+}
+
+function replacementClaimTemplate(
+  claim: string,
+  question: string,
+  subject: string,
+  angle: string,
+): string {
+  const value = claim.trim() || question.trim() || `${subject} — ${angle}`;
+  return value.includes("{n}") ? value : `${value} {n}`;
+}
+
+function initialReplacementForm(fact: Fact): ReplacementFormState {
+  return {
+    subject: fact.subject,
+    category: fact.category || "",
+    sub_category: "",
+    angle: fact.angle,
+    true_number: fact.true_number === null ? "" : String(fact.true_number),
+    unit: fact.unit || "",
+    claim_template: replacementClaimTemplate(
+      fact.claim_template,
+      fact.question,
+      fact.subject,
+      fact.angle,
+    ),
+    explanation: fact.context || fact.question || "",
+    question: fact.question || "",
+    surprise_factor: String(normalizeSurpriseFactor(fact.surprise_factor)),
+    quantity_kind: (fact.quantity_kind || "") as QuantityKind | "",
+    plausible_min: fact.plausible_min || "",
+    plausible_max: fact.plausible_max || "",
+    content_rating: fact.content_rating === "after_dark" ? "after_dark" : "standard",
+    source_urls: (fact.source_urls || []).join("\n"),
+    number_pinned: fact.number_pinned,
+    pinned_reason: fact.pinned_reason || "",
+    reason: "",
+  };
+}
+
+/**
+ * Immutable correction path for an existing fact. The original is retired and a
+ * fresh canonical fact is admitted as pending in one server transaction; this
+ * component never sends a status or verification field to the replacement.
+ */
+export function CorrectedReplacementForm({
+  fact,
+  onDone,
+  onCommitted,
+}: {
+  fact: Fact;
+  onDone?: () => void;
+  onCommitted?: (result: CorrectedReplacementResult) => void;
+}) {
+  const createReplacement = useServerFn(createCorrectedReplacement);
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<ReplacementFormState>(() => initialReplacementForm(fact));
+  const [committed, setCommitted] = useState<CorrectedReplacementResult | null>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    titleRef.current?.focus();
+  }, []);
+
+  function setField<K extends keyof ReplacementFormState>(
+    key: K,
+    value: ReplacementFormState[K],
+  ): void {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  const mutation = useMutation<CorrectedReplacementResult>({
+    mutationFn: async () => {
+      const result = await createReplacement({
+        data: {
+          originalId: fact.id,
+          replacement: {
+            subject: form.subject.trim(),
+            category: form.category || undefined,
+            sub_category: form.sub_category.trim() || undefined,
+            angle: form.angle.trim(),
+            true_number: Number(form.true_number),
+            unit: form.unit.trim(),
+            claim_template: replacementClaimTemplate(
+              form.claim_template,
+              form.question,
+              form.subject,
+              form.angle,
+            ),
+            explanation: form.explanation.trim(),
+            question: form.question.trim(),
+            surprise_factor: Number(form.surprise_factor),
+            quantity_kind: form.quantity_kind,
+            plausible_min: form.plausible_min.trim() || undefined,
+            plausible_max: form.plausible_max.trim() || undefined,
+            content_rating: form.content_rating,
+            source_urls: form.source_urls
+              .split("\n")
+              .map((value) => value.trim())
+              .filter(Boolean),
+            number_pinned: form.number_pinned,
+            pinned_reason: form.pinned_reason.trim() || undefined,
+          },
+          reason: form.reason.trim() || undefined,
+          ...(fact.updateTime ? { originalUpdateTime: fact.updateTime } : {}),
+        },
+      });
+      return result;
+    },
+    onSuccess: async (result) => {
+      setCommitted(result);
+      await queryClient.invalidateQueries({ queryKey: ["facts"] });
+      onCommitted?.(result);
+    },
+  });
+
+  const disabled = mutation.isPending || committed !== null;
+
+  function submit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    if (disabled) return;
+    if (!window.confirm("Retire the original fact and create this replacement as pending?")) return;
+    mutation.mutate();
+  }
+
+  return (
+    <Card>
+      <form
+        id="corrected-replacement-form"
+        aria-labelledby="corrected-replacement-title"
+        aria-describedby="corrected-replacement-lifecycle-note"
+        aria-busy={mutation.isPending}
+        onSubmit={submit}
+        style={{ display: "grid", gap: "var(--ds-arena-space-4)" }}
+      >
+        <div className="admin-page-head">
+          <h3
+            id="corrected-replacement-title"
+            ref={titleRef}
+            tabIndex={-1}
+            style={{ margin: 0, fontSize: 18, lineHeight: 1.35 }}
+          >
+            Create corrected replacement
+          </h3>
+        </div>
+
+        <div
+          id="corrected-replacement-lifecycle-note"
+          role="note"
+          aria-label="Corrected replacement lifecycle"
+          style={{
+            margin: 0,
+            padding: "12px 14px",
+            border: "1px solid var(--ds-arena-color-border)",
+            borderLeft: "3px solid var(--ds-arena-color-amber)",
+            borderRadius: "var(--ds-arena-radius-md)",
+            background: "var(--ds-arena-color-surface)",
+            color: "var(--ds-arena-color-text-muted)",
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ color: "var(--ds-arena-color-text)" }}>
+            Original retirement + pending admission.
+          </strong>{" "}
+          Creating this replacement starts a correction; the original will be retired when it is created. It
+          does not re-key the original. The replacement enters pending Foundry admission. {PENDING_ADMISSION_COPY}{" "}
+          {PENDING_PROMOTION_COPY} This action does not activate it immediately.
+          The replacement must use a distinct subject and angle identity; it never overwrites the original.
+          {" "}
+          {PENDING_PROMOTION_COPY}
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gap: "var(--ds-arena-space-2)",
+            padding: "12px 14px",
+            border: "1px solid var(--ds-arena-color-border)",
+            borderRadius: "var(--ds-arena-radius-md)",
+          }}
+        >
+          <strong>Original fact</strong>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px 16px",
+              fontSize: 13,
+              overflowWrap: "anywhere",
+            }}
+          >
+            <span>ID: <code>{fact.id}</code></span>
+            <span>Status: <FactStatusBadge status={fact.status} /></span>
+            <span>Identity: {fact.subject} / {fact.angle}</span>
+          </div>
+        </div>
+
+        <div className="admin-grid">
+          <label className="admin-field" htmlFor="corrected-replacement-subject">
+            <span>
+              Replacement subject <InfoTip text="The replacement keeps the original's topic by default; edit it when the corrected fact has a different subject identity." />
+            </span>
+            <input
+              id="corrected-replacement-subject"
+              className="admin-input"
+              required
+              disabled={disabled}
+              aria-describedby="corrected-replacement-lifecycle-note"
+              value={form.subject}
+              onChange={(event) => setField("subject", event.target.value)}
+            />
+          </label>
+          <label className="admin-field" htmlFor="corrected-replacement-category">
+            <span>Replacement genre</span>
+            <select
+              id="corrected-replacement-category"
+              className="admin-select"
+              disabled={disabled}
+              value={form.category}
+              onChange={(event) => setField("category", event.target.value)}
+            >
+              <option value="">Unclassified</option>
+              {GENRES.map((genre) => (
+                <option key={genre} value={genre}>
+                  {genre}
+                </option>
+              ))}
+              {form.category && !(GENRES as readonly string[]).includes(form.category) ? (
+                <option value={form.category}>{form.category}</option>
+              ) : null}
+            </select>
+          </label>
+          <label className="admin-field" htmlFor="corrected-replacement-family">
+            <span>Replacement family</span>
+            <input
+              id="corrected-replacement-family"
+              className="admin-input"
+              disabled={disabled}
+              value={form.sub_category}
+              onChange={(event) => setField("sub_category", event.target.value)}
+            />
+          </label>
+          <label className="admin-field" htmlFor="corrected-replacement-angle">
+            <span>
+              Replacement angle <InfoTip text="This is the replacement's immutable identity. A correction cannot re-key the original document." />
+            </span>
+            <input
+              id="corrected-replacement-angle"
+              className="admin-input"
+              required
+              disabled={disabled}
+              aria-describedby="corrected-replacement-lifecycle-note"
+              value={form.angle}
+              onChange={(event) => setField("angle", event.target.value)}
+            />
+          </label>
+          <label className="admin-field" htmlFor="corrected-replacement-true-number">
+            <span>Replacement true number</span>
+            <input
+              id="corrected-replacement-true-number"
+              className="admin-input"
+              type="number"
+              step="any"
+              required
+              disabled={disabled}
+              value={form.true_number}
+              onChange={(event) => setField("true_number", event.target.value)}
+            />
+          </label>
+          <label className="admin-field" htmlFor="corrected-replacement-unit">
+            <span>Replacement unit</span>
+            <input
+              id="corrected-replacement-unit"
+              className="admin-input"
+              required
+              disabled={disabled}
+              value={form.unit}
+              onChange={(event) => setField("unit", event.target.value)}
+            />
+          </label>
+          <label className="admin-field" htmlFor="corrected-replacement-surprise-factor">
+            <span>Surprise factor</span>
+            <select
+              id="corrected-replacement-surprise-factor"
+              className="admin-select"
+              disabled={disabled}
+              value={form.surprise_factor}
+              onChange={(event) => setField("surprise_factor", event.target.value)}
+            >
+              <option value="0">0 · Obvious</option>
+              <option value="1">1 · Mildly surprising</option>
+              <option value="2">2 · Very surprising</option>
+              <option value="3">3 · Mind-blowing</option>
+            </select>
+          </label>
+          <label className="admin-field" htmlFor="corrected-replacement-quantity-kind">
+            <span>
+              Quantity kind <InfoTip text="The auditor-consumed DDM kind. Leave on auto to classify from the unit." />
+            </span>
+            <select
+              id="corrected-replacement-quantity-kind"
+              className="admin-select"
+              disabled={disabled}
+              value={form.quantity_kind}
+              onChange={(event) => setField("quantity_kind", event.target.value as QuantityKind | "")}
+            >
+              {QUANTITY_KIND_OPTIONS.map((kind) => (
+                <option key={kind || "auto"} value={kind}>
+                  {quantityKindLabel(kind)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-field" htmlFor="corrected-replacement-plausible-min">
+            <span>Plausible min</span>
+            <input
+              id="corrected-replacement-plausible-min"
+              className="admin-input"
+              disabled={disabled}
+              value={form.plausible_min}
+              onChange={(event) => setField("plausible_min", event.target.value)}
+            />
+          </label>
+          <label className="admin-field" htmlFor="corrected-replacement-plausible-max">
+            <span>Plausible max</span>
+            <input
+              id="corrected-replacement-plausible-max"
+              className="admin-input"
+              disabled={disabled}
+              value={form.plausible_max}
+              onChange={(event) => setField("plausible_max", event.target.value)}
+            />
+          </label>
+          <label className="admin-field" htmlFor="corrected-replacement-content-rating">
+            <span>Content rating</span>
+            <select
+              id="corrected-replacement-content-rating"
+              className="admin-select"
+              disabled={disabled}
+              value={form.content_rating}
+              onChange={(event) =>
+                setField("content_rating", event.target.value as "standard" | "after_dark")
+              }
+            >
+              <option value="standard">standard</option>
+              <option value="after_dark">after_dark</option>
+            </select>
+          </label>
+        </div>
+
+        <label className="admin-field" htmlFor="corrected-replacement-claim-template">
+          <span>
+            Claim template <InfoTip text="Use exactly one {n} placeholder. The true number is never hard-coded here." />
+          </span>
+          <input
+            id="corrected-replacement-claim-template"
+            className="admin-input"
+            required
+            disabled={disabled}
+            value={form.claim_template}
+            onChange={(event) => setField("claim_template", event.target.value)}
+          />
+        </label>
+        <label className="admin-field" htmlFor="corrected-replacement-question">
+          <span>Question / Prompt</span>
+          <input
+            id="corrected-replacement-question"
+            className="admin-input"
+            required
+            disabled={disabled}
+            value={form.question}
+            onChange={(event) => setField("question", event.target.value)}
+          />
+        </label>
+        <label className="admin-field" htmlFor="corrected-replacement-explanation">
+          <span>Reveal explanation</span>
+          <textarea
+            id="corrected-replacement-explanation"
+            className="admin-textarea"
+            required
+            disabled={disabled}
+            value={form.explanation}
+            onChange={(event) => setField("explanation", event.target.value)}
+          />
+        </label>
+        <label className="admin-field" htmlFor="corrected-replacement-sources">
+          <span>Source URLs (one per line)</span>
+          <textarea
+            id="corrected-replacement-sources"
+            className="admin-textarea"
+            disabled={disabled}
+            value={form.source_urls}
+            onChange={(event) => setField("source_urls", event.target.value)}
+          />
+        </label>
+        <label className="admin-field" htmlFor="corrected-replacement-reason">
+          <span>Correction reason (optional)</span>
+          <input
+            id="corrected-replacement-reason"
+            className="admin-input"
+            disabled={disabled}
+            placeholder="Why is this replacement being created?"
+            value={form.reason}
+            onChange={(event) => setField("reason", event.target.value)}
+          />
+        </label>
+        <label className="admin-field" htmlFor="corrected-replacement-number-pinned">
+          <span>Pin this number</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44 }}>
+            <input
+              id="corrected-replacement-number-pinned"
+              type="checkbox"
+              disabled={disabled}
+              checked={form.number_pinned}
+              onChange={(event) => setField("number_pinned", event.target.checked)}
+            />
+            <span>Hand-verified value</span>
+          </span>
+        </label>
+        <label className="admin-field" htmlFor="corrected-replacement-pinned-reason">
+          <span>Pinned reason (optional)</span>
+          <input
+            id="corrected-replacement-pinned-reason"
+            className="admin-input"
+            disabled={disabled}
+            value={form.pinned_reason}
+            onChange={(event) => setField("pinned_reason", event.target.value)}
+          />
+        </label>
+
+        {committed ? (
+          <div
+            role="status"
+            aria-live="polite"
+            aria-label="Corrected replacement status"
+            style={{
+              display: "grid",
+              gap: "var(--ds-arena-space-2)",
+              padding: "12px 14px",
+              border: "1px solid var(--ds-arena-color-lime)",
+              borderRadius: "var(--ds-arena-radius-md)",
+              background: "var(--ds-arena-color-surface)",
+              color: "var(--ds-arena-color-text-muted)",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            <strong style={{ color: "var(--ds-arena-color-text)" }}>Correction committed.</strong>
+            <div>
+              Original <code>{committed.original.id}</code> is{" "}
+              <FactStatusBadge status={committed.original.status} />. Replacement{" "}
+              <code>{committed.replacement.id}</code> is{" "}
+              <FactStatusBadge status={committed.replacement.status} />.
+            </div>
+            <p style={{ margin: 0 }}>
+              The replacement is pending Foundry admission, not active. Only the nightly Foundry audit can
+              promote it after review; this action does not activate it immediately.
+            </p>
+          </div>
+        ) : null}
+
+        <ErrorNote error={mutation.error} />
+        <div className="admin-row-actions">
+          <Button type="submit" disabled={disabled}>
+            {mutation.isPending
+              ? "Creating replacement…"
+              : committed
+                ? "Replacement created"
+                : "Create replacement and retire original"}
+          </Button>
+          <Button type="button" variant="ghost" disabled={mutation.isPending} onClick={() => onDone?.()}>
+            {committed ? "Close" : "Cancel"}
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+export function FactEditor({
+  fact,
+  onDone,
+  onReplacementCommitted,
+}: {
+  fact: Fact;
+  onDone: () => void;
+  onReplacementCommitted?: (result: CorrectedReplacementResult) => void;
+}) {
   const save = useServerFn(saveFact);
   const status = useServerFn(changeFactStatus);
   const getSubjects = useServerFn(fetchSubjects);
@@ -157,22 +837,14 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
     staleTime: 60_000,
   });
 
-  const rawSurprise = fact.surprise_factor;
-  const normalizedSurprise =
-    rawSurprise !== null && rawSurprise !== undefined
-      ? rawSurprise > 3
-        ? rawSurprise >= 8 ? 3 : rawSurprise >= 5 ? 2 : rawSurprise >= 3 ? 1 : 0
-        : Math.min(3, Math.max(0, Math.round(rawSurprise)))
-      : 2;
+  const normalizedSurprise = normalizeSurpriseFactor(fact.surprise_factor);
   const selectedDistractor =
     fact.derivation?.distractors.find((d) => d.surprise_factor === normalizedSurprise)
     ?? fact.derivation?.distractors[0];
 
   const [form, setForm] = useState({
-    subject: fact.subject,
     category: fact.category || "",
     sub_category: "",
-    angle: fact.angle ?? "",
     true_number: fact.true_number === null ? "" : String(fact.true_number),
     unit: fact.unit ?? "",
     question: fact.question ?? "",
@@ -184,10 +856,12 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
     plausible_min: fact.plausible_min ?? "",
     plausible_max: fact.plausible_max ?? "",
   });
+  const [replacementOpen, setReplacementOpen] = useState(false);
 
   const matchedSubject = useMemo(() => {
-    if (!form.subject?.trim()) return null;
-    const sub = form.subject.trim().toLowerCase();
+    const subject = fact.subject.trim();
+    if (!subject) return null;
+    const sub = subject.toLowerCase();
     return (
       subjectsQuery.data?.subjects.find(
         (s) =>
@@ -195,7 +869,7 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
           s.aliases.some((a) => a.toLowerCase() === sub),
       ) ?? null
     );
-  }, [form.subject, subjectsQuery.data?.subjects]);
+  }, [fact.subject, subjectsQuery.data?.subjects]);
 
   const effectiveCategory = form.category || matchedSubject?.category || "General";
 
@@ -206,14 +880,15 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
       save({
         data: {
           id: fact.id,
-          subject: form.subject,
+          // Subject and angle are immutable identity fields. They are displayed
+          // below for context, but deliberately omitted from the ordinary edit
+          // payload so this editor cannot express a re-key.
           category: effectiveCategory,
           sub_category: form.sub_category || matchedSubject?.sub_category || undefined,
-          angle: form.angle.trim() || undefined,
           true_number: Number(form.true_number),
           unit: form.unit,
-          claim_template: form.question ? `${form.question}: {n}` : `${form.subject}: {n}`,
-          context: form.context,
+          claim_template: form.question ? `${form.question}: {n}` : `${fact.subject}: {n}`,
+          explanation: form.context,
           question: form.question,
           surprise_factor: Number(form.surprise_factor),
           content_rating: form.content_rating as "standard" | "after_dark",
@@ -254,14 +929,6 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
 
   return (
     <Card>
-      <datalist id="taxonomy-subjects-datalist">
-        {subjectsQuery.data?.subjects.map((s) => (
-          <option key={s.id} value={s.subject}>
-            {s.category} › {s.sub_category}
-          </option>
-        ))}
-      </datalist>
-
       <form onSubmit={submit} style={{ display: "grid", gap: "var(--ds-arena-space-4)" }}>
         <div className="admin-page-head">
           <CardTitle>Edit fact</CardTitle>
@@ -271,21 +938,50 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
           {fact.id}
         </p>
 
+        <p
+          id="fact-identity-note"
+          role="note"
+          style={{
+            margin: 0,
+            padding: "12px 14px",
+            border: "1px solid var(--ds-arena-color-border)",
+            borderLeft: "3px solid var(--ds-arena-color-lime)",
+            borderRadius: "var(--ds-arena-radius-md)",
+            background: "var(--ds-arena-color-surface)",
+            color: "var(--ds-arena-color-text-muted)",
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ color: "var(--ds-arena-color-text)" }}>
+            Subject and angle are immutable identity fields.
+          </strong>{" "}
+          They are read-only after creation. Corrections create a replacement fact rather than re-keying
+          the original document. The replacement carries the corrected identity, while the original keeps
+          its identity.
+        </p>
+
+        {fact.status === STATUS.pending ? <PendingAdmissionNotice /> : null}
+
         <div className="admin-grid">
-          <label className="admin-field">
-            <span>Topic</span>
+          <label className="admin-field" htmlFor="fact-identity-subject">
+            <span>
+              Subject (read-only identity) <Badge tone="neutral">Identity</Badge>{" "}
+              <InfoTip text="This subject is fixed after creation. A correction uses a replacement fact instead of re-keying this record." />
+            </span>
             <input
+              id="fact-identity-subject"
               className="admin-input"
-              list="taxonomy-subjects-datalist"
-              placeholder="e.g. Giraffe, Taylor Swift"
-              value={form.subject}
-              onChange={(e) => setForm({ ...form, subject: e.target.value })}
+              value={fact.subject}
+              readOnly
+              aria-readonly="true"
+              aria-describedby="fact-identity-note"
             />
             {matchedSubject ? (
               <span style={{ fontSize: 11, color: "var(--ds-arena-color-lime)", marginTop: 2 }}>
                 ✓ Linked to: <strong>{matchedSubject.category}</strong> › {matchedSubject.sub_category}
               </span>
-            ) : form.subject ? (
+            ) : fact.subject ? (
               <span style={{ fontSize: 11, color: "var(--ds-arena-color-text-muted)", marginTop: 2 }}>
                 ℹ️ Will be classified under <strong>{effectiveCategory}</strong>
               </span>
@@ -307,15 +1003,18 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
               ))}
             </select>
           </label>
-          <label className="admin-field">
+          <label className="admin-field" htmlFor="fact-identity-angle">
             <span>
-              Angle <InfoTip text="A concise 2–4 word title for this specific metric or record (e.g. 'Top Speed', 'Weeks at #1', 'Career MVP Awards'). Uniquely identifies the fact for this subject." />
+              Angle (read-only identity) <Badge tone="neutral">Identity</Badge>{" "}
+              <InfoTip text="This angle is fixed after creation. A correction uses a replacement fact instead of re-keying this record." />
             </span>
             <input
+              id="fact-identity-angle"
               className="admin-input"
-              placeholder="e.g. Top Speed, Weeks at #1"
-              value={form.angle}
-              onChange={(e) => setForm({ ...form, angle: e.target.value })}
+              value={fact.angle}
+              readOnly
+              aria-readonly="true"
+              aria-describedby="fact-identity-note"
             />
           </label>
           <label className="admin-field">
@@ -416,8 +1115,8 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
         </label>
         <label className="admin-field">
           <span>
-            Reveal explanation (Context){" "}
-            <InfoTip text="The engaging 1-2 sentence explanation revealed to players after they guess (e.g. 'Giraffes have 7 cervical vertebrae, the same as humans.')." />
+            Reveal explanation{" "}
+            <InfoTip text="The canonical explanation revealed after a guess. Legacy context remains readable and editable through this compatibility field." />
           </span>
           <textarea
             className="admin-textarea"
@@ -510,12 +1209,31 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
           <Button type="submit" disabled={saveMutation.isPending}>
             {saveMutation.isPending ? "Saving…" : "Save changes"}
           </Button>
+          {replacementOpen || canTransitionTo.retired ? (
+            <Button
+              type="button"
+              variant="daily"
+              disabled={!replacementOpen && (saveMutation.isPending || statusMutation.isPending)}
+              aria-expanded={replacementOpen}
+              aria-controls="corrected-replacement-form"
+              onClick={() => {
+                if (replacementOpen) {
+                  setReplacementOpen(false);
+                  return;
+                }
+                if (!canTransitionTo.retired) return;
+                setReplacementOpen(true);
+              }}
+            >
+              {replacementOpen ? "Close corrected replacement" : "Create corrected replacement"}
+            </Button>
+          ) : null}
           {/* Each control renders only when the fact's current status has an
               admin-authorized transition to that target. An unknown persisted
               status authorizes none, so it can be viewed but not transitioned
               (Requirements 9.8, 9.10). Target statuses are supplied to the
               mutation via the contract-derived helper, never a literal here. */}
-          {canTransitionTo.active ? (
+          {canTransitionTo.active && fact.status !== STATUS.pending ? (
             <Button
               type="button"
               variant="daily"
@@ -554,15 +1272,65 @@ function FactEditor({ fact, onDone }: { fact: Fact; onDone: () => void }) {
           </Button>
         </div>
       </form>
+      {replacementOpen ? (
+        <CorrectedReplacementForm
+          fact={fact}
+          onDone={() => setReplacementOpen(false)}
+          onCommitted={onReplacementCommitted}
+        />
+      ) : null}
     </Card>
   );
 }
 
-function NewFactForm({ onDone }: { onDone: () => void }) {
+function ReplacementCommitNotice({
+  result,
+  onDismiss,
+}: {
+  result: CorrectedReplacementResult;
+  onDismiss: () => void;
+}) {
+  return (
+    <Card>
+      <div
+        role="status"
+        aria-live="polite"
+        aria-label="Corrected replacement committed"
+        style={{
+          display: "grid",
+          gap: "var(--ds-arena-space-2)",
+          color: "var(--ds-arena-color-text-muted)",
+          fontSize: 13,
+          lineHeight: 1.5,
+        }}
+      >
+        <div className="admin-page-head">
+          <strong style={{ color: "var(--ds-arena-color-text)" }}>Corrected replacement committed</strong>
+          <Button size="sm" variant="ghost" onClick={onDismiss}>
+            Dismiss
+          </Button>
+        </div>
+        <div>
+          Original <code>{result.original.id}</code> is <FactStatusBadge status={result.original.status} />;
+          replacement <code>{result.replacement.id}</code> is <FactStatusBadge status={result.replacement.status} />.
+        </div>
+        <p style={{ margin: 0 }}>
+          The original is retired. The replacement is pending Foundry admission, not active; only the nightly
+          Foundry audit can promote it after review.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+export function NewFactForm({ onDone }: { onDone: () => void }) {
   const create = useServerFn(addFact);
   const getSubjects = useServerFn(fetchSubjects);
   const queryClient = useQueryClient();
-  const [form, setForm] = useState(EMPTY_DRAFT);
+  const [form, setForm] = useState({
+    ...EMPTY_DRAFT,
+    quantity_kind: EMPTY_DRAFT.quantity_kind as QuantityKind | "",
+  });
 
   const subjectsQuery = useQuery({
     queryKey: ["taxonomy_subjects_datalist"],
@@ -591,13 +1359,16 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
           subject: form.subject,
           category: effectiveCategory,
           sub_category: form.sub_category || matchedSubject?.sub_category || undefined,
-          angle: form.angle.trim() || undefined,
+          angle: form.angle.trim(),
           true_number: Number(form.true_number),
-          unit: form.unit,
-          claim_template: form.question ? `${form.question}: {n}` : `${form.subject}: {n}`,
-          context: form.context,
-          question: form.question,
+          unit: form.unit.trim(),
+          claim_template: form.claim_template.trim(),
+          explanation: form.explanation.trim(),
+          question: form.question.trim(),
           surprise_factor: Number(form.surprise_factor),
+          quantity_kind: form.quantity_kind as QuantityKind | "",
+          plausible_min: form.plausible_min.trim() || undefined,
+          plausible_max: form.plausible_max.trim() || undefined,
           content_rating: form.content_rating as "standard" | "after_dark",
           source_urls: form.source_urls.split("\n").map((v) => v.trim()).filter(Boolean),
         },
@@ -611,6 +1382,13 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
 
   return (
     <Card>
+      <datalist id="taxonomy-subjects-datalist">
+        {subjectsQuery.data?.subjects.map((subject) => (
+          <option key={subject.id} value={subject.subject}>
+            {subject.category} › {subject.sub_category}
+          </option>
+        ))}
+      </datalist>
       <form
         style={{ display: "grid", gap: "var(--ds-arena-space-4)" }}
         onSubmit={(event) => {
@@ -619,6 +1397,7 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
         }}
       >
         <CardTitle>New fact</CardTitle>
+        <PendingAdmissionNotice />
         <div className="admin-grid">
           <label className="admin-field">
             <span>Topic</span>
@@ -658,11 +1437,23 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
           </label>
           <label className="admin-field">
             <span>
+              Family <InfoTip text="Optional sub-category for the topic taxonomy. Leave blank when the topic is not classified yet." />
+            </span>
+            <input
+              className="admin-input"
+              placeholder="e.g. Big Cats"
+              value={form.sub_category}
+              onChange={(e) => setForm({ ...form, sub_category: e.target.value })}
+            />
+          </label>
+          <label className="admin-field">
+            <span>
               Angle <InfoTip text="A concise 2–4 word title for this specific metric or record (e.g. 'Top Speed', 'Weeks at #1', 'Career MVP Awards'). Uniquely identifies the fact for this subject." />
             </span>
             <input
               className="admin-input"
               placeholder="e.g. Top Speed, Weeks at #1"
+              required
               value={form.angle}
               onChange={(e) => setForm({ ...form, angle: e.target.value })}
             />
@@ -682,8 +1473,22 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
             <span>Unit</span>
             <input
               className="admin-input"
+              required
               value={form.unit}
               onChange={(e) => setForm({ ...form, unit: e.target.value })}
+            />
+          </label>
+          <label className="admin-field" style={{ gridColumn: "1 / -1" }}>
+            <span>
+              Claim template{" "}
+              <InfoTip text="The auditor-facing claim with one {n} placeholder. The true number is never hard-coded here." />
+            </span>
+            <input
+              className="admin-input"
+              placeholder="e.g. A giraffe has {n} cervical vertebrae."
+              required
+              value={form.claim_template}
+              onChange={(e) => setForm({ ...form, claim_template: e.target.value })}
             />
           </label>
           <label className="admin-field">
@@ -700,6 +1505,47 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
               <option value="2">2 · Very surprising</option>
               <option value="3">3 · Mind-blowing (Intuition trap)</option>
             </select>
+          </label>
+          <label className="admin-field">
+            <span>
+              Quantity kind{" "}
+              <InfoTip text="The auditor-consumed DDM kind. Leave on auto to classify from the unit, or choose a contract value explicitly." />
+            </span>
+            <select
+              className="admin-select"
+              value={form.quantity_kind}
+              onChange={(e) =>
+                setForm({ ...form, quantity_kind: e.target.value as QuantityKind | "" })
+              }
+            >
+              {QUANTITY_KIND_OPTIONS.map((kind) => (
+                <option key={kind || "auto"} value={kind}>
+                  {quantityKindLabel(kind)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-field">
+            <span>
+              Plausible min{" "}
+              <InfoTip text="Optional decimal-string floor hint. Set both bounds together or leave both blank." />
+            </span>
+            <input
+              className="admin-input"
+              value={form.plausible_min}
+              onChange={(e) => setForm({ ...form, plausible_min: e.target.value })}
+            />
+          </label>
+          <label className="admin-field">
+            <span>
+              Plausible max{" "}
+              <InfoTip text="Optional decimal-string ceiling hint. Set both bounds together or leave both blank." />
+            </span>
+            <input
+              className="admin-input"
+              value={form.plausible_max}
+              onChange={(e) => setForm({ ...form, plausible_max: e.target.value })}
+            />
           </label>
           <label className="admin-field">
             <span>Content rating</span>
@@ -727,13 +1573,14 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
         </label>
         <label className="admin-field">
           <span>
-            Reveal explanation (Context){" "}
-            <InfoTip text="The engaging 1-2 sentence explanation revealed to players after they guess (e.g. 'Giraffes have 7 cervical vertebrae, the same as humans.')." />
+            Reveal explanation{" "}
+            <InfoTip text="The canonical explanation revealed after a guess. Legacy context is accepted as a read/input alias, but new admissions persist explanation." />
           </span>
           <textarea
             className="admin-textarea"
-            value={form.context}
-            onChange={(e) => setForm({ ...form, context: e.target.value })}
+            required
+            value={form.explanation}
+            onChange={(e) => setForm({ ...form, explanation: e.target.value })}
           />
         </label>
         <label className="admin-field">
@@ -747,7 +1594,7 @@ function NewFactForm({ onDone }: { onDone: () => void }) {
         <ErrorNote error={mutation.error} />
         <div className="admin-row-actions">
           <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? "Creating…" : "Save to bank"}
+            {mutation.isPending ? "Creating…" : "Save as pending"}
           </Button>
           <Button type="button" variant="ghost" onClick={onDone}>
             Cancel
@@ -766,6 +1613,7 @@ function ContentPage() {
   const view: ContentView = viewParam ?? "facts";
   const list = useServerFn(fetchFacts);
   const exportFn = useServerFn(exportFactsData);
+  const getBankObservability = useServerFn(fetchBankObservability);
   const getSubjects = useServerFn(fetchSubjects);
   const getPlaylists = useServerFn(fetchPlaylists);
   const [filters, setFilters] = useState({
@@ -791,6 +1639,7 @@ function ContentPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [selected, setSelected] = useState<Fact | null>(null);
+  const [replacementCommit, setReplacementCommit] = useState<CorrectedReplacementResult | null>(null);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -816,6 +1665,14 @@ function ContentPage() {
         },
       }),
     enabled: view === "facts",
+    retry: false,
+  });
+
+  const bankObservabilityQuery = useQuery({
+    queryKey: ["fact_bank_observability"],
+    queryFn: () => getBankObservability(),
+    enabled: view === "facts",
+    staleTime: 30_000,
     retry: false,
   });
 
@@ -906,7 +1763,9 @@ function ContentPage() {
           playlistId: filters.playlistId || undefined,
           subject: filters.subject || undefined,
           angle: filters.angle || undefined,
-          status: filters.status || undefined,
+          // Exports are the active bank snapshot. Pending admission rows stay
+          // visible in the editor/list but never enter the active export set.
+          status: STATUS.active,
           contentRating: filters.contentRating || undefined,
           surpriseFactor: filters.surpriseFactor !== "" ? Number(filters.surpriseFactor) : undefined,
           sortField: sort.field,
@@ -984,13 +1843,13 @@ function ContentPage() {
           description="Facts attach to topics. Topics sit in a genre and family. Playlists are optional theme mixes."
           actions={
             view === "facts" ? (
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 <Button
                   variant="ghost"
                   disabled={exporting}
                   onClick={() => void handleExportCsv()}
                 >
-                  {exporting ? "Exporting…" : "Export CSV"}
+                  {exporting ? "Exporting…" : "Export CSV (active only)"}
                 </Button>
                 <Button
                   variant="ghost"
@@ -1128,6 +1987,21 @@ function ContentPage() {
                 </div>
               ) : null}
             </div>
+
+            <BankObservabilityPanel
+              data={bankObservabilityQuery.data}
+              isLoading={bankObservabilityQuery.isLoading}
+              error={bankObservabilityQuery.error}
+            />
+
+            <PendingAdmissionNotice />
+
+            {replacementCommit ? (
+              <ReplacementCommitNotice
+                result={replacementCommit}
+                onDismiss={() => setReplacementCommit(null)}
+              />
+            ) : null}
 
             <ErrorNote error={query.error} />
             {importing ? <ImportCsvModal onDone={() => setImporting(false)} /> : null}
@@ -1300,6 +2174,9 @@ function ContentPage() {
                           <td>{fact.content_rating}</td>
                           <td>
                             <FactStatusBadge status={fact.status} />
+                            {fact.status === STATUS.pending ? (
+                              <span className="admin-topic-meta">Foundry audit only</span>
+                            ) : null}
                           </td>
                           <td>{fact.served_count}</td>
                           <td>
@@ -1318,7 +2195,14 @@ function ContentPage() {
                         </tr>
                         {isEditing ? (
                           <InlineEditorRow colSpan={8}>
-                            <FactEditor fact={fact} onDone={() => setSelected(null)} />
+                            <FactEditor
+                              fact={fact}
+                              onDone={() => setSelected(null)}
+                              onReplacementCommitted={(result) => {
+                                setReplacementCommit(result);
+                                setSelected(null);
+                              }}
+                            />
                           </InlineEditorRow>
                         ) : null}
                       </Fragment>
@@ -1363,18 +2247,35 @@ function ContentPage() {
   );
 }
 
-function ImportCsvModal({ onDone }: { onDone: () => void }) {
+interface ImportFactsUiResult {
+  imported: number;
+  skipped: number;
+  errors: readonly string[];
+  summary: string;
+  counts: {
+    persisted: number;
+    skipped: number;
+    failed: number;
+    notAttempted: number;
+  };
+  failedId: string | null;
+  partialSuccess: boolean;
+  successful: boolean;
+  batchAtomic: false;
+}
+
+export function ImportCsvModal({ onDone }: { onDone: () => void }) {
   const bulkImport = useServerFn(bulkImportFacts);
   const queryClient = useQueryClient();
   const [csvText, setCsvText] = useState("");
   const [fileName, setFileName] = useState("");
-  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+  const [importResult, setImportResult] = useState<ImportFactsUiResult | null>(null);
 
   const handleDownloadTemplate = () => {
     const templateContent = [
-      "subject,angle,true_number,unit,question,context,surprise_factor,content_rating,source_urls",
-      'Giraffe,Neck vertebrae count,7,vertebrae,"How many neck vertebrae does a giraffe have?","Mammals usually have 7 cervical vertebrae.",3,standard,https://en.wikipedia.org/wiki/Giraffe',
-      'Mount Everest,Elevation in feet,29032,feet,"What is the elevation of Mount Everest in feet?","Official survey elevation.",1,standard,https://en.wikipedia.org/wiki/Mount_Everest',
+      "subject,category,sub_category,angle,true_number,unit,claim_template,question,explanation,surprise_factor,quantity_kind,plausible_min,plausible_max,content_rating,source_urls",
+      'Giraffe,Animals & Nature,Big Cats,Neck vertebrae count,7,vertebrae,"A giraffe has {n} cervical vertebrae.","How many neck vertebrae does a giraffe have?","Mammals usually have 7 cervical vertebrae.",3,count,1,10,standard,https://en.wikipedia.org/wiki/Giraffe',
+      'Mount Everest,History & World,Exploration,Elevation in feet,29032,feet,"Mount Everest is {n} feet above sea level.","What is the elevation of Mount Everest in feet?","Official survey elevation.",1,physical_measure,28000,30000,standard,https://en.wikipedia.org/wiki/Mount_Everest',
     ].join("\n");
     const blob = new Blob([templateContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -1404,64 +2305,104 @@ function ImportCsvModal({ onDone }: { onDone: () => void }) {
     const grid = parseCsv(csvText);
     if (grid.length < 2) return [];
 
-    const headers = grid[0].map((h) => h.toLowerCase().trim().replace(/[^a-z0-9_]/g, "_"));
+    const headers = grid[0].map((header) =>
+      header.toLowerCase().trim().replace(/[^a-z0-9_]/g, "_"),
+    );
     // CSV-header substring for the `content_rating` column. Assembled from parts
-    // so the needle is not a bare `"rating"` literal — that coincidentally equals
-    // the `rating` quantity_kind and is a false positive for Contract_Literal_Check
-    // (this matches a spreadsheet header, not a DDM quantity_kind; Requirement 9.9).
+    // so the needle is not a bare quantity-kind value (this is a spreadsheet
+    // header, not a DDM value).
     const contentRatingHeader = `rat${"ing"}`;
     const colIdx = {
-      subject: headers.findIndex((h) => h.includes("subject")),
-      angle: headers.findIndex((h) => h.includes("angle")),
-      true_number: headers.findIndex((h) => h.includes("number") || h.includes("value") || h.includes("true")),
-      unit: headers.findIndex((h) => h.includes("unit")),
-      claim_template: headers.findIndex((h) => h.includes("template") || h.includes("claim")),
-      context: headers.findIndex((h) => h.includes("context")),
-      question: headers.findIndex((h) => h.includes("question") || h.includes("prompt")),
-      surprise_factor: headers.findIndex((h) => h.includes("surprise")),
-      content_rating: headers.findIndex((h) => h.includes(contentRatingHeader)),
-      source_urls: headers.findIndex((h) => h.includes("source") || h.includes("url")),
+      subject: headers.findIndex((header) => header.includes("subject")),
+      category: headers.findIndex((header) => header.includes("category") || header.includes("genre")),
+      sub_category: headers.findIndex((header) => header.includes("sub_category") || header.includes("family")),
+      angle: headers.findIndex((header) => header.includes("angle")),
+      true_number: headers.findIndex((header) => header.includes("number") || header.includes("value") || header.includes("true")),
+      unit: headers.findIndex((header) => header.includes("unit")),
+      claim_template: headers.findIndex((header) => header.includes("template") || header.includes("claim")),
+      question: headers.findIndex((header) => header.includes("question") || header.includes("prompt")),
+      explanation: headers.findIndex((header) => header.includes("explanation") || header.includes("reveal")),
+      context: headers.findIndex((header) => header.includes("context")),
+      surprise_factor: headers.findIndex((header) => header.includes("surprise")),
+      quantity_kind: headers.findIndex((header) => header.includes("quantity") || header.includes("kind")),
+      plausible_min: headers.findIndex((header) => header.includes("min")),
+      plausible_max: headers.findIndex((header) => header.includes("max")),
+      content_rating: headers.findIndex((header) => header.includes(contentRatingHeader)),
+      source_urls: headers.findIndex((header) => header.includes("source") || header.includes("url")),
     };
 
     return grid.slice(1).map((row, idx) => {
       const getVal = (col: number) => (col >= 0 && row[col] !== undefined ? row[col].trim() : "");
       const subject = getVal(colIdx.subject);
+      const category = getVal(colIdx.category);
+      const subCategory = getVal(colIdx.sub_category);
       const angle = getVal(colIdx.angle);
       const rawNum = getVal(colIdx.true_number);
-      const true_number = Number(rawNum);
+      const trueNumber = Number(rawNum);
       const unit = getVal(colIdx.unit);
       const rawClaim = getVal(colIdx.claim_template);
       const rawQuestion = getVal(colIdx.question);
-      const rawContext = getVal(colIdx.context);
+      const rawExplanation = getVal(colIdx.explanation) || getVal(colIdx.context);
 
-      const question = rawQuestion || (rawClaim ? rawClaim.replace(/\{n\}/g, "").trim() : `${subject} - ${angle}`);
-      const context = rawContext || rawClaim || question;
-      const claim_template = rawClaim || (question ? `${question}: {n}` : `${subject}: {n}`);
+      const question =
+        rawQuestion ||
+        (rawClaim ? rawClaim.replace(/\{n\}/g, "").trim() : `${subject} - ${angle}`);
+      const placeholderCount = (rawClaim.match(/\{n\}/g) ?? []).length;
+      const claimTemplate = rawClaim
+        ? placeholderCount === 0
+          ? `${rawClaim} {n}`
+          : rawClaim
+        : question
+          ? `${question}: {n}`
+          : "";
+      const explanation = rawExplanation || rawClaim || question;
 
       const rawSurprise = getVal(colIdx.surprise_factor);
-      let surprise_factor = 2;
+      let surpriseFactor = 2;
       if (rawSurprise) {
-        const numSurprise = Number(rawSurprise);
-        if (!isNaN(numSurprise)) {
-          if (numSurprise > 3) {
-            surprise_factor = numSurprise >= 8 ? 3 : numSurprise >= 5 ? 2 : numSurprise >= 3 ? 1 : 0;
+        const parsedSurprise = Number(rawSurprise);
+        if (Number.isFinite(parsedSurprise)) {
+          if (parsedSurprise > 3) {
+            surpriseFactor =
+              parsedSurprise >= 8 ? 3 : parsedSurprise >= 5 ? 2 : parsedSurprise >= 3 ? 1 : 0;
           } else {
-            surprise_factor = Math.min(3, Math.max(0, Math.round(numSurprise)));
+            surpriseFactor = Math.min(3, Math.max(0, Math.round(parsedSurprise)));
           }
         }
       }
+
+      const rawQuantityKind = getVal(colIdx.quantity_kind);
+      const quantityKind =
+        rawQuantityKind && (QUANTITY_KINDS as readonly string[]).includes(rawQuantityKind)
+          ? (rawQuantityKind as QuantityKind)
+          : rawQuantityKind
+            ? ""
+            : QK.count;
+      const plausibleMin = getVal(colIdx.plausible_min);
+      const plausibleMax = getVal(colIdx.plausible_max);
       const ratingRaw = getVal(colIdx.content_rating).toLowerCase();
-      const content_rating: "standard" | "after_dark" =
+      const contentRating: "standard" | "after_dark" =
         ratingRaw === "after_dark" ? "after_dark" : "standard";
       const rawUrls = getVal(colIdx.source_urls);
-      const source_urls = rawUrls
-        ? rawUrls.split(/[;\n,]+/).map((u) => u.trim()).filter((u) => u.startsWith("http"))
+      const sourceUrls = rawUrls
+        ? rawUrls.split(/[;\n,]+/).map((url) => url.trim()).filter((url) => url.startsWith("http"))
         : [];
 
       const issues: string[] = [];
       if (!subject) issues.push("Missing subject");
       if (!angle) issues.push("Missing angle");
-      if (isNaN(true_number) || rawNum === "") issues.push("Invalid true_number");
+      if (!unit) issues.push("Missing unit");
+      if (!question) issues.push("Missing question");
+      if (!explanation) issues.push("Missing explanation");
+      if (!Number.isFinite(trueNumber) || rawNum === "") issues.push("Invalid true_number");
+      if (placeholderCount > 1) issues.push("Claim template must contain {n} exactly once");
+      if (rawQuantityKind && !quantityKind) issues.push("Invalid quantity_kind");
+      if (Boolean(plausibleMin) !== Boolean(plausibleMax)) {
+        issues.push("Plausible min and max must be set together");
+      }
+      if (category && !(GENRES as readonly string[]).includes(category)) {
+        issues.push("Invalid category");
+      }
 
       return {
         rowNumber: idx + 2,
@@ -1469,15 +2410,20 @@ function ImportCsvModal({ onDone }: { onDone: () => void }) {
         issues,
         fact: {
           subject,
+          category: (category || undefined) as (typeof GENRES)[number] | undefined,
+          sub_category: subCategory || undefined,
           angle,
-          true_number: isNaN(true_number) ? 0 : true_number,
+          true_number: Number.isFinite(trueNumber) ? trueNumber : 0,
           unit,
-          claim_template,
-          context,
+          claim_template: claimTemplate,
+          explanation,
           question,
-          surprise_factor,
-          content_rating,
-          source_urls,
+          surprise_factor: surpriseFactor,
+          quantity_kind: quantityKind,
+          plausible_min: plausibleMin || undefined,
+          plausible_max: plausibleMax || undefined,
+          content_rating: contentRating,
+          source_urls: sourceUrls,
         },
       };
     });
@@ -1499,10 +2445,10 @@ function ImportCsvModal({ onDone }: { onDone: () => void }) {
         <div>
           <CardTitle>Import facts from CSV</CardTitle>
           <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: "4px 0 0" }}>
-            Upload or paste a CSV with trivia facts. Columns: <code>subject</code>, <code>angle</code>, <code>true_number</code>, <code>unit</code>, <code>question</code>, <code>context</code>, <code>surprise_factor</code> (0–3), <code>content_rating</code>, <code>source_urls</code>.
+            Every row is admitted as pending. Rows commit one at a time, so this import is not batch-atomic and may finish with partial success. Required auditor fields: <code>subject</code>, <code>angle</code>, <code>true_number</code>, <code>unit</code>, <code>claim_template</code> (one <code>{"{n}"}</code>), <code>question</code>, and <code>explanation</code>. Optional fields include taxonomy, <code>quantity_kind</code>, paired decimal-string bounds, rating, and sources. Legacy <code>context</code> headers remain accepted as an explanation alias.
           </p>
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <Button size="sm" variant="ghost" onClick={handleDownloadTemplate}>
             Download Template (.csv)
           </Button>
@@ -1512,18 +2458,33 @@ function ImportCsvModal({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
+      <PendingAdmissionNotice />
+
       {importResult ? (
         <div style={{ padding: "16px 0" }}>
-          <Badge tone="lime">Import Complete</Badge>
+          <Badge tone={importResult.successful ? "amber" : "red"}>
+            {importResult.successful
+              ? "Pending Admission Complete"
+              : importResult.partialSuccess
+                ? "Pending Admission Partial Success"
+                : "Pending Admission Failed"}
+          </Badge>
           <p style={{ color: "var(--ds-arena-color-text)", margin: "8px 0" }}>
-            Successfully imported <strong>{importResult.imported}</strong> facts (<strong>{importResult.skipped}</strong> skipped as duplicates).
+            {importResult.summary} {PENDING_ADMISSION_COPY}
+          </p>
+          <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: "4px 0" }}>
+            Persisted <strong>{importResult.counts.persisted}</strong>; skipped{" "}
+            <strong>{importResult.counts.skipped}</strong>; failed{" "}
+            <strong>{importResult.counts.failed}</strong>; not attempted{" "}
+            <strong>{importResult.counts.notAttempted}</strong>.
+            {importResult.failedId ? ` First failed fact: ${importResult.failedId}.` : ""}
           </p>
           {importResult.errors.length > 0 ? (
             <div style={{ color: "var(--ds-arena-color-red)", fontSize: 13, marginTop: "8px" }}>
               <p><strong>Errors ({importResult.errors.length}):</strong></p>
               <ul>
-                {importResult.errors.map((e, idx) => (
-                  <li key={idx}>{e}</li>
+                {importResult.errors.map((error, index) => (
+                  <li key={index}>{error}</li>
                 ))}
               </ul>
             </div>
@@ -1551,7 +2512,7 @@ function ImportCsvModal({ onDone }: { onDone: () => void }) {
             <textarea
               className="admin-textarea"
               style={{ minHeight: "100px", fontFamily: "var(--ds-arena-font-mono)", fontSize: "12px" }}
-              placeholder={"subject,angle,true_number,unit,question,context,surprise_factor,content_rating,source_urls\nGiraffe,Neck vertebrae count,7,vertebrae,How many neck vertebrae does a giraffe have?,Mammals have 7 vertebrae.,3,standard,"}
+              placeholder={`subject,category,sub_category,angle,true_number,unit,claim_template,question,explanation,surprise_factor,quantity_kind,plausible_min,plausible_max,content_rating,source_urls\nGiraffe,Animals & Nature,Big Cats,Neck vertebrae count,7,vertebrae,"A giraffe has {n} cervical vertebrae.",How many neck vertebrae does a giraffe have?,Mammals have 7 vertebrae.,3,count,1,10,standard,`}
               value={csvText}
               onChange={(e) => setCsvText(e.target.value)}
             />
@@ -1573,7 +2534,7 @@ function ImportCsvModal({ onDone }: { onDone: () => void }) {
                   disabled={validFacts.length === 0 || mutation.isPending}
                   onClick={() => mutation.mutate()}
                 >
-                  {mutation.isPending ? "Importing…" : `Import ${validFacts.length} Facts`}
+                  {mutation.isPending ? "Admitting…" : `Admit ${validFacts.length} as pending`}
                 </Button>
               </div>
 

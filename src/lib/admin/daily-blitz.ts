@@ -1,5 +1,6 @@
 /** Shared Daily Blitz authoring types and pure helpers (safe for client + server). */
-import { QUANTITY_KINDS } from "./contract";
+import { deriveBankRound, toPrecomputedDerivation, type BankPrecomputeFact } from "./ddm-precompute";
+import { DDMVersion } from "../../../shared/ddm/derivation";
 
 export const DAILY_BLITZ_ROUNDS = 15;
 export const DAILY_BLITZ_SECONDS = 60;
@@ -161,85 +162,81 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
-function canonicalToken(value: unknown): string | null {
-  if (typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value)) return value;
-  if (typeof value === "number" && Number.isFinite(value)) {
-    if (Number.isInteger(value)) return String(value);
-    return String(value);
-  }
-  return null;
-}
+const DDM_DISTRACTOR_ERROR =
+  "This fact has no DDM-gated distractor. Draft with the Go agent or pick another fact from the bank.";
 
-const DERIVATION_KINDS = new Set<string>(QUANTITY_KINDS);
-const DERIVATION_TRAPS = new Set(["OVERESTIMATE", "UNDERESTIMATE"]);
-
+/**
+ * Parses a Firestore derivation block at the current production DDM boundary.
+ *
+ * A block is never accepted merely because its version is non-empty: the
+ * version must equal the vendored kernel's `DDMVersion`. Structural conversion
+ * is delegated to the same adapter used by the runtime, so malformed blocks
+ * cannot enter the editor as apparently usable derivation metadata.
+ */
 export function parseDerivationBlock(raw: unknown): FactDerivationBlock | null {
   const rec = asRecord(raw);
-  if (!rec) return null;
-  const modelVersion = rec.model_version;
-  if (typeof modelVersion !== "string" || modelVersion === "") return null;
-  if (typeof rec.quantity_kind !== "string" || !DERIVATION_KINDS.has(rec.quantity_kind)) return null;
-  if (typeof rec.trap_direction !== "string" || !DERIVATION_TRAPS.has(rec.trap_direction)) return null;
-  const plausibleMin = canonicalToken(rec.plausible_min);
-  const plausibleMax = canonicalToken(rec.plausible_max);
-  if (!plausibleMin || !plausibleMax) return null;
+  if (!rec || rec.model_version !== DDMVersion) return null;
 
-  const rawDistractors = Array.isArray(rec.distractors) ? rec.distractors : [];
-  const distractors: FactDerivationDistractor[] = [];
-  for (const item of rawDistractors) {
-    const d = asRecord(item);
-    if (!d) continue;
-    const surprise = typeof d.surprise_factor === "number" ? d.surprise_factor : Number(d.surprise_factor);
-    if (!Number.isInteger(surprise) || surprise < 0 || surprise > 3) continue;
-    if (d.side !== "MORE" && d.side !== "LESS") continue;
-    const presented = canonicalToken(d.presented_number);
-    if (!presented) continue;
-    distractors.push({
-      surprise_factor: surprise,
-      side: d.side,
-      presented_number: presented,
-    });
+  let converted: ReturnType<typeof toPrecomputedDerivation>;
+  try {
+    converted = toPrecomputedDerivation(raw);
+  } catch {
+    return null;
   }
+  if (!converted || converted.modelVersion !== DDMVersion) return null;
 
   const block: FactDerivationBlock = {
-    model_version: modelVersion,
-    quantity_kind: rec.quantity_kind,
-    trap_direction: rec.trap_direction,
-    plausible_min: plausibleMin,
-    plausible_max: plausibleMax,
-    distractors,
+    model_version: converted.modelVersion,
+    quantity_kind: converted.quantityKind,
+    trap_direction: converted.trapDirection,
+    plausible_min: converted.plausibleMin,
+    plausible_max: converted.plausibleMax,
+    distractors: converted.distractors.map((entry) => ({
+      surprise_factor: entry.surpriseFactor,
+      side: entry.side,
+      presented_number: entry.presentedNumber,
+    })),
   };
-  if (Number.isInteger(rec.canonical_surprise_factor)) {
-    block.canonical_surprise_factor = rec.canonical_surprise_factor as number;
+  if (rec.canonical_surprise_factor !== undefined) {
+    if (
+      typeof rec.canonical_surprise_factor !== "number" ||
+      !Number.isInteger(rec.canonical_surprise_factor) ||
+      rec.canonical_surprise_factor < 0 ||
+      rec.canonical_surprise_factor > 3
+    ) {
+      return null;
+    }
+    block.canonical_surprise_factor = rec.canonical_surprise_factor;
   }
   return block;
 }
 
+/**
+ * Legacy-compatible distractor helper.
+ *
+ * It now delegates to the same vendored DDM path as fact-to-round assembly;
+ * stored candidate fields are never used as an independent selection oracle.
+ * Callers that have a unit or fact-level semantic hints should use
+ * {@link factToBlitzRound}, which preserves that input context.
+ */
 export function pickGatedDistractor(
   block: FactDerivationBlock | null | undefined,
   trueNumber: number,
   preferredSide?: "MORE" | "LESS",
   surprise = 2,
 ): { presented: number; side: "MORE" | "LESS" } | null {
-  if (!block?.distractors.length) return null;
-  const usable = block.distractors
-    .map((d) => {
-      const presented = Number(d.presented_number);
-      if (!Number.isFinite(presented) || presented === trueNumber) return null;
-      const side = directionFromNumbers(trueNumber, presented);
-      return { presented, side, surprise: d.surprise_factor, labeled: d.side };
-    })
-    .filter((d): d is NonNullable<typeof d> => d !== null);
-
-  if (!usable.length) return null;
-
-  const ranked = usable.slice().sort((a, b) => {
-    const sideScore = (item: typeof a) => (preferredSide && item.side === preferredSide ? 0 : 1);
-    const surpriseScore = (item: typeof a) => (item.surprise === surprise ? 0 : 1);
-    return sideScore(a) - sideScore(b) || surpriseScore(a) - surpriseScore(b);
-  });
-  const best = ranked[0];
-  return { presented: best.presented, side: best.side };
+  if (block?.model_version !== DDMVersion) return null;
+  try {
+    const trueNumberToken = ddmToken(trueNumber);
+    if (trueNumberToken === null) return null;
+    const fact = blankBankFact(trueNumberToken, "", surprise, block);
+    const result = deriveBankRound(fact, preferredSide);
+    if (!result) return null;
+    if (!Number.isFinite(result.presented) || result.presented === trueNumber) return null;
+    return { presented: result.presented, side: result.direction };
+  } catch {
+    return null;
+  }
 }
 
 export function numberlessClaim(question: string, fallback: string): string {
@@ -250,7 +247,7 @@ export function numberlessClaim(question: string, fallback: string): string {
   return fallback;
 }
 
-export function factToBlitzRound(input: {
+interface FactToBlitzInput {
   factId?: string;
   subject: string;
   question?: string;
@@ -260,25 +257,101 @@ export function factToBlitzRound(input: {
   unit: string;
   true_number: number;
   surprise_factor?: number | null;
+  /** Authoritative fact-level semantic hints; these are independent of a stored precompute block. */
+  quantity_kind?: string | null;
+  plausible_min?: string | number | null;
+  plausible_max?: string | number | null;
   derivation?: FactDerivationBlock | null;
   preferredSide?: "MORE" | "LESS";
   round_number: number;
   topic?: string;
-}): { round: EditableRound } | { error: string } {
+}
+
+function ddmToken(value: unknown): string | null {
+  if (typeof value === "string" && value !== "") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
+}
+
+function bankFactForBlitz(
+  input: FactToBlitzInput,
+  trueNumberToken: string,
+  surprise: number,
+): BankPrecomputeFact {
+  const min = ddmToken(input.plausible_min);
+  const max = ddmToken(input.plausible_max);
+  return {
+    category: input.topic || "",
+    sub_category: "",
+    specialty: input.subject,
+    fact: input.fact || input.question || input.subject,
+    angle: input.angle,
+    number_token: trueNumberToken,
+    unit: input.unit || "",
+    surprise_factor: surprise,
+    quantity_kind: input.quantity_kind || undefined,
+    plausible_min: min ?? undefined,
+    plausible_max: max ?? undefined,
+    derivation: input.derivation ?? undefined,
+  };
+}
+
+function blankBankFact(
+  trueNumberToken: string,
+  unit: string,
+  surprise: number,
+  derivation?: FactDerivationBlock | null,
+): BankPrecomputeFact {
+  return {
+    category: "",
+    sub_category: "",
+    specialty: "",
+    fact: "",
+    number_token: trueNumberToken,
+    unit,
+    surprise_factor: surprise,
+    derivation: derivation ?? undefined,
+  };
+}
+
+/** Runs the current production DDM adapter with precompute re-gating. */
+function deriveBlitz(input: FactToBlitzInput, trueNumber: number, surprise: number) {
+  try {
+    const trueNumberToken = ddmToken(trueNumber);
+    if (trueNumberToken === null) return null;
+    return deriveBankRound(
+      bankFactForBlitz(input, trueNumberToken, surprise),
+      input.preferredSide,
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function factToBlitzRound(input: FactToBlitzInput): { round: EditableRound } | { error: string } {
   const trueNum = Number(input.true_number);
   if (!Number.isFinite(trueNum)) {
     return { error: "Fact is missing a finite true_number." };
   }
+  // Preserve the authored/legacy value until the DDM canonicalizes it. Clamping
+  // here would collapse legacy 7→3 before the production table can map it to 2.
   const surprise =
     typeof input.surprise_factor === "number" && Number.isFinite(input.surprise_factor)
-      ? Math.min(3, Math.max(0, Math.round(input.surprise_factor)))
+      ? input.surprise_factor
       : 2;
-  const picked = pickGatedDistractor(input.derivation, trueNum, input.preferredSide, surprise);
-  if (!picked) {
-    return {
-      error:
-        "This fact has no DDM-gated distractor. Draft with the Go agent or pick another fact from the bank.",
-    };
+  const derived = deriveBlitz(input, trueNum, surprise);
+  if (!derived) return { error: DDM_DISTRACTOR_ERROR };
+
+  const { presented, direction, quantityKind, trapDirection, plausibleMin, plausibleMax } = derived;
+  if (
+    !Number.isFinite(presented) ||
+    !Number.isFinite(plausibleMin) ||
+    !Number.isFinite(plausibleMax) ||
+    presented === trueNum ||
+    plausibleMin > plausibleMax ||
+    directionFromNumbers(trueNum, presented) !== direction
+  ) {
+    return { error: DDM_DISTRACTOR_ERROR };
   }
 
   const fallback = [input.subject, input.angle].filter(Boolean).join(" - ") || input.subject;
@@ -290,17 +363,17 @@ export function factToBlitzRound(input: {
       round_number: input.round_number,
       topic: (input.topic || input.subject || "").trim(),
       claim_statement: numberlessClaim(input.question || "", fallback),
-      presented_number: picked.presented,
+      presented_number: presented,
       true_number: trueNum,
       unit: input.unit || "",
-      correct_direction: picked.side,
+      correct_direction: direction,
       explanation,
       surprise_factor: surprise,
       difficulty: "casual",
-      quantity_kind: input.derivation?.quantity_kind,
-      trap_direction: input.derivation?.trap_direction,
-      plausible_min: input.derivation ? Number(input.derivation.plausible_min) : undefined,
-      plausible_max: input.derivation ? Number(input.derivation.plausible_max) : undefined,
+      quantity_kind: quantityKind,
+      trap_direction: trapDirection,
+      plausible_min: plausibleMin,
+      plausible_max: plausibleMax,
       source: "fact_bank",
       fact_id: input.factId,
     },

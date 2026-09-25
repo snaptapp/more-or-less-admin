@@ -1,0 +1,4320 @@
+// Distractor Derivation Model (DDM) — Worker TypeScript port (task 9.2 slice).
+//
+// This module is the Worker (`src/`) port of the Go reference DDM resolution
+// layers that run AFTER Numeric_Ingest (task 9.1 kernel, in derivation.ts) and
+// BEFORE candidate composition (task 9.3). It ports, byte-identically to Go:
+//
+//   1. normalized-unit + quantity-kind resolution   (agent-go/derivation_classify.go, task 4.1)
+//   2. exact plausibility-bound resolution           (agent-go/derivation_bounds.go,   task 4.2)
+//   3. surprise canonicalization + magnitude scale + base band selection
+//                                                    (agent-go/derivation_surprise.go, task 4.3)
+//   4. trap-direction resolution + forced-side precedence inputs
+//                                                    (agent-go/derivation_trap.go,     task 4.4)
+//
+// NORMATIVE AUTHORITY (Requirements 1.1, 2.7, 3.1, 9.1): the numbers, closed
+// sets, normalization steps, inference precedence, and bounds defaults consumed
+// here come EXCLUSIVELY from the generated table payloads UNIT_TABLES
+// (src/unit_tables_gen.ts) and DERIVATION_TABLES (src/derivation_tables_gen.ts).
+// There are NO inline classification/bounds/surprise/trap literals; the only
+// inline strings are structural JSON keys. Both generated files are produced by
+// scripts/gen_derivation_tables.mjs and are never hand-edited.
+//
+// METADATA-FREE INPUT (Requirements 3.13, 8.7, 8.8, 9.15, 13.17): every function
+// here consumes only the already-resolved DDM values threaded from the
+// allowlisted DerivationInput (exact numeric token, unit, untrusted hints,
+// canonical/legacy surprise, forced side, bounds). Pack/round difficulty
+// metadata, topic, round number, and clocks are STRUCTURALLY ABSENT from the
+// input shape (see DerivationInput in derivation.ts), so no such field can be
+// observed or forwarded by any resolver in this file.
+//
+// PURITY / EXACTNESS (Requirements 3.1, 3.7): integer + table lookups and exact
+// fixed-point arithmetic only. No Number(token), parseFloat, Math.round,
+// Math.pow, Math.log, or locale formatting on any numeric magnitude. All
+// arithmetic delegates to the exact kernel primitives in derivation.ts.
+//
+// The symbol names here mirror the Go reference so the two implementations read
+// as line-for-line ports.
+
+import { UNIT_TABLES } from "./unit_tables_gen";
+import { DERIVATION_TABLES } from "./derivation_tables_gen";
+import {
+  AbstainBoundsIncoherent,
+  AbstainInvalidNumericToken,
+  AbstainNoCandidatePassesGate,
+  AbstainOutOfSafeRange,
+  AbstainTableVersionMismatch,
+  AbstainZeroOutsideYearDomain,
+  addFixed,
+  compareFixed,
+  DDMVersion,
+  divideMagnitudeHalfAway,
+  fnv1a32,
+  formatFixedCanonical,
+  FixedScaleMax,
+  FixedScaleMin,
+  guardedAddMag,
+  guardedMulMag,
+  intToDigits,
+  KindCount,
+  KindPercentage,
+  KindPhysicalMeasure,
+  KindYear,
+  magnitudeScale,
+  normalizeFixed,
+  numericIngest,
+  numericTokenUnderflowedToZero,
+  pow10,
+  SafeMantissaMax,
+  SideLess,
+  SideMore,
+  SourceLive,
+  SourcePrecomputed,
+  SourceZeroValue,
+  subtractFixed,
+  TrapOverestimate,
+  TrapUnderestimate,
+  type AbstainReason,
+  type BoundsHint,
+  type CandidateSide,
+  type DerivationAbstain,
+  type DerivationInput,
+  type DerivationResult,
+  type DerivationSource,
+  type DerivationSuccess,
+  type FixedPointValue,
+  type QuantityKind,
+  type TrapDirection,
+} from "./derivation";
+
+// ===========================================================================
+// Normalized-unit and quantity-kind resolution
+// (port of agent-go/derivation_classify.go, task 4.1)
+// ===========================================================================
+
+// The generated unit table is consumed as a typed view. Only the fields the
+// classifier reads are declared; unknown fields on UNIT_TABLES are ignored.
+interface UnitInferenceRuleMatch {
+  type: string;
+  values?: readonly string[];
+  prefix?: readonly string[];
+  suffix?: readonly string[];
+  exclude_substring?: readonly string[];
+}
+
+interface UnitInferenceRule {
+  id: string;
+  kind: string;
+  order: number;
+  true_number_constraint?: string;
+  match: UnitInferenceRuleMatch;
+}
+
+// unitTablesView is the typed shape of the subset of UNIT_TABLES the classifier
+// consumes, mirroring the Go `unitTables` struct.
+const unitTablesView = UNIT_TABLES as unknown as {
+  calendar_year_window: {
+    inclusive: boolean;
+    max: number;
+    min: number;
+    require_integer: boolean;
+  };
+  inference_precedence: {
+    fallback: { non_negative_integer: string; otherwise: string };
+    rules: readonly UnitInferenceRule[];
+  };
+  negative_admitting_units: {
+    admitting_kinds: readonly string[];
+    admitting_units: readonly string[];
+    non_admitting_kinds: readonly string[];
+  };
+  normalization: {
+    case: string;
+    internal_whitespace_replacement: string;
+    steps: readonly string[];
+    whitespace_chars: readonly string[];
+  };
+  // PercentageDomain is the bounded domain of the `percentage` kind ("a
+  // proportion of a whole"), consumed by the `outside_percentage_domain`
+  // inference constraint. A percent-marked unit whose true number falls outside
+  // this domain is a signed percent CHANGE rather than a bounded proportion.
+  percentage_domain: {
+    inclusive: boolean;
+    max: number;
+    min: number;
+  };
+  quantity_kinds: readonly string[];
+  unit_classification: { exact: Record<string, string> };
+};
+
+// unitInferenceRulesSorted mirrors Go's sort of the inference rules by their
+// `order` field so first-match evaluation is deterministic regardless of the
+// authoring order of the generated array (Requirement 1.6, 1.12). The generated
+// bytes are constant, so this sort runs once at module load and is pure.
+const unitInferenceRulesSorted: readonly UnitInferenceRule[] = [
+  ...unitTablesView.inference_precedence.rules,
+].sort((a, b) => a.order - b.order);
+
+// --- Unit normalization ------------------------------------------------------
+
+// normalizeUnit produces the canonical normalized_unit from a raw unit string
+// following the generated `normalization` steps in order: trim surrounding
+// whitespace, lowercase (ASCII invariant), and collapse internal whitespace
+// runs to a single replacement string (Requirement 1.2). The whitespace set and
+// collapse replacement come from the generated table, so normalization is
+// byte-identical to Go across runtimes.
+export function normalizeUnit(unit: string): string {
+  const wsChars = unitTablesView.normalization.whitespace_chars;
+  const isWS = (r: string): boolean => {
+    for (const w of wsChars) {
+      if (w.length > 0 && w[0] === r) {
+        return true;
+      }
+    }
+    return isASCIIWhitespace(r);
+  };
+  let replacement = unitTablesView.normalization.internal_whitespace_replacement;
+  if (replacement === "") {
+    replacement = " ";
+  }
+
+  let out = unit;
+  for (const step of unitTablesView.normalization.steps) {
+    switch (step) {
+      case "trim_surrounding_whitespace":
+        out = trimFunc(out, isWS);
+        break;
+      case "lowercase_ascii_invariant":
+        out = lowerASCII(out);
+        break;
+      case "collapse_internal_whitespace":
+        out = collapseInternalWhitespace(out, replacement, isWS);
+        break;
+    }
+  }
+  return out;
+}
+
+// lowerASCII lowercases ASCII A-Z only, leaving every other code unit untouched
+// (case: "lower"). It is intentionally NOT locale/Unicode aware so every runtime
+// produces identical bytes — matching Go's byte-wise lowering.
+function lowerASCII(s: string): string {
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c >= 65 /* 'A' */ && c <= 90 /* 'Z' */) {
+      out += String.fromCharCode(c + 32);
+    } else {
+      out += s[i];
+    }
+  }
+  return out;
+}
+
+// trimFunc trims leading and trailing runes for which isWS reports true,
+// mirroring Go's strings.TrimFunc over the table whitespace set.
+function trimFunc(s: string, isWS: (r: string) => boolean): string {
+  let start = 0;
+  let end = s.length;
+  while (start < end && isWS(s[start])) {
+    start++;
+  }
+  while (end > start && isWS(s[end - 1])) {
+    end--;
+  }
+  return s.slice(start, end);
+}
+
+// collapseInternalWhitespace replaces every maximal run of whitespace (per isWS)
+// with a single `replacement` string, matching the Go collapse routine. Leading
+// and trailing runs also collapse to one replacement when not already trimmed.
+function collapseInternalWhitespace(
+  s: string,
+  replacement: string,
+  isWS: (r: string) => boolean,
+): string {
+  let out = "";
+  let inRun = false;
+  for (let i = 0; i < s.length; i++) {
+    const r = s[i];
+    if (isWS(r)) {
+      inRun = true;
+      continue;
+    }
+    if (inRun) {
+      out += replacement;
+      inRun = false;
+    }
+    out += r;
+  }
+  return out;
+}
+
+// isASCIIWhitespace reports whether the single-character string r is one of the
+// ASCII whitespace characters used as the defensive fallback set.
+function isASCIIWhitespace(r: string): boolean {
+  return r === " " || r === "\t" || r === "\n" || r === "\r" || r === "\f" || r === "\v";
+}
+
+// --- Quantity-kind resolution ------------------------------------------------
+
+// classifyQuantityKind resolves the round's quantity_kind. It normalizes the
+// unit first, then either accepts a coherent model-emitted hint or infers the
+// kind from the generated exact-unit map and ordered inference rules, with the
+// documented fallback. It returns the resolved kind and the normalized unit so
+// callers reuse the same normalization result (Requirements 1.1-1.10).
+//
+// hintKind is the untrusted model-emitted quantity_kind hint ("" when absent).
+// trueVal is the canonical normalized true_number produced by Numeric_Ingest.
+export function classifyQuantityKind(
+  hintKind: string,
+  unit: string,
+  trueVal: FixedPointValue,
+): [QuantityKind, string] {
+  const normalized = normalizeUnit(unit);
+
+  const hinted = validateModelKindHint(hintKind, trueVal);
+  if (hinted !== undefined) {
+    return [hinted, normalized];
+  }
+
+  return [inferQuantityKind(normalized, trueVal), normalized];
+}
+
+// validateModelKindHint trims and case-normalizes a model-emitted kind hint,
+// checks closed-set membership, AND checks coherence with the true number and
+// the kind's hard-boundary rules. It returns undefined for an absent, out-of-set,
+// or incoherent hint so the caller falls through to inference (Requirements 1.3,
+// 1.4, 1.5). This is distinct from schemaValidateKindHint in derivation.ts,
+// which performs only closed-set validation without coherence.
+export function validateModelKindHint(
+  hintKind: string,
+  trueVal: FixedPointValue,
+): QuantityKind | undefined {
+  const normalizedHint = lowerASCII(hintKind.trim());
+  if (normalizedHint === "") {
+    return undefined;
+  }
+  if (!containsString(unitTablesView.quantity_kinds, normalizedHint)) {
+    return undefined;
+  }
+  const kind = normalizedHint as QuantityKind;
+  if (kind === KindYear && isFixedZero(trueVal)) {
+    return KindYear;
+  }
+  if (!kindCoherentWithTrue(kind, trueVal)) {
+    return undefined;
+  }
+  return kind;
+}
+
+// kindCoherentWithTrue reports whether a candidate kind is coherent with the
+// normalized true_number and that kind's hard-boundary rules:
+//
+//   - year: the true value must fall in the generated calendar-year window
+//     (and be an integer when required).
+//   - count: the true value must be a non-negative integer.
+//   - percentage: the true value must fall inside the generated
+//     percentage_domain (a proportion of a whole). An out-of-domain percent
+//     ("grew 340%", "-8%") is a percent CHANGE, so the hint is rejected and
+//     inference can route the fact to `percent_change` instead of letting it
+//     abstain BOUNDS_INCOHERENT with no usable block.
+//   - every kind with a generated hard_boundaries entry: the true value must
+//     satisfy that entry. This is what rejects a bounded-above hint — a
+//     `rating` hint on 12 or on 158.3 — so it cannot resolve to a kind whose
+//     own default bounds exclude the number and abstain BOUNDS_INCOHERENT.
+//   - a non-negative-admitting kind: the true value must not be negative.
+//
+// Together these guarantee a resolved kind whose generated default bounds can
+// hold the true number: no coherent kind can abstain BOUNDS_INCOHERENT against
+// its own domain. (A unit's hard ceiling in `unit_bounds_overrides`, and a
+// malformed numeric token, are the remaining abstention sources.)
+//
+// These are the coherence checks used both to validate a model hint and to
+// enforce hard-boundary coherence during inference-constraint evaluation.
+function kindCoherentWithTrue(kind: QuantityKind, trueVal: FixedPointValue): boolean {
+  switch (kind) {
+    case KindYear:
+      return inCalendarYearWindow(trueVal);
+    case KindCount:
+      return isNonNegativeInteger(trueVal);
+    case KindPercentage:
+      return !outsidePercentageDomain(trueVal);
+  }
+  if (!containsString(unitTablesView.negative_admitting_units.admitting_kinds, kind)) {
+    if (isNegative(trueVal)) {
+      return false;
+    }
+  }
+  // The generated hard_boundaries entry is the domain authority, so the same
+  // table the candidate screen and the factlint domain rule read decides
+  // whether a hint may keep its kind. For the kinds above, the entry restates the
+  // check that already ran (count's non-negative integers, money's and
+  // duration's floor) or is unbounded (ratio, physical_measure, percent_change);
+  // for `rating` (0..10) it is the only thing standing between a hint and a kind
+  // whose default bounds cannot hold the number.
+  //
+  // A kind with no generated entry is treated as unconstrained rather than
+  // incoherent: derivation rejects candidates loudly when that table fails to
+  // decode, and classification must not silently start discarding every hint
+  // because a payload went missing.
+  const boundary = candidateSatisfiesHardBoundary(kind, trueVal);
+  if (boundary.ok && !boundary.satisfies) {
+    return false;
+  }
+  return true;
+}
+
+// inferQuantityKind runs the generated inference pipeline for a normalized unit
+// and true number and returns the resolved kind. Order:
+//
+//  1. exact-unit map lookup (only when the mapped kind is coherent);
+//  2. ordered inference-precedence rules (percentage, calendar-year, bare noun),
+//     first coherent match wins, each honoring its true_number_constraint;
+//  3. fallback: non-negative integer -> count; otherwise physical_measure.
+export function inferQuantityKind(
+  normalizedUnit: string,
+  trueVal: FixedPointValue,
+): QuantityKind {
+  // (1) Exact-unit map: a direct, coherent classification for a known unit.
+  const mapped = unitTablesView.unit_classification.exact[normalizedUnit];
+  if (mapped !== undefined) {
+    const kind = mapped as QuantityKind;
+    if (kind === KindYear && isFixedZero(trueVal)) {
+      return KindYear;
+    }
+    if (containsString(unitTablesView.quantity_kinds, mapped) && kindCoherentWithTrue(kind, trueVal)) {
+      return kind;
+    }
+  }
+
+  // (2) Ordered inference-precedence rules; first coherent match wins.
+  for (const rule of unitInferenceRulesSorted) {
+    if (!ruleUnitMatches(rule, normalizedUnit)) {
+      continue;
+    }
+    if (!ruleTrueNumberConstraintSatisfied(rule.true_number_constraint, trueVal)) {
+      continue;
+    }
+    if (containsString(unitTablesView.quantity_kinds, rule.kind)) {
+      return rule.kind as QuantityKind;
+    }
+  }
+
+  // (3) Fallback.
+  if (isNonNegativeInteger(trueVal)) {
+    const k = unitTablesView.inference_precedence.fallback.non_negative_integer;
+    if (k !== "") {
+      return k as QuantityKind;
+    }
+    return KindCount;
+  }
+  const other = unitTablesView.inference_precedence.fallback.otherwise;
+  if (other !== "") {
+    return other as QuantityKind;
+  }
+  return KindPhysicalMeasure;
+}
+
+// ruleUnitMatches reports whether the normalized unit matches an inference
+// rule's match block. Only the match `type` values present in the generated
+// table are interpreted:
+//
+//   - unit_contains_any: the unit contains any listed substring (percentage).
+//   - year_unit: the unit equals a prefix token, or ends with a listed suffix,
+//     and contains none of the excluded substrings (calendar year).
+//   - bare_noun: the unit is a single bare word of ASCII letters (bare count).
+function ruleUnitMatches(rule: UnitInferenceRule, normalizedUnit: string): boolean {
+  switch (rule.match.type) {
+    case "unit_contains_any": {
+      for (const v of rule.match.values ?? []) {
+        if (v !== "" && normalizedUnit.includes(v)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case "year_unit": {
+      for (const ex of rule.match.exclude_substring ?? []) {
+        if (ex !== "" && normalizedUnit.includes(ex)) {
+          return false;
+        }
+      }
+      for (const p of rule.match.prefix ?? []) {
+        if (normalizedUnit === p) {
+          return true;
+        }
+      }
+      for (const s of rule.match.suffix ?? []) {
+        if (s !== "" && normalizedUnit.endsWith(s)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case "bare_noun":
+      return isBareNoun(normalizedUnit);
+    default:
+      return false;
+  }
+}
+
+// isBareNoun reports whether a normalized unit reads as a single bare discrete
+// noun: a non-empty single word (no internal spaces) whose characters are all
+// ASCII letters. Digits, symbols, and multi-word units are not bare nouns.
+function isBareNoun(normalizedUnit: string): boolean {
+  if (normalizedUnit === "") {
+    return false;
+  }
+  if (normalizedUnit.includes(" ")) {
+    return false;
+  }
+  for (let i = 0; i < normalizedUnit.length; i++) {
+    const c = normalizedUnit.charCodeAt(i);
+    if (c < 97 /* 'a' */ || c > 122 /* 'z' */) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// ruleTrueNumberConstraintSatisfied evaluates a rule's true_number_constraint
+// against the normalized true number using the generated tables. Supported
+// constraints mirror the generated values: "any", "non_negative_integer",
+// "calendar_year_window", "outside_percentage_domain", and
+// "inside_percentage_domain" (Requirements 1.7-1.9). The generator rejects any
+// other literal, because an unrecognized constraint evaluates false here and
+// would silently disable the rule.
+//
+// `outside_percentage_domain` and `inside_percentage_domain` are the two halves
+// of the `percentage` kind's bounded domain: the first ROUTES an out-of-domain
+// percent to the unbounded `percent_change` kind, the second GATES the marker
+// rule that emits `percentage`, so the emitter states its own domain instead of
+// depending on the router's unit list staying byte-identical to its own.
+function ruleTrueNumberConstraintSatisfied(
+  constraint: string | undefined,
+  trueVal: FixedPointValue,
+): boolean {
+  switch (constraint) {
+    case undefined:
+    case "":
+    case "any":
+      return true;
+    case "non_negative_integer":
+      return isNonNegativeInteger(trueVal);
+    case "calendar_year_window":
+      return inCalendarYearWindow(trueVal);
+    case "outside_percentage_domain":
+      return outsidePercentageDomain(trueVal);
+    case "inside_percentage_domain":
+      return !outsidePercentageDomain(trueVal);
+    default:
+      return false;
+  }
+}
+
+// outsidePercentageDomain reports whether v falls outside the generated
+// percentage_domain — the bounded proportion domain of the `percentage` kind.
+// It backs the `outside_percentage_domain` inference constraint, which routes
+// an out-of-domain percent ("grew 340%", "-8%") to the unbounded
+// `percent_change` kind instead of letting it abstain BOUNDS_INCOHERENT later.
+//
+// With no usable domain in the table the predicate is deliberately false, so
+// the classifier falls through to the remaining inference rules rather than
+// claiming every percent is a change.
+function outsidePercentageDomain(v: FixedPointValue): boolean {
+  const d = unitTablesView.percentage_domain;
+  if (d === undefined || d.min === undefined || d.max === undefined) {
+    return false;
+  }
+  const minV: FixedPointValue = { negative: false, mantissa: d.min, scale: 0 };
+  const maxV: FixedPointValue = { negative: false, mantissa: d.max, scale: 0 };
+
+  const [cmpMin, okMin] = compareFixed(v, minV);
+  const [cmpMax, okMax] = compareFixed(v, maxV);
+  if (!okMin || !okMax) {
+    return false;
+  }
+  if (d.inclusive) {
+    return cmpMin < 0 || cmpMax > 0;
+  }
+  return cmpMin <= 0 || cmpMax >= 0;
+}
+
+// --- True-number predicates --------------------------------------------------
+
+// isNegative reports whether a canonical fixed-point value is strictly less than
+// zero. Canonical zero is never negative.
+export function isNegative(v: FixedPointValue): boolean {
+  return v.negative && v.mantissa !== 0;
+}
+
+// isNonNegativeInteger reports whether v is a non-negative whole number. A
+// canonical value is an integer exactly when its normalized scale is 0.
+export function isNonNegativeInteger(v: FixedPointValue): boolean {
+  const [n, ok] = normalizeFixed(v);
+  if (!ok) {
+    return false;
+  }
+  if (n.negative && n.mantissa !== 0) {
+    return false;
+  }
+  return n.scale === 0;
+}
+
+// inCalendarYearWindow reports whether v is an integer within the generated
+// calendar-year window [min, max] (inclusive when the table says so), honoring
+// the require_integer flag.
+export function inCalendarYearWindow(v: FixedPointValue): boolean {
+  const w = unitTablesView.calendar_year_window;
+  if (w.require_integer && !isNonNegativeInteger(v)) {
+    return false;
+  }
+  if (isNegative(v)) {
+    return false;
+  }
+  const minV: FixedPointValue = { negative: false, mantissa: w.min, scale: 0 };
+  const maxV: FixedPointValue = { negative: false, mantissa: w.max, scale: 0 };
+
+  const [cmpMin, okMin] = compareFixed(v, minV);
+  if (!okMin) {
+    return false;
+  }
+  const [cmpMax, okMax] = compareFixed(v, maxV);
+  if (!okMax) {
+    return false;
+  }
+  if (w.inclusive) {
+    return cmpMin >= 0 && cmpMax <= 0;
+  }
+  return cmpMin > 0 && cmpMax < 0;
+}
+
+// containsString reports whether xs contains s.
+function containsString(xs: readonly string[], s: string): boolean {
+  for (const x of xs) {
+    if (x === s) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// ===========================================================================
+// Surprise canonicalization, magnitude scale, base band selection
+// (port of agent-go/derivation_surprise.go, task 4.3)
+// ===========================================================================
+
+// surpriseTablesView is the typed shape of the canonical_surprise and
+// base_distance_bands sections of DERIVATION_TABLES the surprise pipeline reads.
+const surpriseTablesView = DERIVATION_TABLES as unknown as {
+  canonical_surprise: {
+    canonical_map: Record<string, number>;
+    canonical_min: number;
+    canonical_max: number;
+    legacy_map: Record<string, number>;
+    legacy_min: number;
+    legacy_max: number;
+    negative_clamp: number;
+    schema_default: number;
+    upper_clamp: number;
+  };
+  base_distance_bands: {
+    bands: readonly {
+      surprise: number;
+      factor_min_permille: number;
+      factor_max_permille: number;
+    }[];
+    encoding: string;
+    unit_factor: number;
+  };
+};
+
+// canonicalizeSurprise maps any incoming surprise integer to the canonical
+// 0..3 domain using ONLY the generated canonical_surprise table (Requirements
+// 3.2, 3.14, 3.15, 12.11):
+//
+//   - a canonical key (0..3) maps through canonical_map (identity today);
+//   - a legacy key (4..10) maps through legacy_map (4->1, 5->2, 6->2, 7->2,
+//     8->3, 9->3, 10->3);
+//   - a negative value clamps to negative_clamp (0);
+//   - a value above the declared legacy range clamps to upper_clamp (3);
+//   - any value the table does not otherwise resolve uses schema_default.
+//
+// The result is always within [canonical_min, canonical_max]. The mapping is a
+// pure function of the input integer and the generated table.
+export function canonicalizeSurprise(raw: number): number {
+  const t = surpriseTablesView.canonical_surprise;
+  const key = String(raw);
+
+  // Negative inputs clamp before any table lookup.
+  if (raw < t.canonical_min) {
+    return clampCanonical(t.negative_clamp, t);
+  }
+
+  // Exact canonical key (0..3 today).
+  if (Object.prototype.hasOwnProperty.call(t.canonical_map, key)) {
+    return clampCanonical(t.canonical_map[key], t);
+  }
+
+  // Exact legacy key (4..10 today).
+  if (Object.prototype.hasOwnProperty.call(t.legacy_map, key)) {
+    return clampCanonical(t.legacy_map[key], t);
+  }
+
+  // Above the declared legacy range: follow the table's upper-clamp rule.
+  if (raw > t.legacy_max) {
+    return clampCanonical(t.upper_clamp, t);
+  }
+
+  // Any remaining gap uses the authoritative schema default.
+  return clampCanonical(t.schema_default, t);
+}
+
+// clampCanonical constrains a canonical value to [canonical_min, canonical_max]
+// so no code path can emit a surprise outside the closed set even if a table
+// entry were malformed.
+function clampCanonical(
+  v: number,
+  t: { canonical_min: number; canonical_max: number },
+): number {
+  if (v < t.canonical_min) {
+    return t.canonical_min;
+  }
+  if (v > t.canonical_max) {
+    return t.canonical_max;
+  }
+  return v;
+}
+
+// computeMagnitudeScale returns the decimal order of magnitude of an ingested
+// fixed-point value, reusing the kernel's magnitudeScale helper. It is a thin,
+// named pipeline step so the resolution pipeline reads as ingest -> surprise ->
+// magnitude -> band without redefining the kernel primitive (Requirement 3.7).
+export function computeMagnitudeScale(v: FixedPointValue): [number, boolean] {
+  return magnitudeScale(v);
+}
+
+// BaseBand is the selected pre-transformation distance band for one canonical
+// surprise value. minFactorPermille/maxFactorPermille are exact integer permille
+// multipliers (divide by unitFactor to obtain the raw multiplier). Later stages
+// apply the kind conversion and magnitude calibration as pure transformations of
+// THIS single row and never consult a neighboring surprise row.
+export interface BaseBand {
+  surprise: number;
+  minFactorPermille: number;
+  maxFactorPermille: number;
+  unitFactor: number;
+}
+
+// selectBaseBand returns exactly one base distance band for the given canonical
+// surprise value using ONLY the generated base_distance_bands table
+// (Requirements 3.2, 3.7, 8.7). The caller MUST pass a canonicalized surprise;
+// passing a raw value is a contract violation. Returns undefined when no band
+// row matches, indicating a build-integrity failure rather than a runtime error.
+export function selectBaseBand(canonicalSurprise: number): BaseBand | undefined {
+  const tbl = surpriseTablesView.base_distance_bands;
+  for (const row of tbl.bands) {
+    if (row.surprise === canonicalSurprise) {
+      return {
+        surprise: row.surprise,
+        minFactorPermille: row.factor_min_permille,
+        maxFactorPermille: row.factor_max_permille,
+        unitFactor: tbl.unit_factor,
+      };
+    }
+  }
+  return undefined;
+}
+
+// selectBaseBandForRawSurprise is a convenience wrapper that canonicalizes a raw
+// surprise value and then selects its single base band. It returns the canonical
+// surprise alongside the band so the caller can retain the canonical value for
+// scoring/UI (Requirement 3.12). ok=false when no band matches.
+export function selectBaseBandForRawSurprise(
+  raw: number,
+): { canonical: number; band?: BaseBand; ok: boolean } {
+  const canonical = canonicalizeSurprise(raw);
+  const band = selectBaseBand(canonical);
+  return { canonical, band, ok: band !== undefined };
+}
+
+// ===========================================================================
+// Trap-direction resolution and forced-side precedence inputs
+// (port of agent-go/derivation_trap.go, task 4.4)
+// ===========================================================================
+
+// trapClosedSetView is the typed shape of the closed_sets.trap_direction slice
+// of DERIVATION_TABLES the trap resolver reads.
+const trapClosedSet: readonly string[] = (
+  DERIVATION_TABLES as unknown as {
+    closed_sets: { trap_direction: readonly string[] };
+  }
+).closed_sets.trap_direction;
+
+// trapDirectionInClosedSet reports whether an UPPERCASE-normalized candidate is
+// a member of the generated trap_direction closed set.
+export function trapDirectionInClosedSet(candidate: string): boolean {
+  for (const m of trapClosedSet) {
+    if (m === candidate) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// resolveTrapDirection resolves the round's trap_direction. A valid
+// model-emitted hint wins; otherwise the value is inferred deterministically
+// from the resolved quantity_kind, normalized_unit, and normalized true_number.
+// It returns the resolved trap and hinted=true when the resolved value came from
+// an accepted hint (diagnostic only). Pure function of its inputs (Requirements
+// 13.1-13.6, 13.16, 13.17).
+//
+// hintTrap is the untrusted model-emitted trap_direction ("" when absent). It
+// may arrive in any case with surrounding whitespace; it is trimmed and
+// UPPERCASED before closed-set validation (Requirement 13.3).
+export function resolveTrapDirection(
+  hintTrap: string,
+  kind: QuantityKind,
+  normalizedUnit: string,
+  trueVal: FixedPointValue,
+): { trap: TrapDirection; hinted: boolean } {
+  const validated = validateTrapDirectionHint(hintTrap);
+  if (validated !== undefined) {
+    return { trap: validated, hinted: true };
+  }
+  return { trap: inferTrapDirection(kind, normalizedUnit, trueVal), hinted: false };
+}
+
+// validateTrapDirectionHint trims and case-normalizes (UPPERCASE) a
+// model-emitted trap_direction and validates it against the generated closed
+// set. Returns undefined for an absent, empty, or out-of-set hint so the caller
+// falls through to inference (Requirements 13.3, 13.4, 13.5).
+export function validateTrapDirectionHint(hintTrap: string): TrapDirection | undefined {
+  const norm = upperASCII(hintTrap.trim());
+  if (norm === "") {
+    return undefined;
+  }
+  if (!trapDirectionInClosedSet(norm)) {
+    return undefined;
+  }
+  return norm as TrapDirection;
+}
+
+// upperASCII uppercases the ASCII range only (mirrors strings.ToUpper's behavior
+// on the ASCII trap spellings) so normalization is byte-identical to Go.
+function upperASCII(s: string): string {
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c >= 97 /* 'a' */ && c <= 122 /* 'z' */) {
+      out += String.fromCharCode(c - 32);
+    } else {
+      out += s[i];
+    }
+  }
+  return out;
+}
+
+// inferTrapDirection deterministically infers a trap_direction from the resolved
+// quantity_kind, normalized_unit, and normalized true_number when no valid hint
+// is supplied (Requirement 13.5).
+//
+// The inference encodes the common-misconception default that surprising
+// quantities are usually LARGER than intuition suggests: players UNDERESTIMATE,
+// so the decoy is preferred BELOW truth. Two ordered adjustments refine that:
+//
+//  1. A negative normalized true_number inverts the misconception -> OVERESTIMATE.
+//  2. `year` quantities are commonly guessed more recent (higher) -> OVERESTIMATE.
+//
+// The result is always a member of the generated closed set; if the computed
+// value were not admitted (degenerate generated set), the function falls back to
+// the first admitted member, then to the hard default UNDERESTIMATE, so
+// inference is total (Requirement 13.2). The `normalizedUnit` is threaded to
+// mirror the Go signature; the current rules key on kind and true-value sign
+// only.
+export function inferTrapDirection(
+  kind: QuantityKind,
+  normalizedUnit: string,
+  trueVal: FixedPointValue,
+): TrapDirection {
+  void normalizedUnit; // reserved for future unit-specific inference; matches Go.
+  let inferred: TrapDirection;
+  if (isNegative(trueVal)) {
+    inferred = TrapOverestimate;
+  } else if (kind === KindYear) {
+    inferred = TrapOverestimate;
+  } else {
+    inferred = TrapUnderestimate;
+  }
+
+  if (trapDirectionInClosedSet(inferred)) {
+    return inferred;
+  }
+  if (trapClosedSet.length > 0) {
+    return trapClosedSet[0] as TrapDirection;
+  }
+  return TrapUnderestimate;
+}
+
+// --- Trap -> preferred candidate side ----------------------------------------
+
+// preferredSideForTrap maps a resolved trap_direction to the preferred
+// candidate_side (expressed as the resulting correct_direction) that candidate
+// composition should evaluate first (Requirements 3.8, 13.7, 13.8):
+//
+//   - OVERESTIMATE -> LESS (preferred candidate sits ABOVE truth);
+//   - UNDERESTIMATE -> MORE (preferred candidate sits BELOW truth).
+export function preferredSideForTrap(trap: TrapDirection): CandidateSide {
+  switch (trap) {
+    case TrapOverestimate:
+      return SideLess;
+    case TrapUnderestimate:
+      return SideMore;
+    default:
+      return SideMore;
+  }
+}
+
+// oppositeSide returns the candidate_side opposite to the given one. Used by the
+// remedy ladder (task 9.4) when the permitted opposite-side stage runs.
+export function oppositeSide(side: CandidateSide): CandidateSide {
+  if (side === SideMore) {
+    return SideLess;
+  }
+  return SideMore;
+}
+
+// --- Forced-side precedence (separate caller override) -----------------------
+
+// ResolvedCandidateSides holds the sides the remedy ladder will evaluate for a
+// round, keeping the trap-preferred side and the Pack Balance forced side as
+// SEPARATE concepts (Requirements 13.12, 13.13, 13.15).
+//
+//   - preferred is the trap-derived preferred side.
+//   - forced, when defined, is the Pack Balance forced candidate_side. It takes
+//     precedence over the trap for this re-derivation and forbids opposite-side
+//     fallback: allowOppositeFallback is false whenever forced is set.
+export interface ResolvedCandidateSides {
+  preferred: CandidateSide;
+  forced?: CandidateSide;
+  allowOppositeFallback: boolean;
+}
+
+// primarySide returns the side candidate enumeration must start on: the forced
+// side when a Pack Balance override is present, otherwise the trap-preferred
+// side. The forced side is returned verbatim and is NEVER derived from the trap
+// (Requirement 13.12).
+export function primarySide(s: ResolvedCandidateSides): CandidateSide {
+  if (s.forced !== undefined) {
+    return s.forced;
+  }
+  return s.preferred;
+}
+
+// resolveCandidateSides combines a resolved trap_direction with an optional Pack
+// Balance forced candidate_side into the sides the remedy ladder will evaluate,
+// keeping the two as separate inputs (Requirements 13.12, 13.13, 13.15):
+//
+//   - With no forced side, the preferred side is the trap-preferred side and
+//     opposite-side fallback is permitted.
+//   - With a forced side, the forced side is the primary (and only) side,
+//     preferred still records the trap-preferred side for diagnostics, and
+//     opposite-side fallback is forbidden.
+//
+// The forced side is passed straight through and never overwritten by the trap.
+export function resolveCandidateSides(
+  trap: TrapDirection,
+  forced?: CandidateSide,
+): ResolvedCandidateSides {
+  const preferred = preferredSideForTrap(trap);
+  if (forced !== undefined) {
+    // Copy by value so a caller mutating its variable cannot alter the resolved
+    // value (mirrors Go's pointer copy).
+    return {
+      preferred,
+      forced,
+      allowOppositeFallback: false,
+    };
+  }
+  return {
+    preferred,
+    forced: undefined,
+    allowOppositeFallback: true,
+  };
+}
+
+// ===========================================================================
+// Exact plausibility-bound resolution
+// (port of agent-go/derivation_bounds.go, task 4.2)
+// ===========================================================================
+
+// boundsPermilleFactor is the permille denominator used by multiplicative
+// default bounds (lo/hi are expressed in thousandths of the true value).
+const boundsPermilleFactor = 1000;
+
+// boundsDefaultEntry mirrors one kind's generated default-bounds rule. Only the
+// fields the resolver consumes are declared; optional fields are absent when the
+// generated JSON omits the key (distinguishing an absent key from a zero value).
+interface BoundsDefaultEntry {
+  mode: string;
+  mult_lo_permille?: number;
+  mult_hi_permille?: number;
+  hard_floor?: number;
+  floor_min_to_integer?: boolean;
+  zero_default_max?: number;
+  fixed_min?: number;
+  fixed_max?: number;
+  scale?: number;
+  window_below?: number;
+  window_above?: number;
+  hard_ceiling?: number;
+  retrospective_ceiling?: number;
+}
+
+// unitBoundsOverrideEntry is one normalized unit's hard domain limits from the
+// unit_bounds_overrides section. Bound tokens are canonical numeric strings
+// ingested by exact Numeric_Ingest.
+interface UnitBoundsOverrideEntry {
+  min_token: string;
+  max_token: string;
+}
+
+// boundsDefaultsTable is the typed view of the generated bounds_defaults section.
+const boundsDefaultsTable = (
+  DERIVATION_TABLES as unknown as { bounds_defaults: Record<string, BoundsDefaultEntry> }
+).bounds_defaults;
+
+// unitBoundsOverridesTable is the typed view of the generated
+// unit_bounds_overrides section (normalized-unit keyed hard domain limits).
+const unitBoundsOverridesTable = (
+  DERIVATION_TABLES as unknown as {
+    unit_bounds_overrides: Record<string, UnitBoundsOverrideEntry>;
+  }
+).unit_bounds_overrides;
+
+// ResolvedBounds is the coherent, ingested plausibility pair produced by the
+// bounds resolver. Both ends are canonical FixedPointValues and satisfy
+// min <= true_number <= max.
+export interface ResolvedBounds {
+  min: FixedPointValue;
+  max: FixedPointValue;
+}
+
+// retrospectiveCeiling returns the table-derived ceiling for retrospective past
+// year milestones (true_number <= retrospective_ceiling). It inspects the
+// generated bounds_defaults table with an explicit guard, falling back
+// defensively to 2026 if the entry is missing.
+export function retrospectiveCeiling(): number {
+  const entry = boundsDefaultsTable[KindYear];
+  if (entry?.retrospective_ceiling !== undefined) {
+    return entry.retrospective_ceiling;
+  }
+  return 2026;
+}
+
+// capByRetrospectiveCeiling constrains the upper bound of a year-kind round to
+// the table's retrospective_ceiling when true_number <= retrospective_ceiling.
+// Future-dated milestones (true_number > retrospective_ceiling) remain unclamped.
+// It applies to hint-derived and default bounds alike (single clamp site).
+export function capByRetrospectiveCeiling(
+  kind: QuantityKind,
+  bounds: ResolvedBounds,
+  trueValue: FixedPointValue,
+): ResolvedBounds | undefined {
+  if (kind !== KindYear) {
+    return bounds;
+  }
+  const retro = retrospectiveCeiling();
+  const retroCeil = intToFixed(retro);
+  // Only applies to retrospective past events (trueValue <= retrospective_ceiling).
+  // Future-dated milestones (trueValue > retrospective_ceiling) are unclamped.
+  const [cmpTrue, okTrue] = compareFixed(trueValue, retroCeil);
+  if (!okTrue || cmpTrue > 0) {
+    return bounds;
+  }
+  // When trueValue <= retroCeil, bounds.max must not exceed retroCeil.
+  let maxV = bounds.max;
+  const [cmpMax, okMax] = compareFixed(bounds.max, retroCeil);
+  if (okMax && cmpMax > 0) {
+    maxV = retroCeil;
+  }
+  return coherentPair(bounds.min, maxV, trueValue);
+}
+
+// resolveBounds resolves the plausibility bounds for one round.
+//
+// factBankHint and modelHint are the untrusted, unvalidated bound hints from the
+// derivation input (either may be undefined). kind is the already-resolved
+// quantity kind, unit is the normalized unit (reserved for future unit-specific
+// default rules; the current generated table keys defaults by kind only), and
+// trueValue is the ingested, normalized true_number.
+//
+// It returns the resolved pair and ok=true on success. On failure — when no hint
+// is valid and the generated default pair is itself incoherent — it returns
+// ok=false and the caller emits a BOUNDS_INCOHERENT abstention (Requirement 2.10).
+export function resolveBounds(
+  kind: QuantityKind,
+  unit: string,
+  trueValue: FixedPointValue,
+  factBankHint?: BoundsHint,
+  modelHint?: BoundsHint,
+): { bounds?: ResolvedBounds; ok: boolean } {
+  let candidate: ResolvedBounds | undefined;
+  const fb = validateResolvedBoundsHint(factBankHint, trueValue);
+  if (fb !== undefined) {
+    candidate = fb;
+  } else {
+    const model = validateResolvedBoundsHint(modelHint, trueValue);
+    if (model !== undefined) {
+      candidate = model;
+    } else {
+      candidate = deriveDefaultBounds(kind, unit, trueValue);
+    }
+  }
+  if (candidate === undefined) {
+    return { bounds: undefined, ok: false };
+  }
+  const capped = capByUnitBoundsOverride(unit, candidate, trueValue);
+  if (capped === undefined) {
+    return { bounds: undefined, ok: false };
+  }
+  const retroCapped = capByRetrospectiveCeiling(kind, capped, trueValue);
+  return { bounds: retroCapped, ok: retroCapped !== undefined };
+}
+
+// capByUnitBoundsOverride intersects a resolved pair with the normalized
+// unit's unit_bounds_overrides entry when one exists, then re-checks coherence.
+// Overrides are hard domain limits (e.g. the NFL passer-rating formula ceiling
+// of 158.3), so they constrain hint-derived and default pairs alike. An
+// override that excludes the true value makes the pair incoherent and the model
+// abstains; a corrupt override token fails closed the same way.
+function capByUnitBoundsOverride(
+  unit: string,
+  bounds: ResolvedBounds,
+  trueValue: FixedPointValue,
+): ResolvedBounds | undefined {
+  const entry = unitBoundsOverridesTable[unit];
+  if (entry === undefined) {
+    return bounds;
+  }
+  const minDiag = numericIngest(entry.min_token);
+  if (minDiag.fixedPointValue === undefined || minDiag.ingestReason !== undefined) {
+    return undefined;
+  }
+  const maxDiag = numericIngest(entry.max_token);
+  if (maxDiag.fixedPointValue === undefined || maxDiag.ingestReason !== undefined) {
+    return undefined;
+  }
+  let minV = bounds.min;
+  {
+    const [cmp, ok] = compareFixed(minDiag.fixedPointValue, bounds.min);
+    if (!ok) {
+      return undefined;
+    }
+    if (cmp > 0) {
+      minV = minDiag.fixedPointValue;
+    }
+  }
+  let maxV = bounds.max;
+  {
+    const [cmp, ok] = compareFixed(maxDiag.fixedPointValue, bounds.max);
+    if (!ok) {
+      return undefined;
+    }
+    if (cmp < 0) {
+      maxV = maxDiag.fixedPointValue;
+    }
+  }
+  return coherentPair(minV, maxV, trueValue);
+}
+
+// validateResolvedBoundsHint ingests and validates one untrusted BoundsHint
+// against the true value. It returns the coherent pair only when the hint is
+// complete, finitely ingestable, ordered, and truth-inclusive (Requirement 2.2).
+// Any failure — undefined hint, missing token, ingest reason, reversed order, or
+// truth exclusion — yields undefined so the hint is discarded (Requirement 2.5).
+//
+// This is the deep resolver-stage validator, distinct from the schema-ingest
+// completeness-only capture (schemaCaptureBoundsHint in derivation.ts).
+export function validateResolvedBoundsHint(
+  hint: BoundsHint | undefined,
+  trueValue: FixedPointValue,
+): ResolvedBounds | undefined {
+  if (hint === undefined) {
+    return undefined;
+  }
+  if (hint.minToken === "" || hint.maxToken === "") {
+    return undefined;
+  }
+  const minDiag = numericIngest(hint.minToken);
+  if (minDiag.fixedPointValue === undefined || minDiag.ingestReason !== undefined) {
+    return undefined;
+  }
+  const maxDiag = numericIngest(hint.maxToken);
+  if (maxDiag.fixedPointValue === undefined || maxDiag.ingestReason !== undefined) {
+    return undefined;
+  }
+  return coherentPair(minDiag.fixedPointValue, maxDiag.fixedPointValue, trueValue);
+}
+
+// coherentPair checks the ordered and truth-inclusive conditions for an already
+// finite [min, max] pair and returns the normalized ResolvedBounds when both
+// hold. It enforces min <= true <= max (Requirement 2.2). undefined when any
+// comparison cannot be made within the exact envelope or a condition fails.
+function coherentPair(
+  minV: FixedPointValue,
+  maxV: FixedPointValue,
+  trueValue: FixedPointValue,
+): ResolvedBounds | undefined {
+  const [nMin, okMin] = normalizeFixed(minV);
+  if (!okMin) {
+    return undefined;
+  }
+  const [nMax, okMax] = normalizeFixed(maxV);
+  if (!okMax) {
+    return undefined;
+  }
+  // Ordered: plausible_min <= plausible_max.
+  {
+    const [cmp, ok] = compareFixed(nMin, nMax);
+    if (!ok || cmp > 0) {
+      return undefined;
+    }
+  }
+  // Truth-inclusive lower: plausible_min <= true_number.
+  {
+    const [cmp, ok] = compareFixed(nMin, trueValue);
+    if (!ok || cmp > 0) {
+      return undefined;
+    }
+  }
+  // Truth-inclusive upper: true_number <= plausible_max.
+  {
+    const [cmp, ok] = compareFixed(trueValue, nMax);
+    if (!ok || cmp > 0) {
+      return undefined;
+    }
+  }
+  return { min: nMin, max: nMax };
+}
+
+// deriveDefaultBounds computes the generated kind-derived plausibility pair from
+// the bounds_defaults table (Requirement 2.6) and validates the result for
+// coherence (Requirement 2.10). The generated pair must be finite, ordered, and
+// truth-inclusive; if not, the resolver reports failure and the caller abstains.
+export function deriveDefaultBounds(
+  kind: QuantityKind,
+  unit: string,
+  trueValue: FixedPointValue,
+): ResolvedBounds | undefined {
+  void unit; // defaults are keyed by kind in the current generated table.
+  const entry = boundsDefaultsTable[kind];
+  if (entry === undefined) {
+    return undefined;
+  }
+
+  let pair: { min: FixedPointValue; max: FixedPointValue } | undefined;
+  switch (entry.mode) {
+    case "multiplicative":
+      pair = multiplicativeDefaultBounds(entry, trueValue);
+      break;
+    case "fixed":
+      pair = fixedDefaultBounds(entry);
+      break;
+    case "additive_window":
+      pair = additiveWindowDefaultBounds(entry, trueValue);
+      break;
+    default:
+      pair = undefined;
+  }
+  if (pair === undefined) {
+    return undefined;
+  }
+  return coherentPair(pair.min, pair.max, trueValue);
+}
+
+// multiplicativeDefaultBounds scales the true value by the entry's permille
+// lo/hi factors: min = true * lo/1000, max = true * hi/1000. An optional
+// hard_floor raises the lower bound (used by count so the default floor is never
+// negative). Ordering is re-checked by coherentPair afterward.
+function multiplicativeDefaultBounds(
+  entry: BoundsDefaultEntry,
+  trueValue: FixedPointValue,
+): { min: FixedPointValue; max: FixedPointValue } | undefined {
+  if (entry.mult_lo_permille === undefined || entry.mult_hi_permille === undefined) {
+    return undefined;
+  }
+  if (trueValue.mantissa === 0 && entry.zero_default_max !== undefined) {
+    let minV = intToFixed(0);
+    if (entry.hard_floor !== undefined) {
+      minV = intToFixed(entry.hard_floor);
+    }
+    const maxV = intToFixed(entry.zero_default_max);
+    return { min: minV, max: maxV };
+  }
+  const lo = scaleByPermille(trueValue, entry.mult_lo_permille);
+  if (lo === undefined) {
+    return undefined;
+  }
+  const hi = scaleByPermille(trueValue, entry.mult_hi_permille);
+  if (hi === undefined) {
+    return undefined;
+  }
+  // Order the two scaled endpoints; a negative true value flips the ordering.
+  const ordered = orderPair(lo, hi);
+  let minV = ordered[0];
+  const maxV = ordered[1];
+
+  // Apply an optional hard floor: raise min to the floor when it falls below it.
+  if (entry.hard_floor !== undefined) {
+    const floor = intToFixed(entry.hard_floor);
+    const [cmp, ok] = compareFixed(minV, floor);
+    if (ok && cmp < 0) {
+      minV = floor;
+    }
+  }
+
+  // floor_min_to_integer snaps the resolved minimum down to the greatest
+  // integer at or below it. For integer-only kinds a fractional min like 0.1
+  // would otherwise exclude the only admissible below-truth candidate (0) for
+  // a true value of 1.
+  if (entry.floor_min_to_integer === true) {
+    const [fl, okFl] = floorToInt64(minV);
+    if (okFl) {
+      minV = intToFixed(fl);
+    }
+  }
+  return { min: minV, max: maxV };
+}
+
+// fixedDefaultBounds returns the constant [fixed_min, fixed_max] pair for a
+// fixed-scale domain (percentage 0..100, rating 0..10). fixed_min/fixed_max are
+// literal bound VALUES, not mantissas; the entry's `scale` field is the domain's
+// display/precision scale, not a divisor. The pair is independent of the true
+// value; coherentPair later confirms the true value is inside it.
+function fixedDefaultBounds(
+  entry: BoundsDefaultEntry,
+): { min: FixedPointValue; max: FixedPointValue } | undefined {
+  if (entry.fixed_min === undefined || entry.fixed_max === undefined) {
+    return undefined;
+  }
+  return { min: intToFixed(entry.fixed_min), max: intToFixed(entry.fixed_max) };
+}
+
+// additiveWindowDefaultBounds returns [true - window_below, true + window_above]
+// clamped to [hard_floor, hard_ceiling] (year default). The window offsets are
+// whole-unit integers.
+function additiveWindowDefaultBounds(
+  entry: BoundsDefaultEntry,
+  trueValue: FixedPointValue,
+): { min: FixedPointValue; max: FixedPointValue } | undefined {
+  if (entry.window_below === undefined || entry.window_above === undefined) {
+    return undefined;
+  }
+  const below = intToFixed(entry.window_below);
+  const above = intToFixed(entry.window_above);
+
+  const [minRaw, okMin] = subtractFixed(trueValue, below);
+  if (!okMin) {
+    return undefined;
+  }
+  const [maxRaw, okMax] = addFixed(trueValue, above);
+  if (!okMax) {
+    return undefined;
+  }
+
+  let minV = minRaw;
+  let maxV = maxRaw;
+  if (entry.hard_floor !== undefined) {
+    const floor = intToFixed(entry.hard_floor);
+    const [cmp, ok] = compareFixed(minV, floor);
+    if (ok && cmp < 0) {
+      minV = floor;
+    }
+  }
+  if (entry.hard_ceiling !== undefined) {
+    const ceil = intToFixed(entry.hard_ceiling);
+    const [cmp, ok] = compareFixed(maxV, ceil);
+    if (ok && cmp > 0) {
+      maxV = ceil;
+    }
+  }
+  return { min: minV, max: maxV };
+}
+
+// scaleByPermille multiplies a fixed-point value by permille/1000 exactly. The
+// mantissa is multiplied by the permille numerator (guarded), then divided by
+// 10^scale with half-away-from-zero rounding at scale 3 so the result stays within
+// the canonical scale range without prematurely inflating the intermediate product.
+// The sign is preserved.
+export function scaleByPermille(
+  v: FixedPointValue,
+  permille: number,
+): FixedPointValue | undefined {
+  const [n, okN] = normalizeFixed(v);
+  if (!okN) {
+    return undefined;
+  }
+  if (permille < 0) {
+    return undefined;
+  }
+  const [prod, okMul] = guardedMulMag(n.mantissa, permille);
+  if (!okMul) {
+    return undefined;
+  }
+  let divisor = 1;
+  switch (n.scale) {
+    case 0:
+      divisor = 1;
+      break;
+    case 1:
+      divisor = 10;
+      break;
+    case 2:
+      divisor = 100;
+      break;
+    case 3:
+      divisor = boundsPermilleFactor;
+      break;
+    default:
+      return undefined;
+  }
+  let quo = prod;
+  if (divisor > 1) {
+    const [q, okDiv] = divideMagnitudeHalfAway(prod, divisor);
+    if (!okDiv) {
+      return undefined;
+    }
+    quo = q;
+  }
+  const [out, okNorm] = normalizeFixed({
+    negative: n.negative,
+    mantissa: quo,
+    scale: FixedScaleMax,
+  });
+  if (!okNorm) {
+    return undefined;
+  }
+  return out;
+}
+
+// scaleMantissaTo rescales a non-negative mantissa from scale `from` to scale
+// `to`. Only upscaling (to >= from), which is exact, is supported. It mirrors
+// the private kernel helper of the same name; it is re-declared here so this
+// module does not depend on a non-exported symbol from derivation.ts.
+function scaleMantissaTo(mantissa: number, from: number, to: number): [number, boolean] {
+  if (mantissa < 0 || from < FixedScaleMin || to > FixedScaleMax || to < from) {
+    return [0, false];
+  }
+  const [factor, ok] = pow10(to - from);
+  if (!ok) {
+    return [0, false];
+  }
+  return guardedMulMag(mantissa, factor);
+}
+
+// orderPair returns (a, b) reordered so the first return is the lesser value.
+// When the comparison cannot be made it returns the inputs unchanged; the
+// caller's coherentPair check then rejects the pair.
+function orderPair(a: FixedPointValue, b: FixedPointValue): [FixedPointValue, FixedPointValue] {
+  const [cmp, ok] = compareFixed(a, b);
+  if (ok && cmp > 0) {
+    return [b, a];
+  }
+  return [a, b];
+}
+
+// intToFixed builds a canonical scale-0 FixedPointValue from a signed integer.
+function intToFixed(n: number): FixedPointValue {
+  let neg = false;
+  let m = n;
+  if (m < 0) {
+    neg = true;
+    m = -m;
+  }
+  const [fixed] = normalizeFixed({ negative: neg, mantissa: m, scale: FixedScaleMin });
+  return fixed;
+}
+
+// ===========================================================================
+// Shared private kernel helpers (re-declared, not exported from derivation.ts)
+// ===========================================================================
+//
+// alignFixed, magInEnvelope, and pow10MaxExp are internal to derivation.ts and
+// are not exported. They are re-declared here — byte-identically to the kernel —
+// so this module does not depend on non-exported symbols (mirroring the existing
+// scaleMantissaTo precedent above). The behavior matches the Go kernel exactly.
+
+// pow10MaxExp is the largest exponent the kernel's pow10 accepts (10^0..10^18).
+const pow10MaxExp = 18;
+
+// magInEnvelope reports whether m is a valid non-negative magnitude within the
+// shared 2^53-1 envelope (mirrors the private kernel helper).
+function magInEnvelope(m: number): boolean {
+  return m >= 0 && m <= SafeMantissaMax;
+}
+
+// alignFixed rescales two fixed-point values to their common (larger) scale and
+// returns their non-negative mantissas at that scale plus the shared scale. It
+// mirrors the private kernel helper of the same name; upscaling is exact.
+function alignFixed(
+  a: FixedPointValue,
+  b: FixedPointValue,
+): [number, number, number, boolean] {
+  if (
+    a.scale < FixedScaleMin ||
+    a.scale > FixedScaleMax ||
+    b.scale < FixedScaleMin ||
+    b.scale > FixedScaleMax
+  ) {
+    return [0, 0, 0, false];
+  }
+  let common = a.scale;
+  if (b.scale > common) {
+    common = b.scale;
+  }
+  const [ma, okA] = scaleMantissaTo(a.mantissa, a.scale, common);
+  if (!okA) {
+    return [0, 0, 0, false];
+  }
+  const [mb, okB] = scaleMantissaTo(b.mantissa, b.scale, common);
+  if (!okB) {
+    return [0, 0, 0, false];
+  }
+  return [ma, mb, common, true];
+}
+
+// intToFixedResolve builds a canonical scale-0 FixedPointValue from a signed
+// integer. (intToFixed above is module-private and identical; this alias keeps
+// the candidate/strategy ports reading like the Go reference's intToFixed.)
+function intToFixedResolve(n: number): FixedPointValue {
+  return intToFixed(n);
+}
+
+// ===========================================================================
+// Generated strategy dispatch and base-band composition
+// (port of agent-go/derivation_strategy.go, task 5.1)
+// ===========================================================================
+
+// derivationStrategy is the arithmetic family selected by the resolved
+// quantity_kind. Members mirror closed_sets.strategy in DERIVATION_TABLES.
+export type DerivationStrategy = "additive" | "multiplicative" | "bounded";
+export const strategyAdditive: DerivationStrategy = "additive";
+export const strategyMultiplicative: DerivationStrategy = "multiplicative";
+export const strategyBounded: DerivationStrategy = "bounded";
+
+// MagnitudeVariant is the small/large magnitude bucket selected by
+// magnitude_calibration. Members mirror the generated variant ids.
+export type MagnitudeVariant = "small" | "large";
+export const variantSmall: MagnitudeVariant = "small";
+export const variantLarge: MagnitudeVariant = "large";
+
+// --- Generated-table views (strategy scope) ---------------------------------
+
+interface KindStrategyEntry {
+  bounded: boolean;
+  strategy: string;
+  zero_uses_zero_value_strategy: boolean;
+}
+
+interface KindConversionInterval {
+  surprise: number;
+  delta_min: number;
+  delta_max: number;
+}
+
+interface KindConversionEntry {
+  strategy: string;
+  scale: number;
+  intervals: readonly KindConversionInterval[];
+}
+
+interface MagnitudeVariantRule {
+  id: string;
+  applies_when_magnitude_scale_lte?: number;
+  applies_when_magnitude_scale_gte?: number;
+}
+
+interface MagnitudeCalibrationTable {
+  band3_large_factor_max_permille: number;
+  band3_small_factor_max_permille: number;
+  small_max_exclusive: number;
+  small_max_exclusive_scale: number;
+  variants: readonly MagnitudeVariantRule[];
+}
+
+// strategyTablesView is the typed shape of the strategy-scoped sections.
+const strategyTablesView = DERIVATION_TABLES as unknown as {
+  kind_strategies: Record<string, KindStrategyEntry>;
+  kind_band_conversions: Record<string, KindConversionEntry>;
+  magnitude_calibration: MagnitudeCalibrationTable;
+};
+
+// resolveKindStrategy returns the arithmetic family for a resolved
+// quantity_kind using ONLY the generated kind_strategies table (Requirements
+// 1.11, 3.4). undefined when the kind has no generated strategy entry or the
+// entry names a value outside the closed strategy set.
+export function resolveKindStrategy(kind: QuantityKind): DerivationStrategy | undefined {
+  const entry = strategyTablesView.kind_strategies[kind];
+  if (entry === undefined) {
+    return undefined;
+  }
+  switch (entry.strategy as DerivationStrategy) {
+    case strategyAdditive:
+    case strategyMultiplicative:
+    case strategyBounded:
+      return entry.strategy as DerivationStrategy;
+    default:
+      return undefined;
+  }
+}
+
+// selectMagnitudeVariant maps a value's magnitude_scale to the small/large
+// calibration variant using ONLY the generated magnitude_calibration.variants
+// rules (Requirement 3.7). The first matching rule wins; when no rule matches
+// it defaults to small, the nearer-distance bucket.
+export function selectMagnitudeVariant(magnitudeScaleValue: number): MagnitudeVariant {
+  for (const rule of strategyTablesView.magnitude_calibration.variants) {
+    if (
+      rule.applies_when_magnitude_scale_lte !== undefined &&
+      magnitudeScaleValue <= rule.applies_when_magnitude_scale_lte
+    ) {
+      return rule.id as MagnitudeVariant;
+    }
+    if (
+      rule.applies_when_magnitude_scale_gte !== undefined &&
+      magnitudeScaleValue >= rule.applies_when_magnitude_scale_gte
+    ) {
+      return rule.id as MagnitudeVariant;
+    }
+  }
+  return variantSmall;
+}
+
+// ComposedBand is the single selected surprise row after kind conversion and
+// magnitude calibration. It carries exactly one of two representations, selected
+// by strategy: multiplicative permille factors, or additive/bounded fixed-point
+// deltas (see the Go composedBand doc). Calibration only adjusts values WITHIN
+// the selected surprise row and never consults a neighboring row.
+export interface ComposedBand {
+  strategy: DerivationStrategy;
+  surprise: number;
+  variant: MagnitudeVariant;
+  integerOnly?: boolean;
+  // Multiplicative representation.
+  minFactorPermille: number;
+  maxFactorPermille: number;
+  factorUnit: number;
+  // Additive / bounded representation.
+  minDelta: FixedPointValue;
+  maxDelta: FixedPointValue;
+}
+
+// emptyComposedBand returns a zero-value ComposedBand used only as the failure
+// sentinel alongside ok=false.
+function emptyComposedBand(): ComposedBand {
+  return {
+    strategy: strategyAdditive,
+    surprise: 0,
+    variant: variantSmall,
+    minFactorPermille: 0,
+    maxFactorPermille: 0,
+    factorUnit: 0,
+    minDelta: { negative: false, mantissa: 0, scale: 0 },
+    maxDelta: { negative: false, mantissa: 0, scale: 0 },
+  };
+}
+
+// composeDistanceBand transforms the single selected canonical-surprise band row
+// into the composed distance band for the resolved kind and magnitude
+// (Requirements 1.11, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7). The caller MUST pass an
+// already-canonicalized surprise (0..3). ok=false on any build-integrity
+// failure.
+export function composeDistanceBand(
+  kind: QuantityKind,
+  canonicalSurprise: number,
+  magnitudeScaleValue: number,
+): { band: ComposedBand; ok: boolean } {
+  const strategy = resolveKindStrategy(kind);
+  if (strategy === undefined) {
+    return { band: emptyComposedBand(), ok: false };
+  }
+  const variant = selectMagnitudeVariant(magnitudeScaleValue);
+
+  switch (strategy) {
+    case strategyMultiplicative: {
+      const result = composeMultiplicativeBand(canonicalSurprise, variant);
+      const boundary = hardBoundariesTable[kind];
+      result.band.integerOnly = boundary?.integer_only ?? false;
+      result.ok = result.ok && boundary !== undefined;
+      return result;
+    }
+    case strategyAdditive:
+    case strategyBounded:
+      return composeAdditiveBand(kind, strategy, canonicalSurprise, variant);
+    default:
+      return { band: emptyComposedBand(), ok: false };
+  }
+}
+
+// composeMultiplicativeBand builds the multiplicative composed band from the
+// selected base_distance_bands row, applying the magnitude-calibration ceiling
+// to the farthest band only.
+function composeMultiplicativeBand(
+  canonicalSurprise: number,
+  variant: MagnitudeVariant,
+): { band: ComposedBand; ok: boolean } {
+  const base = selectBaseBand(canonicalSurprise);
+  if (base === undefined) {
+    return { band: emptyComposedBand(), ok: false };
+  }
+  const minF = base.minFactorPermille;
+  let maxF = base.maxFactorPermille;
+
+  const cal = strategyTablesView.magnitude_calibration;
+  if (canonicalSurprise === base.surprise && isFarthestBand(canonicalSurprise)) {
+    switch (variant) {
+      case variantLarge:
+        if (cal.band3_large_factor_max_permille > 0) {
+          maxF = cal.band3_large_factor_max_permille;
+        }
+        break;
+      default: // small (and any defensive fallback)
+        if (cal.band3_small_factor_max_permille > 0) {
+          maxF = cal.band3_small_factor_max_permille;
+        }
+    }
+  }
+
+  // Defensive ordering guard: never let a calibrated ceiling fall below floor.
+  if (maxF < minF) {
+    maxF = minF;
+  }
+
+  return {
+    band: {
+      strategy: strategyMultiplicative,
+      surprise: base.surprise,
+      variant,
+      minFactorPermille: minF,
+      maxFactorPermille: maxF,
+      factorUnit: base.unitFactor,
+      minDelta: { negative: false, mantissa: 0, scale: 0 },
+      maxDelta: { negative: false, mantissa: 0, scale: 0 },
+    },
+    ok: true,
+  };
+}
+
+// isFarthestBand reports whether the given canonical surprise is the farthest
+// (highest) band, the only band magnitude_calibration adjusts. It reads the
+// maximum surprise from the generated canonical_surprise bounds.
+function isFarthestBand(canonicalSurprise: number): boolean {
+  return canonicalSurprise === surpriseTablesView.canonical_surprise.canonical_max;
+}
+
+// composeAdditiveBand builds the additive/bounded composed band from the
+// kind_band_conversions interval for the selected surprise.
+function composeAdditiveBand(
+  kind: QuantityKind,
+  strategy: DerivationStrategy,
+  canonicalSurprise: number,
+  variant: MagnitudeVariant,
+): { band: ComposedBand; ok: boolean } {
+  const entry = strategyTablesView.kind_band_conversions[kind];
+  if (entry === undefined) {
+    return { band: emptyComposedBand(), ok: false };
+  }
+  const interval = conversionIntervalForSurprise(entry, canonicalSurprise);
+  if (interval === undefined) {
+    return { band: emptyComposedBand(), ok: false };
+  }
+  const minDelta = deltaToFixed(interval.delta_min, entry.scale);
+  if (minDelta === undefined) {
+    return { band: emptyComposedBand(), ok: false };
+  }
+  const maxDelta = deltaToFixed(interval.delta_max, entry.scale);
+  if (maxDelta === undefined) {
+    return { band: emptyComposedBand(), ok: false };
+  }
+  return {
+    band: {
+      strategy,
+      surprise: canonicalSurprise,
+      variant,
+      minFactorPermille: 0,
+      maxFactorPermille: 0,
+      factorUnit: 0,
+      minDelta,
+      maxDelta,
+    },
+    ok: true,
+  };
+}
+
+// conversionIntervalForSurprise returns the kind_band_conversions interval whose
+// surprise equals the requested canonical surprise.
+function conversionIntervalForSurprise(
+  entry: KindConversionEntry,
+  canonicalSurprise: number,
+): KindConversionInterval | undefined {
+  for (const iv of entry.intervals) {
+    if (iv.surprise === canonicalSurprise) {
+      return iv;
+    }
+  }
+  return undefined;
+}
+
+// deltaToFixed builds a canonical, non-negative fixed-point delta from an integer
+// mantissa and the conversion scale. Deltas are always non-negative magnitudes;
+// the candidate side applies the sign later. undefined when the scale is out of
+// the canonical range or the mantissa leaves the exact envelope.
+function deltaToFixed(mantissa: number, scale: number): FixedPointValue | undefined {
+  if (mantissa < 0 || scale < FixedScaleMin || scale > FixedScaleMax) {
+    return undefined;
+  }
+  const [fixed, ok] = normalizeFixed({ negative: false, mantissa, scale });
+  if (!ok) {
+    return undefined;
+  }
+  return fixed;
+}
+
+// --- Reject-not-clamp boundary and bounds predicates (Requirement 3.9) -------
+
+interface HardBoundaryEntry {
+  integer_only: boolean;
+  min_inclusive: number | null;
+  max_inclusive: number | null;
+  scale?: number;
+}
+
+// hardBoundariesTable is the typed view of the generated hard_boundaries section.
+const hardBoundariesTable = (
+  DERIVATION_TABLES as unknown as { hard_boundaries: Record<string, HardBoundaryEntry> }
+).hard_boundaries;
+
+// kindIntegerOnly reports whether the generated hard_boundaries entry for
+// kind requires whole-number candidates (count, year). Bound-derived
+// enumeration uses this to emit integers before the integer_only screen.
+function kindIntegerOnly(kind: QuantityKind): boolean {
+  const entry = hardBoundariesTable[kind];
+  return entry !== undefined && entry.integer_only;
+}
+
+// candidateSatisfiesHardBoundary reports whether a candidate value satisfies the
+// resolved kind's hard_boundary rules (Requirements 3.6, 3.9): integer_only,
+// min_inclusive, max_inclusive. A candidate that violates any present rule
+// returns satisfies=false so the caller REJECTS it rather than clamping. ok=false
+// only when the kind has no generated boundary entry (build-integrity failure).
+export function candidateSatisfiesHardBoundary(
+  kind: QuantityKind,
+  candidate: FixedPointValue,
+): { satisfies: boolean; ok: boolean } {
+  const entry = hardBoundariesTable[kind];
+  if (entry === undefined) {
+    return { satisfies: false, ok: false };
+  }
+  const [n, normOK] = normalizeFixed(candidate);
+  if (!normOK) {
+    return { satisfies: false, ok: true };
+  }
+  if (entry.integer_only && n.scale !== 0) {
+    return { satisfies: false, ok: true };
+  }
+  if (entry.min_inclusive !== null && entry.min_inclusive !== undefined) {
+    const minV = intToFixedResolve(entry.min_inclusive);
+    const [cmp, cmpOK] = compareFixed(n, minV);
+    if (!cmpOK || cmp < 0) {
+      return { satisfies: false, ok: true };
+    }
+  }
+  if (entry.max_inclusive !== null && entry.max_inclusive !== undefined) {
+    const maxV = intToFixedResolve(entry.max_inclusive);
+    const [cmp, cmpOK] = compareFixed(n, maxV);
+    if (!cmpOK || cmp > 0) {
+      return { satisfies: false, ok: true };
+    }
+  }
+  return { satisfies: true, ok: true };
+}
+
+// candidateWithinBounds reports whether a candidate lies within the resolved
+// plausibility bounds inclusive. A candidate outside the pair returns false so
+// the caller REJECTS it rather than clamping (Requirements 2.8, 3.9).
+export function candidateWithinBounds(candidate: FixedPointValue, bounds: ResolvedBounds): boolean {
+  {
+    const [cmp, ok] = compareFixed(candidate, bounds.min);
+    if (!ok || cmp < 0) {
+      return false;
+    }
+  }
+  {
+    const [cmp, ok] = compareFixed(candidate, bounds.max);
+    if (!ok || cmp > 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// ===========================================================================
+// Deterministic variation slots and candidate ordering
+// (port of agent-go/derivation_variation.go, task 5.2)
+// ===========================================================================
+
+interface RemedyStageRow {
+  id: string;
+  index: number;
+  crosses_side: boolean;
+}
+
+interface CandidateOrderTable {
+  slot_count: number;
+  slot_walk: readonly number[];
+  variation_key_fields: readonly string[];
+  remedy_stages: readonly RemedyStageRow[];
+}
+
+// variationTablesView is the typed shape of the candidate_order section.
+const variationTablesView = (
+  DERIVATION_TABLES as unknown as { candidate_order: CandidateOrderTable }
+).candidate_order;
+
+// variationSlotCount returns the finite number of variation slots (the generated
+// candidate_order.slot_count). ok=false when the generated table is missing so
+// callers fail closed rather than dividing by zero.
+export function variationSlotCount(): [number, boolean] {
+  const n = variationTablesView.slot_count;
+  if (n <= 0) {
+    return [0, false];
+  }
+  return [n, true];
+}
+
+// VariationDeterminants is the exact, allowlisted set of canonical DDM
+// determinants the variation key is built from. It carries NOTHING else: no
+// candidate side, round number, topic, clock, or pack/round difficulty metadata
+// (Requirements 5.14, 8.7, 8.8).
+export interface VariationDeterminants {
+  trueNumber: FixedPointValue;
+  normalizedUnit: string;
+  quantityKind: QuantityKind;
+  canonicalSurprise: number;
+  trapDirection: TrapDirection;
+  plausibleMin: FixedPointValue;
+  plausibleMax: FixedPointValue;
+}
+
+// variationFieldValue returns the canonical string for one generated
+// variation_key_field name. Numeric fields render with the kernel's canonical
+// formatter; canonical surprise renders as plain integer digits. An unknown
+// field name yields "" so the key stays deterministic.
+function variationFieldValue(field: string, d: VariationDeterminants): string {
+  switch (field) {
+    case "true_number":
+      return formatFixedCanonical(d.trueNumber);
+    case "normalized_unit":
+      return d.normalizedUnit;
+    case "quantity_kind":
+      return d.quantityKind;
+    case "canonical_surprise":
+      // canonical_surprise is a small non-negative integer (0..3); String()
+      // yields plain digits identical to Go's strconv.Itoa here.
+      return String(d.canonicalSurprise);
+    case "trap_direction":
+      return d.trapDirection;
+    case "plausible_min":
+      return formatFixedCanonical(d.plausibleMin);
+    case "plausible_max":
+      return formatFixedCanonical(d.plausibleMax);
+    default:
+      return "";
+  }
+}
+
+// buildVariationKey assembles the deterministic variation key by joining the
+// canonical string of each generated variation_key_field, in the generated
+// order, with a single ASCII '|' separator (Requirements 5.14, 8.7). ok=false
+// when the generated field list is missing/empty.
+export function buildVariationKey(d: VariationDeterminants): [string, boolean] {
+  const fields = variationTablesView.variation_key_fields;
+  if (fields.length === 0) {
+    return ["", false];
+  }
+  const parts: string[] = new Array(fields.length);
+  for (let i = 0; i < fields.length; i++) {
+    parts[i] = variationFieldValue(fields[i], d);
+  }
+  return [parts.join("|"), true];
+}
+
+// variationStartSlot returns the starting slot index in [0, slot_count):
+// fnv1a32(ASCII(variationKey)) mod slot_count. The kernel's fnv1a32 uses uint32
+// wraparound identical to Go, so the start slot is byte-for-byte reproducible
+// (Requirements 5.14, 8.2, 8.3). ok=false when the generated table is missing.
+export function variationStartSlot(d: VariationDeterminants): [number, boolean] {
+  const [n, ok] = variationSlotCount();
+  if (!ok) {
+    return [0, false];
+  }
+  const [key, keyOK] = buildVariationKey(d);
+  if (!keyOK) {
+    return [0, false];
+  }
+  // fnv1a32 returns an unsigned 32-bit value; `% n` matches Go's uint32 modulo.
+  return [fnv1a32(key) % n, true];
+}
+
+// variationSlotSequence returns the finite, deterministic order in which the
+// slots are visited: the generated slot_walk permutation rotated to BEGIN at the
+// start slot, then continuing through the remaining walk cyclically. This yields
+// a fixed, side-independent visiting order with no PRNG state (Requirements 5.15,
+// 8.2, 8.3, 8.5). ok=false when the generated table is missing/malformed.
+export function variationSlotSequence(d: VariationDeterminants): [number[], boolean] {
+  const walk = variationTablesView.slot_walk;
+  const [n, ok] = variationSlotCount();
+  if (!ok || walk.length !== n) {
+    return [[], false];
+  }
+  const [start, startOK] = variationStartSlot(d);
+  if (!startOK) {
+    return [[], false];
+  }
+  let startPos = -1;
+  for (let pos = 0; pos < walk.length; pos++) {
+    if (walk[pos] === start) {
+      startPos = pos;
+      break;
+    }
+  }
+  if (startPos < 0) {
+    // A valid generated walk always contains every slot 0..n-1; fail closed.
+    return [[], false];
+  }
+  const seq: number[] = new Array(n);
+  for (let i = 0; i < n; i++) {
+    seq[i] = walk[(startPos + i) % n];
+  }
+  return [seq, true];
+}
+
+// variationPoint maps a slot index to an exact integer point inside the closed
+// interval [lo, hi] using evenly spaced slots:
+//
+//   point(lo, hi, slot) = lo + floor((hi - lo) * slot / (slot_count - 1))
+//
+// Slot 0 lands on lo and slot (slot_count-1) lands on hi. The arithmetic is pure
+// integer math (no floating point). hi may be less than lo; the span is a signed
+// difference and the result stays within [min(lo,hi), max(lo,hi)]. ok=false when
+// slot_count is unavailable, slot_count is 1, or slot is outside [0, slot_count).
+export function variationPoint(lo: number, hi: number, slot: number): [number, boolean] {
+  const [n, ok] = variationSlotCount();
+  if (!ok) {
+    return [0, false];
+  }
+  if (n < 2) {
+    return [0, false];
+  }
+  if (slot < 0 || slot >= n) {
+    return [0, false];
+  }
+  const span = hi - lo;
+  // step = trunc(span * slot / (n-1)); JS Math.trunc matches Go integer division
+  // (truncation toward zero). span*slot and (n-1) are small integers here.
+  const numerator = span * slot;
+  const step = Math.trunc(numerator / (n - 1));
+  return [lo + step, true];
+}
+
+// ===========================================================================
+// Signed additive, multiplicative, and bounded raw-candidate generation
+// (port of agent-go/derivation_candidate.go, task 5.3)
+// ===========================================================================
+
+// RawCandidateRejection is the deterministic category of a pre-snapping screen
+// failure. It is diagnostic only; the ordered Giveaway Gate owns the
+// authoritative rejection reasons.
+export type RawCandidateRejection = "" | "ARITHMETIC" | "WRONG_SIDE" | "HARD_BOUNDARY" | "BOUNDS";
+export const rawRejectNone: RawCandidateRejection = "";
+export const rawRejectArithmetic: RawCandidateRejection = "ARITHMETIC";
+export const rawRejectWrongSide: RawCandidateRejection = "WRONG_SIDE";
+export const rawRejectHardBoundary: RawCandidateRejection = "HARD_BOUNDARY";
+export const rawRejectBounds: RawCandidateRejection = "BOUNDS";
+
+// ScreenedCandidate is the outcome of generating and screening one raw candidate
+// for a specific (band, side, slot). accepted is true only when the raw
+// candidate is representable, strictly on the required side, and inside both the
+// hard boundary and plausibility bounds.
+export interface ScreenedCandidate {
+  value: FixedPointValue;
+  accepted: boolean;
+  rejection: RawCandidateRejection;
+}
+
+// candidateAboveTruth reports whether the requested side is the ABOVE-truth
+// candidate (SideLess -> correct direction LESS).
+export function candidateAboveTruth(side: CandidateSide): boolean {
+  return side === SideLess;
+}
+
+// generateRawCandidate produces the exact raw candidate value for one composed
+// band, required side, true number, and deterministic variation slot, BEFORE
+// snapping. It dispatches on the composed band's strategy. It performs NO
+// side/boundary/bounds screening. ok=false when the strategy is unknown, the
+// slot/band inputs are unusable, or any guarded step leaves the shared envelope.
+export function generateRawCandidate(
+  band: ComposedBand,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  slot: number,
+): [FixedPointValue, boolean] {
+  switch (band.strategy) {
+    case strategyMultiplicative:
+      if (band.integerOnly) {
+        return generateIntegerCandidate(band, side, trueNumber, slot);
+      }
+      return generateMultiplicativeCandidate(band, side, trueNumber, slot);
+    case strategyAdditive:
+    case strategyBounded:
+      return generateAdditiveCandidate(band, side, trueNumber, slot);
+    default:
+      return [{ negative: false, mantissa: 0, scale: 0 }, false];
+  }
+}
+
+function generateIntegerCandidate(
+  band: ComposedBand,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  slot: number,
+): [FixedPointValue, boolean] {
+  const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
+  const [n, slotsOK] = variationSlotCount();
+  if (!slotsOK || n < 2 || slot < 0 || slot >= n) return fail;
+  const [first, firstOK] = generateMultiplicativeCandidate(band, side, trueNumber, 0);
+  const [last, lastOK] = generateMultiplicativeCandidate(band, side, trueNumber, n - 1);
+  if (!firstOK || !lastOK || first.negative || last.negative) return fail;
+  const lo = candidateAboveTruth(side) ? first : last;
+  const hi = candidateAboveTruth(side) ? last : first;
+  const [loDiv, loOK] = pow10(lo.scale);
+  const [hiDiv, hiOK] = pow10(hi.scale);
+  if (!loOK || !hiOK) return fail;
+  let minInteger = Math.trunc(lo.mantissa / loDiv);
+  if (lo.mantissa % loDiv !== 0) {
+    const [rounded, ok] = guardedAddMag(minInteger, 1);
+    if (!ok) return fail;
+    minInteger = rounded;
+  }
+  let maxInteger = Math.trunc(hi.mantissa / hiDiv);
+  if (minInteger > maxInteger) {
+    // Empty closed interval: admit the nearest integer strictly on the
+    // required side (ceil of the closer above-truth endpoint, floor of the
+    // closer below-truth endpoint). That recovers 1→2 on the opposite side
+    // without rounding a populated interval outside itself.
+    const only = candidateAboveTruth(side) ? minInteger : maxInteger;
+    const [truthInt, tok] = floorToInt64(trueNumber);
+    if (!tok) return fail;
+    if (candidateAboveTruth(side) ? only <= truthInt : only >= truthInt) return fail;
+    minInteger = only;
+    maxInteger = only;
+  }
+  if (!guardedMulMag(maxInteger - minInteger, slot)[1]) return fail;
+  if (!candidateAboveTruth(side)) {
+    [minInteger, maxInteger] = [maxInteger, minInteger];
+  }
+  const [point, ok] = variationPoint(minInteger, maxInteger, slot);
+  if (!ok) return fail;
+  return [{ negative: false, mantissa: point, scale: 0 }, true];
+}
+
+// generateMultiplicativeCandidate builds true × factor (above) or true ÷ factor
+// (below) as an exact scale-3 fixed-point value, swapping the two operations
+// when truth is negative so the candidate still lands on the required side:
+// above a negative truth means shrinking magnitude (÷ factor toward zero) and
+// below means growing it (× factor away from zero). The factor is permille/unit
+// (e.g. 1150/1000 = 1.15). Each multiplication is guarded against the envelope
+// and each division rounds half away from zero, matching snapping's rounding.
+function generateMultiplicativeCandidate(
+  band: ComposedBand,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  slot: number,
+): [FixedPointValue, boolean] {
+  const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
+  if (band.factorUnit <= 0) {
+    return fail;
+  }
+  if (trueNumber.scale < FixedScaleMin || trueNumber.scale > FixedScaleMax) {
+    return fail;
+  }
+  const [permille, permilleOK] = variationPoint(band.minFactorPermille, band.maxFactorPermille, slot);
+  if (!permilleOK) {
+    return fail;
+  }
+  if (permille <= 0) {
+    return fail;
+  }
+  const unit = band.factorUnit;
+
+  // 10^(3 - scale): scale is 0..3 so the exponent is 0..3 and pow10 is exact.
+  const [shift, shiftOK] = pow10(FixedScaleMax - trueNumber.scale);
+  if (!shiftOK) {
+    return fail;
+  }
+
+  let mantissa3: number;
+  // Positive truth: above = × factor, below = ÷ factor. Negative truth swaps
+  // the roles so the candidate stays on the required side by mathematical
+  // value, not magnitude (e.g. −40 °C: above = −40 ÷ 1.15 ≈ −34.8).
+  const multiply = candidateAboveTruth(side) !== trueNumber.negative;
+  if (multiply) {
+    // numerator = trueMantissa × permille × shift
+    let [num, ok] = guardedMulMag(trueNumber.mantissa, permille);
+    if (!ok) {
+      return fail;
+    }
+    [num, ok] = guardedMulMag(num, shift);
+    if (!ok) {
+      return fail;
+    }
+    const [m, mok] = divideMagnitudeHalfAway(num, unit);
+    if (!mok) {
+      return fail;
+    }
+    mantissa3 = m;
+  } else {
+    // numerator = trueMantissa × unit × shift
+    let [num, ok] = guardedMulMag(trueNumber.mantissa, unit);
+    if (!ok) {
+      return fail;
+    }
+    [num, ok] = guardedMulMag(num, shift);
+    if (!ok) {
+      return fail;
+    }
+    const [m, mok] = divideMagnitudeHalfAway(num, permille);
+    if (!mok) {
+      return fail;
+    }
+    mantissa3 = m;
+  }
+
+  return normalizeFixed({
+    negative: trueNumber.negative,
+    mantissa: mantissa3,
+    scale: FixedScaleMax,
+  });
+}
+
+// generateAdditiveCandidate builds true + delta (above) or true − delta (below)
+// using the kernel's signed fixed-point arithmetic. The delta is a non-negative
+// fixed-point magnitude selected inside [minDelta, maxDelta] by the slot;
+// addFixed / subtractFixed apply the sign by value so signed domains compose
+// correctly. ok=false when the band deltas cannot be aligned/selected or the
+// signed combination leaves the envelope.
+function generateAdditiveCandidate(
+  band: ComposedBand,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  slot: number,
+): [FixedPointValue, boolean] {
+  const [delta, ok] = selectBandDelta(band, slot);
+  if (!ok) {
+    return [{ negative: false, mantissa: 0, scale: 0 }, false];
+  }
+  if (candidateAboveTruth(side)) {
+    return addFixed(trueNumber, delta);
+  }
+  return subtractFixed(trueNumber, delta);
+}
+
+// selectBandDelta picks the exact non-negative fixed-point delta inside the
+// composed band's [minDelta, maxDelta] interval for a deterministic slot. The
+// endpoints are aligned to their common scale, variationPoint selects an integer
+// mantissa on that scale, and the result is normalized. ok=false when the
+// endpoints cannot be aligned within the envelope or the slot is unusable.
+function selectBandDelta(band: ComposedBand, slot: number): [FixedPointValue, boolean] {
+  const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
+  const [minMant, maxMant, scale, ok] = alignFixed(band.minDelta, band.maxDelta);
+  if (!ok) {
+    return fail;
+  }
+  const [chosen, chosenOK] = variationPoint(minMant, maxMant, slot);
+  if (!chosenOK) {
+    return fail;
+  }
+  if (chosen < 0) {
+    return fail;
+  }
+  return normalizeFixed({ negative: false, mantissa: chosen, scale });
+}
+
+// candidateStrictlyOnSide reports whether a raw candidate is distinct from the
+// true number AND lies on the required side, comparing exact mathematical values
+// (Requirements 7.3, 7.4). The ABOVE-truth side (SideLess) requires candidate >
+// truth; the BELOW-truth side (SideMore) requires candidate < truth. Any
+// comparison guard failure fails closed (false).
+export function candidateStrictlyOnSide(
+  candidate: FixedPointValue,
+  trueNumber: FixedPointValue,
+  side: CandidateSide,
+): boolean {
+  const [cmp, ok] = compareFixed(candidate, trueNumber);
+  if (!ok) {
+    return false;
+  }
+  if (candidateAboveTruth(side)) {
+    return cmp > 0;
+  }
+  return cmp < 0;
+}
+
+// screenRawCandidate generates one raw candidate for the given band, side, true
+// number, and slot, then applies the pre-snapping screens in the spec's order:
+// arithmetic representability, strict required-side distinctness, hard boundary
+// (rejected, never clamped), and plausibility bounds (rejected, never clamped).
+export function screenRawCandidate(
+  kind: QuantityKind,
+  band: ComposedBand,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  bounds: ResolvedBounds,
+  slot: number,
+): ScreenedCandidate {
+  const [value, ok] = generateRawCandidate(band, side, trueNumber, slot);
+  if (!ok) {
+    return { value: { negative: false, mantissa: 0, scale: 0 }, accepted: false, rejection: rawRejectArithmetic };
+  }
+  if (!candidateStrictlyOnSide(value, trueNumber, side)) {
+    return { value, accepted: false, rejection: rawRejectWrongSide };
+  }
+  const { satisfies, ok: boundaryOK } = candidateSatisfiesHardBoundary(kind, value);
+  if (!boundaryOK || !satisfies) {
+    return { value, accepted: false, rejection: rawRejectHardBoundary };
+  }
+  if (!candidateWithinBounds(value, bounds)) {
+    return { value, accepted: false, rejection: rawRejectBounds };
+  }
+  return { value, accepted: true, rejection: rawRejectNone };
+}
+
+// ===========================================================================
+// Significant-figure and natural-number snapping
+// (port of agent-go/derivation_snapping.go, task 6.1)
+//
+// The Zero Value Strategy (task 5.4, below) walks the full raw/snap/gate path
+// for each offset, so this snapping port and the Giveaway Gate port that follow
+// are prerequisites for a WORKING, TESTABLE zero-value port. They are ported
+// here byte-identically to Go alongside the strategy/candidate/zero layers.
+// ===========================================================================
+
+interface SnapKindStep {
+  min_step_exp: number;
+  prefer_step_exp: number;
+  max_step_exp?: number;
+}
+
+interface SnapRefinement {
+  id: string;
+  index: number;
+}
+
+interface SnapTable {
+  kind_steps: Record<string, SnapKindStep>;
+  refinement_sequence: readonly SnapRefinement[];
+  significant_figures_min: number;
+  significant_figures_max: number;
+}
+
+interface SnapDeadZoneKind {
+  half_width_permille: number;
+  min_absolute: number;
+  min_absolute_scale: number;
+}
+
+interface SnapDeadZoneTable {
+  unit_factor: number;
+  kinds: Record<string, SnapDeadZoneKind>;
+}
+
+// snapTablesView is the typed shape of the snapping + dead_zones sections.
+const snapTablesView = DERIVATION_TABLES as unknown as {
+  snapping: SnapTable;
+  dead_zones: SnapDeadZoneTable;
+};
+
+// snapMantissaToExp rounds the exact value of v to the nearest multiple of the
+// natural-number quantum 10^exp, rounding exact midpoint magnitudes away from
+// zero (Requirement 4.3). The sign is preserved. Snapping to a finer-than-
+// representable grid is the identity, which makes same-step snapping idempotent
+// (4.10). ok=false when exp forces a scale beyond FixedScaleMax or any guarded
+// step leaves the shared 2^53-1 envelope.
+export function snapMantissaToExp(v: FixedPointValue, exp: number): [FixedPointValue, boolean] {
+  const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
+  const [n, ok] = normalizeFixed(v);
+  if (!ok) {
+    return fail;
+  }
+  if (exp < 0 && -exp > FixedScaleMax) {
+    return fail;
+  }
+  if (exp > pow10MaxExp) {
+    return fail;
+  }
+
+  const m = n.mantissa;
+  const s = n.scale;
+  const d = s + exp;
+
+  let q: number;
+  if (d >= 0) {
+    const [div, okPow] = pow10(d);
+    if (!okPow) {
+      return fail;
+    }
+    const [qv, qok] = divideMagnitudeHalfAway(m, div);
+    if (!qok) {
+      return fail;
+    }
+    q = qv;
+  } else {
+    const [factor, okPow] = pow10(-d);
+    if (!okPow) {
+      return fail;
+    }
+    const [qv, qok] = guardedMulMag(m, factor);
+    if (!qok) {
+      return fail;
+    }
+    q = qv;
+  }
+
+  // q === 0 collapses to canonical zero regardless of exponent.
+  if (q === 0) {
+    return normalizeFixed({ negative: false, mantissa: 0, scale: FixedScaleMin });
+  }
+
+  if (exp >= 0) {
+    const [scaleUp, okPow] = pow10(exp);
+    if (!okPow) {
+      return fail;
+    }
+    const [mantissa, okMul] = guardedMulMag(q, scaleUp);
+    if (!okMul) {
+      return fail;
+    }
+    return normalizeFixed({ negative: n.negative, mantissa, scale: 0 });
+  }
+  // exp < 0: q counts quanta of 10^exp, i.e. q at scale -exp.
+  return normalizeFixed({ negative: n.negative, mantissa: q, scale: -exp });
+}
+
+// snapRefinementExp maps one refinement id to its raw (pre-clamp) step exponent
+// for a candidate whose value has magnitude scale M, using ONLY the generated
+// significant-figure counts and per-kind step exponents (Requirements 4.1, 4.2,
+// 4.4). An unknown id fails closed to the finest (min) step.
+function snapRefinementExp(id: string, magnitude: number, step: SnapKindStep, tbl: SnapTable): number {
+  switch (id) {
+    case "one_sig_fig":
+      return magnitude - (tbl.significant_figures_min - 1);
+    case "two_sig_fig":
+      return magnitude - (tbl.significant_figures_max - 1);
+    case "half_step":
+      return step.prefer_step_exp;
+    case "unit_step":
+      return step.min_step_exp;
+    default:
+      return step.min_step_exp;
+  }
+}
+
+// snapClampExp clamps a raw step exponent into the range the kind permits for a
+// magnitude-M value: no finer than min_step_exp and no coarser than
+// max(M, prefer_step_exp), then the optional max_step_exp cap (Requirements 4.1, 4.2, 4.4).
+function snapClampExp(raw: number, magnitude: number, step: SnapKindStep): number {
+  let coarsest = magnitude;
+  if (step.prefer_step_exp > coarsest) {
+    coarsest = step.prefer_step_exp;
+  }
+  if (step.max_step_exp !== undefined && coarsest > step.max_step_exp) {
+    coarsest = step.max_step_exp;
+  }
+  if (coarsest < step.min_step_exp) {
+    coarsest = step.min_step_exp;
+  }
+  let e = raw;
+  if (e < step.min_step_exp) {
+    e = step.min_step_exp;
+  }
+  if (e > coarsest) {
+    e = coarsest;
+  }
+  return e;
+}
+
+// snapRefinementsInOrder returns the generated refinement sequence sorted by its
+// declared index so the walk is coarsest-to-finest regardless of decode order
+// (Requirement 4.4). The generated array is constant, so this sort is pure.
+function snapRefinementsInOrder(tbl: SnapTable): SnapRefinement[] {
+  return [...tbl.refinement_sequence].sort((a, b) => a.index - b.index);
+}
+
+// snapOutsideDeadZone reports whether a candidate lies strictly OUTSIDE the dead
+// zone surrounding the true number for the resolved kind, using ONLY the
+// generated dead_zones table. This is a SNAPPING-SCOPED local check
+// (Requirements 4.5, 4.6); the ordered Giveaway Gate owns the emission-time
+// first-match rejection over the same table. ok=false on any guard failure so an
+// unrepresentable check fails closed (treated as inside → not accepted).
+function snapOutsideDeadZone(
+  kind: QuantityKind,
+  candidate: FixedPointValue,
+  trueNumber: FixedPointValue,
+): { outside: boolean; ok: boolean } {
+  const dz = snapTablesView.dead_zones;
+  const entry = dz.kinds[kind];
+  if (entry === undefined || dz.unit_factor <= 0) {
+    return { outside: false, ok: false };
+  }
+
+  // |candidate - truth|.
+  const [diff, subOK] = subtractFixed(candidate, trueNumber);
+  if (!subOK) {
+    return { outside: false, ok: false };
+  }
+  diff.negative = false;
+  const [absDiff, normOK] = normalizeFixed(diff);
+  if (!normOK) {
+    return { outside: false, ok: false };
+  }
+
+  const [permilleWidth, pwOK] = snapPermilleOfValue(trueNumber, entry.half_width_permille, dz.unit_factor);
+  if (!pwOK) {
+    return { outside: false, ok: false };
+  }
+
+  if (
+    entry.min_absolute_scale < FixedScaleMin ||
+    entry.min_absolute_scale > FixedScaleMax ||
+    entry.min_absolute < 0
+  ) {
+    return { outside: false, ok: false };
+  }
+  const [absFloor, afOK] = normalizeFixed({ negative: false, mantissa: entry.min_absolute, scale: entry.min_absolute_scale });
+  if (!afOK) {
+    return { outside: false, ok: false };
+  }
+
+  // Effective half-width = max(permilleWidth, absFloor).
+  let halfWidth = permilleWidth;
+  const [cmp, cmpOK] = compareFixed(absFloor, permilleWidth);
+  if (!cmpOK) {
+    return { outside: false, ok: false };
+  }
+  if (cmp > 0) {
+    halfWidth = absFloor;
+  }
+
+  const [cmpDiff, cmpDiffOK] = compareFixed(absDiff, halfWidth);
+  if (!cmpDiffOK) {
+    return { outside: false, ok: false };
+  }
+  return { outside: cmpDiff >= 0, ok: true };
+}
+
+// snapPermilleOfValue returns |value| × permille / unitFactor as a canonical
+// FixedPointValue at the value's own scale, rounding half away from zero.
+// ok=false on a non-positive unit factor, negative permille, or any guarded step
+// leaving the envelope.
+function snapPermilleOfValue(
+  value: FixedPointValue,
+  permille: number,
+  unitFactor: number,
+): [FixedPointValue, boolean] {
+  const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
+  if (unitFactor <= 0 || permille < 0) {
+    return fail;
+  }
+  const [n, ok] = normalizeFixed(value);
+  if (!ok) {
+    return fail;
+  }
+  const [prod, prodOK] = guardedMulMag(n.mantissa, permille);
+  if (!prodOK) {
+    return fail;
+  }
+  const [mantissa, divOK] = divideMagnitudeHalfAway(prod, unitFactor);
+  if (!divOK) {
+    return fail;
+  }
+  return normalizeFixed({ negative: false, mantissa, scale: n.scale });
+}
+
+// SnappedCandidate is the outcome of snapping one raw candidate. accepted is true
+// only when a step in the refinement sequence produced a value that passed every
+// snapping invariant; value then holds that snapped value and stepExp the
+// selected quantum exponent.
+export interface SnappedCandidate {
+  value: FixedPointValue;
+  stepExp: number;
+  accepted: boolean;
+}
+
+// snapCandidate snaps an accepted RAW candidate to a natural-number step and
+// returns the first snapped value that preserves every invariant snapping must
+// hold (Requirement 4). It selects the initial step from the candidate's kind
+// and magnitude_scale, walks the generated refinement sequence coarsest-to-
+// finest, and accepts the first snapped value that is finite, distinct from
+// truth, on the required side, inside the hard boundary and plausibility bounds,
+// and outside the dead zone (4.1–4.6). If every step fails, the raw candidate is
+// rejected (4.7). snapCandidate re-validates side/boundary/bounds because
+// snapping can move a value across any of those limits.
+export function snapCandidate(
+  kind: QuantityKind,
+  rawCandidate: FixedPointValue,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  bounds: ResolvedBounds,
+): SnappedCandidate {
+  const notAccepted: SnappedCandidate = { value: { negative: false, mantissa: 0, scale: 0 }, stepExp: 0, accepted: false };
+  const step = snapTablesView.snapping.kind_steps[kind];
+  if (step === undefined) {
+    return notAccepted;
+  }
+  const [magnitude, ok] = magnitudeScale(rawCandidate);
+  if (!ok) {
+    return notAccepted;
+  }
+
+  for (const ref of snapRefinementsInOrder(snapTablesView.snapping)) {
+    const rawExp = snapRefinementExp(ref.id, magnitude, step, snapTablesView.snapping);
+    const exp = snapClampExp(rawExp, magnitude, step);
+    const [snapped, okSnap] = snapMantissaToExp(rawCandidate, exp);
+    if (!okSnap) {
+      continue;
+    }
+    if (snapCandidatePasses(kind, snapped, side, trueNumber, bounds)) {
+      return { value: snapped, stepExp: exp, accepted: true };
+    }
+  }
+  return notAccepted;
+}
+
+// snapCandidatePasses reports whether a snapped value satisfies every invariant a
+// snapped candidate must preserve before it may be selected (Requirements 4.5,
+// 4.6): distinct from truth and on the required side, inside the kind hard
+// boundary (rejected not clamped), inside the resolved plausibility bounds, and
+// outside the dead zone. Any guard failure is treated as "does not pass".
+function snapCandidatePasses(
+  kind: QuantityKind,
+  snapped: FixedPointValue,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  bounds: ResolvedBounds,
+): boolean {
+  if (!candidateStrictlyOnSide(snapped, trueNumber, side)) {
+    return false;
+  }
+  const { satisfies, ok: boundaryOK } = candidateSatisfiesHardBoundary(kind, snapped);
+  if (!boundaryOK || !satisfies) {
+    return false;
+  }
+  if (!candidateWithinBounds(snapped, bounds)) {
+    return false;
+  }
+  const { outside, ok: okDead } = snapOutsideDeadZone(kind, snapped, trueNumber);
+  if (!okDead || !outside) {
+    return false;
+  }
+  return true;
+}
+
+// ===========================================================================
+// The ordered Giveaway Gate (port of agent-go/derivation_giveaway_gate.go,
+// task 6.2). Ported here as a prerequisite for the Zero Value Strategy, which
+// runs every offset through the full gate path.
+// ===========================================================================
+
+// GateReason is the deterministic per-candidate Giveaway Gate rejection reason.
+// It is INTERNAL to the derivation pipeline. Spellings mirror the authoritative
+// rule order in Requirement 5.2.
+export type GateReason =
+  | ""
+  | "NOT_REPRESENTABLE"
+  | "WRONG_SIDE"
+  | "DISPLAY_COLLISION"
+  | "HARD_BOUNDARY"
+  | "DEAD_ZONE"
+  | "OUT_OF_BOUNDS"
+  | "LANDMARK_GIVEAWAY"
+  | "MAGNITUDE_TELL";
+export const gateReasonNone: GateReason = "";
+export const gateReasonNotRepresentable: GateReason = "NOT_REPRESENTABLE";
+export const gateReasonWrongSide: GateReason = "WRONG_SIDE";
+export const gateReasonDisplayCollision: GateReason = "DISPLAY_COLLISION";
+export const gateReasonHardBoundary: GateReason = "HARD_BOUNDARY";
+export const gateReasonDeadZone: GateReason = "DEAD_ZONE";
+export const gateReasonOutOfBounds: GateReason = "OUT_OF_BOUNDS";
+export const gateReasonLandmarkGiveaway: GateReason = "LANDMARK_GIVEAWAY";
+export const gateReasonMagnitudeTell: GateReason = "MAGNITUDE_TELL";
+
+interface GateDeadZoneEntry {
+  half_width_permille: number;
+  min_absolute: number;
+  min_absolute_scale: number;
+}
+
+interface GateLandmarkValue {
+  value: number;
+  scale: number;
+}
+
+// gateTablesView is the typed shape of the dead_zones, landmarks, and display
+// sections of DERIVATION_TABLES the gate consumes.
+const gateTablesView = DERIVATION_TABLES as unknown as {
+  dead_zones: { encoding: string; unit_factor: number; kinds: Record<string, GateDeadZoneEntry> };
+  landmarks: { encoding: string; proximity_permille: number; values: readonly GateLandmarkValue[] };
+  display: { decimal_places_by_kind: Record<string, number> };
+};
+
+// evaluateGiveawayGate evaluates the ordered Giveaway Gate rules against a single
+// candidate and returns the FIRST matching rejection reason, or gateReasonNone
+// when the candidate passes every rule (Requirements 5.1, 5.2, 5.3).
+export function evaluateGiveawayGate(
+  kind: QuantityKind,
+  candidate: FixedPointValue,
+  trueNumber: FixedPointValue,
+  side: CandidateSide,
+  bounds: ResolvedBounds,
+): GateReason {
+  // Rule 1 — representability / shared exact envelope (Requirement 5.4).
+  const [normCandidate, ok] = normalizeFixed(candidate);
+  if (!ok || !magInEnvelope(normCandidate.mantissa)) {
+    return gateReasonNotRepresentable;
+  }
+  const [normTrue, okTrue] = normalizeFixed(trueNumber);
+  if (!okTrue) {
+    return gateReasonNotRepresentable;
+  }
+
+  // Rule 2 — strict distinctness + required candidate side (Requirement 5.5).
+  if (!candidateStrictlyOnSide(normCandidate, normTrue, side)) {
+    return gateReasonWrongSide;
+  }
+
+  // Rule 3 — displayed-value collision (Requirement 5.6).
+  if (gateDisplayCollides(kind, normCandidate, normTrue)) {
+    return gateReasonDisplayCollision;
+  }
+
+  // Rule 4 — quantity-kind hard boundary (Requirements 5.7, 5.8, 5.9).
+  {
+    const { satisfies, ok: boundaryOK } = candidateSatisfiesHardBoundary(kind, normCandidate);
+    if (!boundaryOK || !satisfies) {
+      return gateReasonHardBoundary;
+    }
+  }
+
+  // Rule 5 — dead zone (Requirements 2.9, 5.10).
+  {
+    const { inside, ok: dzOK } = gateInsideDeadZone(kind, normCandidate, normTrue);
+    if (!dzOK || inside) {
+      return gateReasonDeadZone;
+    }
+  }
+
+  // Rule 6 — plausibility bounds (Requirements 2.8, 5.10).
+  if (!candidateWithinBounds(normCandidate, bounds)) {
+    return gateReasonOutOfBounds;
+  }
+
+  // Rule 7 — famous-landmark giveaway (Requirement 5.11).
+  //
+  // The rule does not apply when the true number is zero: the proximity band
+  // scales with |true| and degenerates to exact-match at zero, where every
+  // natural Zero Value Strategy offset IS a round number by design. No
+  // landmark can triangulate a zero truth, so the offsets remain admissible.
+  if (!isFixedZero(normTrue)) {
+    const { giveaway, ok: lmOK } = gateIsLandmarkGiveaway(normCandidate, normTrue);
+    if (!lmOK || giveaway) {
+      return gateReasonLandmarkGiveaway;
+    }
+  }
+
+  // Rule 8 — order-of-magnitude tell (Requirement 5.12).
+  {
+    const { tell, ok: omOK } = gateIsMagnitudeTell(normCandidate, normTrue);
+    if (!omOK || tell) {
+      return gateReasonMagnitudeTell;
+    }
+  }
+
+  return gateReasonNone;
+}
+
+// gatePasses is a convenience predicate returning true only when the candidate
+// clears every ordered rule.
+export function gatePasses(
+  kind: QuantityKind,
+  candidate: FixedPointValue,
+  trueNumber: FixedPointValue,
+  side: CandidateSide,
+  bounds: ResolvedBounds,
+): boolean {
+  return evaluateGiveawayGate(kind, candidate, trueNumber, side, bounds) === gateReasonNone;
+}
+
+// gateDisplayCollides reports whether the candidate and the true number render to
+// the same displayed value for the resolved kind (Requirement 5.6). Both values
+// are rounded to the kind's display precision then their canonical spellings are
+// compared. When the kind has no display entry the check falls back to canonical
+// equality.
+function gateDisplayCollides(
+  kind: QuantityKind,
+  candidate: FixedPointValue,
+  trueNumber: FixedPointValue,
+): boolean {
+  const places = gateTablesView.display.decimal_places_by_kind[kind];
+  if (places === undefined) {
+    return formatFixedCanonical(candidate) === formatFixedCanonical(trueNumber);
+  }
+  const [dc, cok] = gateRoundToDisplay(candidate, places);
+  const [dt, tok] = gateRoundToDisplay(trueNumber, places);
+  if (!cok || !tok) {
+    return true;
+  }
+  return formatFixedCanonical(dc) === formatFixedCanonical(dt);
+}
+
+// gateRoundToDisplay rounds a fixed-point value to exactly `places` fractional
+// digits using magnitude-half-away-from-zero, matching the kernel's rounding
+// rule. When the value is already at or below the requested scale it is returned
+// canonical. ok=false when the value is out of contract or rounding leaves the
+// envelope.
+function gateRoundToDisplay(v: FixedPointValue, places: number): [FixedPointValue, boolean] {
+  const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
+  if (places < FixedScaleMin || places > FixedScaleMax) {
+    return fail;
+  }
+  const [n, ok] = normalizeFixed(v);
+  if (!ok) {
+    return fail;
+  }
+  if (n.scale <= places) {
+    return [n, true];
+  }
+  const [divisor, divOK] = pow10(n.scale - places);
+  if (!divOK) {
+    return fail;
+  }
+  const [rounded, rok] = divideMagnitudeHalfAway(n.mantissa, divisor);
+  if (!rok) {
+    return fail;
+  }
+  return normalizeFixed({ negative: n.negative, mantissa: rounded, scale: places });
+}
+
+// gateInsideDeadZone reports whether the candidate lies inside the dead zone
+// surrounding the true number for the resolved kind (Requirements 2.9, 5.10).
+// A candidate whose exact distance |candidate − true| is STRICTLY LESS THAN the
+// half-width is inside and rejected; equality and farther clear the zone so
+// adjacent integers (3 vs 4) survive when min_absolute is 1. ok=false only on a
+// build-integrity/arithmetic failure, in which case the caller fails closed.
+function gateInsideDeadZone(
+  kind: QuantityKind,
+  candidate: FixedPointValue,
+  trueNumber: FixedPointValue,
+): { inside: boolean; ok: boolean } {
+  const tables = gateTablesView.dead_zones;
+  const entry = tables.kinds[kind];
+  if (entry === undefined) {
+    return { inside: false, ok: false };
+  }
+  const unitFactor = tables.unit_factor;
+  if (unitFactor <= 0) {
+    return { inside: false, ok: false };
+  }
+
+  const [halfWidth, hwOK] = gateDeadZoneHalfWidth(entry, trueNumber, unitFactor);
+  if (!hwOK) {
+    return { inside: false, ok: false };
+  }
+
+  const [diff, dOK] = subtractFixed(candidate, trueNumber);
+  if (!dOK) {
+    return { inside: false, ok: false };
+  }
+  const distance = gateAbs(diff);
+
+  const [cmp, cmpOK] = compareFixed(distance, halfWidth);
+  if (!cmpOK) {
+    return { inside: false, ok: false };
+  }
+  return { inside: cmp < 0, ok: true };
+}
+
+// gateDeadZoneHalfWidth computes the exact dead-zone half-width for one kind and
+// true number: the larger of the permille fraction of |true| (at the true
+// number's scale, rounded half away from zero) and the absolute floor.
+function gateDeadZoneHalfWidth(
+  entry: GateDeadZoneEntry,
+  trueNumber: FixedPointValue,
+  unitFactor: number,
+): [FixedPointValue, boolean] {
+  const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
+  let [fractionMantissa, ok] = guardedMulMag(trueNumber.mantissa, entry.half_width_permille);
+  if (!ok) {
+    return fail;
+  }
+  [fractionMantissa, ok] = divideMagnitudeHalfAway(fractionMantissa, unitFactor);
+  if (!ok) {
+    return fail;
+  }
+  const [fraction, fOK] = normalizeFixed({ negative: false, mantissa: fractionMantissa, scale: trueNumber.scale });
+  if (!fOK) {
+    return fail;
+  }
+
+  const [floor, flOK] = normalizeFixed({ negative: false, mantissa: entry.min_absolute, scale: entry.min_absolute_scale });
+  if (!flOK) {
+    return fail;
+  }
+
+  const [cmp, cmpOK] = compareFixed(fraction, floor);
+  if (!cmpOK) {
+    return fail;
+  }
+  if (cmp >= 0) {
+    return [fraction, true];
+  }
+  return [floor, true];
+}
+
+// gateIsLandmarkGiveaway reports whether the candidate is a famous round-number
+// giveaway relative to the true number (Requirement 5.11): within
+// proximity_permille of |true| of any generated landmark value.
+function gateIsLandmarkGiveaway(
+  candidate: FixedPointValue,
+  trueNumber: FixedPointValue,
+): { giveaway: boolean; ok: boolean } {
+  const lm = gateTablesView.landmarks;
+  const unitFactor = gateTablesView.dead_zones.unit_factor;
+  if (unitFactor <= 0) {
+    return { giveaway: false, ok: false };
+  }
+
+  let [bandMantissa, mok] = guardedMulMag(trueNumber.mantissa, lm.proximity_permille);
+  if (!mok) {
+    return { giveaway: false, ok: false };
+  }
+  [bandMantissa, mok] = divideMagnitudeHalfAway(bandMantissa, unitFactor);
+  if (!mok) {
+    return { giveaway: false, ok: false };
+  }
+  const [band, bok] = normalizeFixed({ negative: false, mantissa: bandMantissa, scale: trueNumber.scale });
+  if (!bok) {
+    return { giveaway: false, ok: false };
+  }
+
+  // A candidate is a giveaway when it is EXACTLY equal to a landmark
+  // AND that landmark is within proximity_permille of |true|.
+  const candidateMag = gateAbs(candidate);
+  let isLandmark = false;
+  for (const lv of lm.values) {
+    const [landmark, nok] = normalizeFixed({ negative: false, mantissa: lv.value, scale: lv.scale });
+    if (!nok) {
+      return { giveaway: false, ok: false };
+    }
+    const [cmp, cok] = compareFixed(candidateMag, landmark);
+    if (!cok) {
+      return { giveaway: false, ok: false };
+    }
+    if (cmp === 0) {
+      isLandmark = true;
+      break;
+    }
+  }
+  if (!isLandmark) {
+    return { giveaway: false, ok: true };
+  }
+
+  const trueMag = gateAbs(trueNumber);
+  const [diff, dok] = subtractFixed(candidateMag, trueMag);
+  if (!dok) {
+    return { giveaway: false, ok: false };
+  }
+  const distance = gateAbs(diff);
+  const [cmp, cok] = compareFixed(distance, band);
+  if (!cok) {
+    return { giveaway: false, ok: false };
+  }
+  if (cmp <= 0) {
+    return { giveaway: true, ok: true };
+  }
+  return { giveaway: false, ok: true };
+}
+
+// gateIsMagnitudeTell reports whether the direction between the candidate and the
+// true number is obvious by order of magnitude (Requirement 5.12): the candidate
+// is a tell when its decimal order of magnitude differs from the true number's.
+function gateIsMagnitudeTell(
+  candidate: FixedPointValue,
+  trueNumber: FixedPointValue,
+): { tell: boolean; ok: boolean } {
+  const [candMag, cok] = magnitudeScale(candidate);
+  if (!cok) {
+    return { tell: false, ok: false };
+  }
+  const [trueMag, tok] = magnitudeScale(trueNumber);
+  if (!tok) {
+    return { tell: false, ok: false };
+  }
+  const delta = candMag > trueMag ? candMag - trueMag : trueMag - candMag;
+  // A single power-of-ten boundary is not itself a giveaway: the player
+  // cannot see the truth, so 90 vs 100 (or 137 vs 1500) does not make
+  // MORE/LESS obvious. Two or more orders still do.
+  return { tell: delta >= 2, ok: true };
+}
+
+// gateAbs returns the canonical absolute value (magnitude) of a fixed-point
+// value: the same magnitude with the sign cleared.
+function gateAbs(v: FixedPointValue): FixedPointValue {
+  const [n, ok] = normalizeFixed(v);
+  if (!ok) {
+    return { negative: false, mantissa: 0, scale: 0 };
+  }
+  n.negative = false;
+  return n;
+}
+
+// ===========================================================================
+// Table-driven Zero Value Strategy
+// (port of agent-go/derivation_zero.go, task 5.4)
+//
+// Total, finite handling of a zero true_number for every non-year kind, plus the
+// immediate year abstention. It runs INSTEAD of multiplicative candidate
+// arithmetic whenever the resolved true_number is zero (Requirements 16.1-16.10,
+// 16.15, 16.16, 9.12, 14.7, 14.20). Multiplication by zero can only emit zero,
+// which equals truth; instead this strategy adds a finite, ordered, nonzero
+// additive offset to zero. A nonzero token that scale-3 rounding collapsed to
+// zero routes here exactly like a literal zero (Requirement 16.15).
+// ===========================================================================
+
+interface ZeroKindOffsets {
+  scale: number;
+  surprise: Record<string, readonly number[]>;
+}
+
+interface ZeroStrategyTable {
+  offsets: Record<string, ZeroKindOffsets>;
+  year_abstain_reason: string;
+  year_abstains: boolean;
+}
+
+// zeroStrategyTable is the typed view of the generated zero_value_strategy
+// section.
+const zeroStrategyTable = (
+  DERIVATION_TABLES as unknown as { zero_value_strategy: ZeroStrategyTable }
+).zero_value_strategy;
+
+// ZeroValueOutcome is the result of running the Zero Value Strategy for one
+// round. On success accepted is true and value/correctDirection/stepExp describe
+// the selected snapped candidate; on abstention accepted is false and reason
+// carries the deterministic abstain reason (ZERO_OUTSIDE_YEAR_DOMAIN for year
+// zero, NO_CANDIDATE_PASSES_GATE on finite-sequence exhaustion). source is always
+// zero_value on success.
+export interface ZeroValueOutcome {
+  accepted: boolean;
+  value: FixedPointValue;
+  correctDirection: CandidateSide;
+  stepExp: number;
+  source?: DerivationSource;
+  reason?: AbstainReason;
+}
+
+// deriveZeroValue resolves a zero true_number for the resolved quantity_kind
+// through the ordered Zero Value Strategy (Requirement 16.16). The caller MUST
+// have resolved the true number to canonical zero already (a literal zero or a
+// scale-3 rounding collapse per Requirement 16.15) and MUST pass an
+// already-canonicalized surprise (0..3) and the resolved candidate sides.
+//
+//   - year → immediate abstention with the generated year abstain reason
+//     (ZERO_OUTSIDE_YEAR_DOMAIN), never entering offset enumeration (16.2).
+//   - any other kind → enumerate the finite nonzero offset sequence on the
+//     primary side (forced side when present, else trap-preferred), and, when the
+//     whole primary side fails and opposite-side fallback is permitted, on the
+//     opposite side in the same table order. The first offset whose raw and
+//     snapped candidate clear the full gate path succeeds (16.3-16.8).
+//
+// Exhausting every permitted side abstains with NO_CANDIDATE_PASSES_GATE (16.9).
+export function deriveZeroValue(
+  kind: QuantityKind,
+  canonicalSurprise: number,
+  trueNumber: FixedPointValue,
+  sides: ResolvedCandidateSides,
+  bounds: ResolvedBounds,
+): ZeroValueOutcome {
+  const tables = zeroStrategyTable;
+
+  if (kind === KindYear) {
+    return zeroAbstain(zeroYearAbstainReason(tables));
+  }
+
+  for (const side of zeroSideOrder(sides)) {
+    const { outcome, done } = zeroTrySide(kind, canonicalSurprise, trueNumber, side, bounds, tables);
+    if (done) {
+      return outcome;
+    }
+  }
+
+  return zeroAbstain(AbstainNoCandidatePassesGate);
+}
+
+// zeroAbstain builds an abstain outcome with the given reason.
+function zeroAbstain(reason: AbstainReason): ZeroValueOutcome {
+  return { accepted: false, value: { negative: false, mantissa: 0, scale: 0 }, correctDirection: SideMore, stepExp: 0, reason };
+}
+
+// zeroYearAbstainReason returns the abstain reason for a year zero, preferring
+// the generated year_abstain_reason string and falling back to the contract
+// constant AbstainZeroOutsideYearDomain when the table is degenerate.
+function zeroYearAbstainReason(tables: ZeroStrategyTable): AbstainReason {
+  if (tables.year_abstain_reason !== "") {
+    return tables.year_abstain_reason as AbstainReason;
+  }
+  return AbstainZeroOutsideYearDomain;
+}
+
+// zeroSideOrder returns the candidate sides to evaluate, in order: a forced side
+// is the ONLY side (opposite-side fallback is forbidden), so forced-side
+// re-derivation never crosses sides (Requirements 16.5, 9.12, 14.7, 14.20);
+// otherwise the trap-preferred side is tried first and, when opposite-side
+// fallback is permitted, the opposite side is tried second (Requirement 16.4).
+function zeroSideOrder(sides: ResolvedCandidateSides): CandidateSide[] {
+  if (sides.forced !== undefined) {
+    return [sides.forced];
+  }
+  const primary = sides.preferred;
+  const order: CandidateSide[] = [primary];
+  if (sides.allowOppositeFallback) {
+    order.push(oppositeSide(primary));
+  }
+  return order;
+}
+
+// zeroTrySide enumerates the finite nonzero offset sequence for one side in table
+// order and returns the first fully passing candidate. done=true when this side
+// produced a success; done=false means the whole side was exhausted without a
+// pass so the caller advances to the next permitted side.
+function zeroTrySide(
+  kind: QuantityKind,
+  canonicalSurprise: number,
+  trueNumber: FixedPointValue,
+  side: CandidateSide,
+  bounds: ResolvedBounds,
+  tables: ZeroStrategyTable,
+): { outcome: ZeroValueOutcome; done: boolean } {
+  for (const offset of zeroOffsetsFor(kind, canonicalSurprise, tables)) {
+    const { outcome, ok } = zeroTryOffset(kind, offset, side, trueNumber, bounds);
+    if (ok) {
+      return { outcome, done: true };
+    }
+  }
+  return { outcome: zeroAbstain(AbstainNoCandidatePassesGate), done: false };
+}
+
+// zeroOffsetsFor returns the ordered nonzero additive offsets for a kind and
+// canonical surprise as canonical non-negative fixed-point magnitudes, in the
+// exact table order (Requirements 16.1, 16.3). Each generated integer offset is
+// interpreted at the kind's declared table scale. A non-positive or
+// unrepresentable offset is skipped defensively. An unknown kind or absent
+// surprise row yields an empty sequence, which cleanly abstains.
+export function zeroOffsetsFor(
+  kind: QuantityKind,
+  canonicalSurprise: number,
+  tables: ZeroStrategyTable,
+): FixedPointValue[] {
+  const entry = tables.offsets[kind];
+  if (entry === undefined) {
+    return [];
+  }
+  const raw = entry.surprise[String(canonicalSurprise)];
+  if (raw === undefined) {
+    return [];
+  }
+  const out: FixedPointValue[] = [];
+  for (const mant of raw) {
+    if (mant <= 0) {
+      continue;
+    }
+    const [delta, dok] = normalizeFixed({ negative: false, mantissa: mant, scale: entry.scale });
+    if (!dok || delta.mantissa === 0) {
+      continue;
+    }
+    out.push(delta);
+  }
+  return out;
+}
+
+// zeroTryOffset builds and fully gates one raw candidate for a single offset and
+// side. The raw candidate is 0 + offset on the ABOVE-truth side (SideLess) and
+// 0 − offset on the BELOW-truth side (SideMore), using the signed kernel. It then
+// walks the full gate path: pre-snap strict side + ordered Giveaway Gate on the
+// RAW candidate (16.6), snapping (16.7), and post-snap Giveaway Gate + nonzero
+// guard on the SNAPPED candidate (16.7, 16.8). ok=true only when a nonzero
+// snapped value clears the whole path; the outcome then carries the snapped
+// value, its step exponent, the strict-direction correct_direction, and
+// zero_value (Requirement 16.10).
+function zeroTryOffset(
+  kind: QuantityKind,
+  offset: FixedPointValue,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  bounds: ResolvedBounds,
+): { outcome: ZeroValueOutcome; ok: boolean } {
+  const fail = { outcome: zeroAbstain(AbstainNoCandidatePassesGate), ok: false };
+
+  const [raw, ok] = zeroRawCandidate(offset, side, trueNumber);
+  if (!ok) {
+    return fail;
+  }
+
+  // A zero raw candidate can never be a valid distractor (equals truth); skip
+  // it before any gate work (Requirement 16.6).
+  if (raw.mantissa === 0) {
+    return fail;
+  }
+
+  if (!candidateStrictlyOnSide(raw, trueNumber, side)) {
+    return fail;
+  }
+  if (!gatePasses(kind, raw, trueNumber, side, bounds)) {
+    return fail;
+  }
+
+  const snapped = snapCandidate(kind, raw, side, trueNumber, bounds);
+  if (!snapped.accepted) {
+    return fail;
+  }
+
+  if (snapped.value.mantissa === 0) {
+    return fail;
+  }
+  if (!gatePasses(kind, snapped.value, trueNumber, side, bounds)) {
+    return fail;
+  }
+
+  const [direction, dok] = zeroDirectionOf(snapped.value, trueNumber);
+  if (!dok) {
+    return fail;
+  }
+
+  return {
+    outcome: {
+      accepted: true,
+      value: snapped.value,
+      correctDirection: direction,
+      stepExp: snapped.stepExp,
+      source: SourceZeroValue,
+    },
+    ok: true,
+  };
+}
+
+// zeroRawCandidate builds the raw zero-value candidate for one offset and side:
+// truth + offset on the ABOVE-truth side (SideLess) and truth − offset on the
+// BELOW-truth side (SideMore). Truth is canonical zero here, so the result is
+// +offset or −offset. ok=false when the signed combination leaves the envelope.
+function zeroRawCandidate(
+  offset: FixedPointValue,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+): [FixedPointValue, boolean] {
+  if (candidateAboveTruth(side)) {
+    return addFixed(trueNumber, offset);
+  }
+  return subtractFixed(trueNumber, offset);
+}
+
+// zeroDirectionOf returns the strict-direction correct_direction of a candidate
+// relative to the true number: SideLess when the candidate is strictly above
+// truth, SideMore when strictly below (Requirement 16.10). ok=false on an
+// unrepresentable comparison or an equal value.
+function zeroDirectionOf(
+  candidate: FixedPointValue,
+  trueNumber: FixedPointValue,
+): [CandidateSide, boolean] {
+  const [cmp, ok] = compareFixed(candidate, trueNumber);
+  if (!ok || cmp === 0) {
+    return [SideMore, false];
+  }
+  if (cmp > 0) {
+    return [SideLess, true];
+  }
+  return [SideMore, true];
+}
+
+// zeroSurpriseKeysInOrder returns the canonical-surprise keys present in a kind's
+// offset table in ascending numeric order. It is a diagnostic/testing helper
+// (the runtime path indexes a single canonical surprise directly).
+export function zeroSurpriseKeysInOrder(entry: ZeroKindOffsets): number[] {
+  const keys: number[] = [];
+  for (const k of Object.keys(entry.surprise)) {
+    const n = Number.parseInt(k, 10);
+    if (Number.isInteger(n)) {
+      keys.push(n);
+    }
+  }
+  keys.sort((a, b) => a - b);
+  return keys;
+}
+
+// loadZeroStrategyTablesView exposes the parsed zero_value_strategy view so tests
+// can assert the table shape (mirrors Go's loadZeroStrategyTables().ZeroValueStrategy).
+export function loadZeroStrategyTablesView(): ZeroStrategyTable {
+  return zeroStrategyTable;
+}
+
+// ===========================================================================
+// The finite remedy ladder + the pure `derive` entry point (task 6.3)
+// (port of agent-go/derivation_derive.go)
+//
+// derive is the pure, total composition of every previously-ported DDM stage.
+// Given one allowlisted DerivationInput it returns exactly one DerivationResult
+// — a complete DerivationSuccess or a deterministic DerivationAbstain — and
+// NEVER mutates its input (Requirements 8.1, 8.4, 8.5, 8.9, 8.10, 8.11). It
+// wires the pipeline in the authoritative order:
+//
+//   Numeric_Ingest -> canonicalize surprise -> resolve quantity_kind ->
+//   resolve bounds -> magnitude_scale -> resolve trap + sides ->
+//   optional precompute re-gate -> zero handling OR band + finite remedy ladder
+//   -> success / abstain.
+//
+// The remedy ladder walks the finite, ordered generated
+// candidate_order.remedy_stages: preferred_side -> alternative_calibration ->
+// bound_derived -> opposite_side. Each stage enumerates candidates in
+// the deterministic slot order (task 5.2), pre-gates the RAW candidate, snaps it
+// (task 6.1), and post-gates the SNAPPED candidate (task 6.2). The FIRST fully-
+// passing candidate wins (first-pass-wins, Requirements 5.13, 5.16, 7.5). A
+// forced side removes EVERY opposite-side stage (crosses_side stages are skipped
+// when a forced side is present, Requirements 13.13, 13.14, 13.15). Exhausting
+// the finite ladder on every permitted side abstains NO_CANDIDATE_PASSES_GATE
+// (Requirement 5.13).
+//
+// STRICT DIRECTION (Requirements 3.10, 7.1, 7.2, 7.6, 7.7): correct_direction is
+// computed ONLY from the final normalized truth-vs-presented comparison
+// (finalDirection). It is NEVER taken from the trap, the enumerated candidate
+// side, or precompute metadata.
+//
+// This section adds ONLY the composition and the remedy-ladder ordering; it
+// introduces no new table literals. Every stage helper, the exact kernel, and
+// the contract types are reused verbatim from above / derivation.ts.
+// ===========================================================================
+
+// derive is the pure DDM entry point. It composes every stage into one total
+// function and returns exactly one complete DerivationResult without mutating
+// its input (Requirements 3.11, 8.1, 8.9, 8.10, 8.11).
+export function derive(input: DerivationInput): DerivationResult {
+  // --- Stage 1: Numeric_Ingest ------------------------------------------
+  // Consume the exact incoming token; a required-numeric failure abstains with
+  // the ingest reason and no partial round (Requirement 8.11).
+  const diag = numericIngest(input.incomingNumericToken);
+  if (diag.fixedPointValue === undefined) {
+    const reason = diag.ingestReason ?? AbstainInvalidNumericToken;
+    return abstainResult({
+      outcome: "abstain",
+      reason,
+      incomingNumericToken: input.incomingNumericToken,
+      fixedPointValue: diag.fixedPointValue,
+    });
+  }
+  const trueNumber = diag.fixedPointValue;
+  if (numericTokenUnderflowedToZero(input.incomingNumericToken, trueNumber)) {
+    return abstainResult({
+      outcome: "abstain",
+      reason: AbstainOutOfSafeRange,
+      incomingNumericToken: input.incomingNumericToken,
+      fixedPointValue: trueNumber,
+    });
+  }
+
+  // --- Stage 2: canonicalize surprise -----------------------------------
+  // Surprise canonicalization is total (always yields 0..3), so it never
+  // abstains; the canonical value is retained for scoring/UI and emitted on
+  // every result (Requirements 3.11, 3.12).
+  const canonicalSurprise = canonicalizeSurprise(input.surpriseFactor);
+
+  // --- Stage 3: resolve quantity_kind + normalized unit -----------------
+  const [kind, normalizedUnit] = classifyQuantityKind(input.quantityKind ?? "", input.unit, trueNumber);
+
+  // Year-zero abstention takes precedence over bounds resolution: a zero
+  // true_number for the year kind is outside the calendar-year hard boundary
+  // and abstains ZERO_OUTSIDE_YEAR_DOMAIN regardless of any bounds hint
+  // (Requirement 16.2). The classifier normally cannot resolve zero to year,
+  // but this guard keeps the abstain reason correct if a future table or forced
+  // kind ever routes it here.
+  if (kind === KindYear && isFixedZero(trueNumber)) {
+    return abstainResult({
+      outcome: "abstain",
+      reason: AbstainZeroOutsideYearDomain,
+      incomingNumericToken: input.incomingNumericToken,
+      fixedPointValue: trueNumber,
+      normalizedUnit,
+      quantityKind: kind,
+      surpriseFactor: canonicalSurprise,
+    });
+  }
+
+  // --- Stage 4: resolve plausibility bounds -----------------------------
+  // A round with no coherent bounds pair abstains BOUNDS_INCOHERENT, carrying
+  // the diagnostics resolved so far (Requirement 2.10).
+  const boundsRes = resolveBounds(kind, normalizedUnit, trueNumber, input.factBankBounds, input.modelBounds);
+  if (!boundsRes.ok || boundsRes.bounds === undefined) {
+    return abstainResult(boundsIncoherentAbstain(input, trueNumber, kind, normalizedUnit, canonicalSurprise));
+  }
+  const bounds = boundsRes.bounds;
+
+  // --- Stage 5: magnitude_scale -----------------------------------------
+  const [magnitude, magOK] = computeMagnitudeScale(trueNumber);
+  if (!magOK) {
+    // magnitudeScale only fails on out-of-contract input, which ingest already
+    // rejected; fail closed with the safe-range reason rather than emit a
+    // partial round.
+    return abstainResult({
+      outcome: "abstain",
+      reason: AbstainOutOfSafeRange,
+      incomingNumericToken: input.incomingNumericToken,
+      fixedPointValue: trueNumber,
+    });
+  }
+
+  // --- Stage 6: resolve trap + candidate sides --------------------------
+  // The forced side (Pack Balance override) is copied by value so the caller's
+  // value is never written through (no mutation, Requirement 8.4).
+  const trap = resolveTrapDirection(input.trapDirection ?? "", kind, normalizedUnit, trueNumber).trap;
+  const sides = resolveCandidateSides(trap, copyForcedSide(input.forcedSide));
+
+  // --- Stage 7: zero handling -------------------------------------------
+  // A literal zero true_number never enters multiplicative candidate
+  // arithmetic; the Zero Value Strategy owns it. Nonzero tokens that would
+  // round to zero were rejected above so verified truth is never mutated.
+  if (isFixedZero(trueNumber)) {
+    return deriveFromZero(input, trueNumber, kind, normalizedUnit, canonicalSurprise, magnitude, trap, bounds, sides);
+  }
+
+  // --- Stage 8a: optional precompute re-gate ----------------------------
+  // A matching, version-consistent precompute block is preferred over live
+  // derivation only when a (canonical surprise, required side) entry re-passes
+  // every gate. A model-version mismatch invalidates the block with
+  // TABLE_VERSION_MISMATCH; a present-but-non-passing block falls through to
+  // live derivation (PRE -> REGATE -> DERIVE).
+  if (input.precomputed !== undefined) {
+    const pre = tryPrecomputed(input, trueNumber, kind, normalizedUnit, canonicalSurprise, magnitude, trap, bounds, sides);
+    if (pre.decided) {
+      return pre.result;
+    }
+  }
+
+  // --- Stage 8b: live band + finite remedy ladder -----------------------
+  const live = runRemedyLadder(kind, canonicalSurprise, magnitude, trueNumber, normalizedUnit, trap, bounds, sides, SourceLive);
+  if (!live.ok) {
+    return abstainResult({
+      outcome: "abstain",
+      reason: AbstainNoCandidatePassesGate,
+      incomingNumericToken: input.incomingNumericToken,
+      fixedPointValue: trueNumber,
+      normalizedUnit,
+      quantityKind: kind,
+      surpriseFactor: canonicalSurprise,
+      magnitudeScale: magnitude,
+      trapDirection: trap,
+      plausibleMin: bounds.min,
+      plausibleMax: bounds.max,
+    });
+  }
+
+  // Stamp the resolved, round-wide fields onto the winning candidate.
+  return successResult(
+    finalizeSuccess(live.success, trueNumber, normalizedUnit, kind, canonicalSurprise, magnitude, trap, bounds),
+  );
+}
+
+// --- Zero handling wrapper ---------------------------------------------------
+
+// deriveFromZero runs the Zero Value Strategy for a zero true_number and maps
+// its outcome onto a DerivationResult. A year zero abstains with
+// ZERO_OUTSIDE_YEAR_DOMAIN; finite-sequence exhaustion abstains with
+// NO_CANDIDATE_PASSES_GATE; a success carries SourceZeroValue and a
+// correct_direction computed by strict direction math on the emitted value
+// (Requirements 16.2, 16.9, 16.10). Nothing here recomputes the side from the
+// trap — the zero strategy already applied strict direction math.
+function deriveFromZero(
+  input: DerivationInput,
+  trueNumber: FixedPointValue,
+  kind: QuantityKind,
+  normalizedUnit: string,
+  canonicalSurprise: number,
+  magnitude: number,
+  trap: TrapDirection,
+  bounds: ResolvedBounds,
+  sides: ResolvedCandidateSides,
+): DerivationResult {
+  const out = deriveZeroValue(kind, canonicalSurprise, trueNumber, sides, bounds);
+  if (!out.accepted) {
+    return abstainResult({
+      outcome: "abstain",
+      reason: out.reason ?? AbstainNoCandidatePassesGate,
+      incomingNumericToken: input.incomingNumericToken,
+      fixedPointValue: trueNumber,
+      normalizedUnit,
+      quantityKind: kind,
+      surpriseFactor: canonicalSurprise,
+      magnitudeScale: magnitude,
+      trapDirection: trap,
+      plausibleMin: bounds.min,
+      plausibleMax: bounds.max,
+    });
+  }
+
+  // Recompute the final direction from the emitted value vs truth so the success
+  // carries the authoritative strict-direction result regardless of which side
+  // the zero strategy enumerated (Requirements 3.10, 7.1, 7.2).
+  const [direction, dok] = finalDirection(out.value, trueNumber);
+  if (!dok) {
+    // A zero-strategy success is always strictly on one side of truth, so this
+    // only guards a degenerate value; fail closed rather than emit an equal or
+    // unrepresentable distractor.
+    return abstainResult({
+      outcome: "abstain",
+      reason: AbstainNoCandidatePassesGate,
+      incomingNumericToken: input.incomingNumericToken,
+      fixedPointValue: trueNumber,
+      normalizedUnit,
+      quantityKind: kind,
+      surpriseFactor: canonicalSurprise,
+      magnitudeScale: magnitude,
+      trapDirection: trap,
+      plausibleMin: bounds.min,
+      plausibleMax: bounds.max,
+    });
+  }
+
+  const success: LadderSuccess = {
+    presented: out.value,
+    direction,
+    source: out.source ?? SourceZeroValue,
+    remedyStage: remedyStageZeroValue,
+  };
+  return successResult(
+    finalizeSuccess(success, trueNumber, normalizedUnit, kind, canonicalSurprise, magnitude, trap, bounds),
+  );
+}
+
+// --- Precompute re-gate ------------------------------------------------------
+
+// PrecomputeOutcome carries whether a precompute block DECIDED the round. When
+// decided is true, result is the authoritative DerivationResult (a version
+// mismatch abstains; a passing entry succeeds). When decided is false, the block
+// was present but no entry re-passed every gate, so the caller falls through to
+// live derivation (REGATE -> reject -> DERIVE).
+interface PrecomputeOutcome {
+  result: DerivationResult;
+  decided: boolean;
+}
+
+// tryPrecomputed evaluates a Fact-Bank precompute block. A block is honored only
+// when its modelVersion matches DDMVersion: a mismatch invalidates the attempt
+// with TABLE_VERSION_MISMATCH rather than deriving live on stale tables. The
+// required side is the side the ladder would derive on (forced side when
+// present, else trap-preferred), so precompute never crosses a forced side
+// (Requirement 13.15).
+function tryPrecomputed(
+  input: DerivationInput,
+  trueNumber: FixedPointValue,
+  kind: QuantityKind,
+  normalizedUnit: string,
+  canonicalSurprise: number,
+  magnitude: number,
+  trap: TrapDirection,
+  bounds: ResolvedBounds,
+  sides: ResolvedCandidateSides,
+): PrecomputeOutcome {
+  const pre = input.precomputed;
+  if (pre === undefined) {
+    return { result: {}, decided: false };
+  }
+  if (pre.modelVersion !== DDMVersion) {
+    return {
+      result: abstainResult({
+        outcome: "abstain",
+        reason: AbstainTableVersionMismatch,
+        incomingNumericToken: input.incomingNumericToken,
+        fixedPointValue: trueNumber,
+        normalizedUnit,
+        quantityKind: kind,
+        surpriseFactor: canonicalSurprise,
+        magnitudeScale: magnitude,
+        trapDirection: trap,
+        plausibleMin: bounds.min,
+        plausibleMax: bounds.max,
+      }),
+      decided: true,
+    };
+  }
+
+  const requiredSide = primarySide(sides);
+
+  for (const d of pre.distractors) {
+    if (d.surpriseFactor !== canonicalSurprise || d.side !== requiredSide) {
+      continue;
+    }
+    const pdiag = numericIngest(d.presentedNumber);
+    if (pdiag.fixedPointValue === undefined) {
+      continue;
+    }
+    const candidate = pdiag.fixedPointValue;
+    // Re-gate the precomputed candidate exactly like any other candidate. A
+    // precomputed value is already a "snapped" display value, so it is gated
+    // directly.
+    if (!gatePasses(kind, candidate, trueNumber, requiredSide, bounds)) {
+      continue;
+    }
+    const [direction, dok] = finalDirection(candidate, trueNumber);
+    if (!dok) {
+      continue;
+    }
+    const success: LadderSuccess = {
+      presented: candidate,
+      direction,
+      source: SourcePrecomputed,
+      remedyStage: remedyStagePrecomputed,
+    };
+    return {
+      result: successResult(
+        finalizeSuccess(success, trueNumber, normalizedUnit, kind, canonicalSurprise, magnitude, trap, bounds),
+      ),
+      decided: true,
+    };
+  }
+
+  // No precomputed entry re-passed the gate; fall through to live derivation.
+  return { result: {}, decided: false };
+}
+
+// --- Finite remedy ladder ----------------------------------------------------
+
+// LadderSuccess is the internal result of a winning candidate before the
+// round-wide resolved fields are stamped on. It carries only the values the
+// ladder itself decides: the snapped presented number, the strict-direction
+// correct_direction, the derivation source, and the winning remedy stage id.
+interface LadderSuccess {
+  presented: FixedPointValue;
+  direction: CandidateSide;
+  source: DerivationSource;
+  remedyStage: string;
+}
+
+// synthetic remedy-stage ids for non-ladder sources. The four live ladder
+// stages use their generated candidate_order.remedy_stages ids verbatim; these
+// two label the precompute and zero-value paths so every success reports where
+// its number came from without inventing a generated-table entry.
+const remedyStagePrecomputed = "precomputed";
+const remedyStageZeroValue = "zero_value";
+
+// runRemedyLadder walks the finite, ordered remedy stages from the generated
+// candidate_order.remedy_stages table and returns the FIRST candidate that
+// clears the whole raw->snap->gate path (first-pass-wins, Requirements 5.13,
+// 5.16, 7.5). A stage whose generated crosses_side is true is SKIPPED entirely
+// when a forced side is present, so a forced side removes every opposite-side
+// stage (Requirements 13.13, 13.14, 13.15). Exhausting every permitted stage
+// returns ok=false and the caller abstains NO_CANDIDATE_PASSES_GATE
+// (Requirement 5.13).
+function runRemedyLadder(
+  kind: QuantityKind,
+  canonicalSurprise: number,
+  magnitude: number,
+  trueNumber: FixedPointValue,
+  normalizedUnit: string,
+  trap: TrapDirection,
+  bounds: ResolvedBounds,
+  sides: ResolvedCandidateSides,
+  source: DerivationSource,
+): { success: LadderSuccess; ok: boolean } {
+  const fail = { success: emptyLadderSuccess(), ok: false };
+
+  // Deterministic slot sequence (task 5.2). Candidate side is deliberately
+  // excluded from the variation key so the SAME ordered sequence is mirrored on
+  // the opposite side during the opposite-side stage.
+  const [slots, ok] = variationSlotSequence({
+    trueNumber,
+    normalizedUnit,
+    quantityKind: kind,
+    canonicalSurprise,
+    trapDirection: trap,
+    plausibleMin: bounds.min,
+    plausibleMax: bounds.max,
+  });
+  if (!ok) {
+    return fail;
+  }
+
+  const preferredSide = primarySide(sides);
+
+  for (const stage of remedyStagesInOrder()) {
+    // Forced side removes every opposite-side (crosses_side) stage.
+    if (stage.crosses_side) {
+      if (sides.forced !== undefined || !sides.allowOppositeFallback) {
+        continue;
+      }
+    }
+
+    const side = stageSide(stage, preferredSide);
+    const stageOut = runRemedyStage(stage, kind, canonicalSurprise, magnitude, trueNumber, side, bounds, slots, source);
+    if (stageOut.ok) {
+      return stageOut;
+    }
+  }
+  return fail;
+}
+
+// stageSide returns the candidate side a stage enumerates. Opposite-side stages
+// (generated crosses_side true) flip to the opposite of the preferred side;
+// every other stage stays on the preferred/forced side. This is the only place
+// the ladder decides a side, derived structurally from the generated stage flag,
+// never from metadata.
+function stageSide(stage: RemedyStageRow, preferredSide: CandidateSide): CandidateSide {
+  if (stage.crosses_side) {
+    return oppositeSide(preferredSide);
+  }
+  return preferredSide;
+}
+
+// runRemedyStage enumerates the candidates for one remedy stage in the
+// deterministic slot order and returns the first that clears the whole
+// raw->snap->gate path. The generated stage ids map to concrete candidate
+// generators:
+//
+//   preferred_side / opposite_side — the composed base band for the resolved
+//     kind + magnitude, on the given side (tasks 5.1, 5.3);
+//   alternative_calibration        — the same canonical surprise band recomposed
+//     with the OPPOSITE magnitude variant (never a different surprise row);
+//   bound_derived                  — inward candidates derived from the resolved
+//     plausibility bound on the required side;
+//   opposite_bound_derived         — the same bound interpolation on the
+//     opposite side (crosses_side): the last-resort recovery when the
+//     opposite band cannot land a candidate either.
+//
+// An unknown stage id yields no candidates (ok=false) so a degenerate table
+// simply advances the ladder rather than emitting an arbitrary value.
+function runRemedyStage(
+  stage: RemedyStageRow,
+  kind: QuantityKind,
+  canonicalSurprise: number,
+  magnitude: number,
+  trueNumber: FixedPointValue,
+  side: CandidateSide,
+  bounds: ResolvedBounds,
+  slots: number[],
+  source: DerivationSource,
+): { success: LadderSuccess; ok: boolean } {
+  const fail = { success: emptyLadderSuccess(), ok: false };
+  switch (stage.id) {
+    case "preferred_side":
+    case "opposite_side": {
+      const { band, ok } = composeDistanceBand(kind, canonicalSurprise, magnitude);
+      if (!ok) {
+        return fail;
+      }
+      return enumerateBandSlots(stage.id, kind, band, side, trueNumber, bounds, slots, source);
+    }
+    case "alternative_calibration": {
+      const { band, ok } = composeAlternativeBand(kind, canonicalSurprise, magnitude);
+      if (!ok) {
+        return fail;
+      }
+      return enumerateBandSlots(stage.id, kind, band, side, trueNumber, bounds, slots, source);
+    }
+    case "bound_derived":
+    case "opposite_bound_derived":
+      return enumerateBoundDerived(stage.id, kind, side, trueNumber, bounds, slots, source);
+    default:
+      return fail;
+  }
+}
+
+// enumerateBandSlots walks the deterministic slot order for one composed band and
+// side, screening + snapping + post-gating each candidate, and returns the first
+// that fully passes. Shared body for preferred_side, opposite_side, and
+// alternative_calibration stages.
+function enumerateBandSlots(
+  stageID: string,
+  kind: QuantityKind,
+  band: ComposedBand,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  bounds: ResolvedBounds,
+  slots: number[],
+  source: DerivationSource,
+): { success: LadderSuccess; ok: boolean } {
+  for (const slot of slots) {
+    const screened = screenRawCandidate(kind, band, side, trueNumber, bounds, slot);
+    if (!screened.accepted) {
+      continue;
+    }
+    const out = gateAndSnap(stageID, kind, screened.value, side, trueNumber, bounds, source);
+    if (out.ok) {
+      return out;
+    }
+  }
+  return { success: emptyLadderSuccess(), ok: false };
+}
+
+// enumerateBoundDerived generates inward candidates from the resolved
+// plausibility bound on the required side: a candidate placed between the true
+// number and the bound (plausible_max above truth, plausible_min below truth) at
+// each deterministic slot fraction. Each candidate is screened, snapped, and
+// post-gated exactly like a band candidate. Final remedy stage — when the
+// surprise band cannot land a distractor, the resolved bounds still provide a
+// valid in-range target.
+function enumerateBoundDerived(
+  stageID: string,
+  kind: QuantityKind,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  bounds: ResolvedBounds,
+  slots: number[],
+  source: DerivationSource,
+): { success: LadderSuccess; ok: boolean } {
+  // The bound on the required side is the outward endpoint; candidates are
+  // interpolated inward from that bound toward truth.
+  const bound = candidateAboveTruth(side) ? bounds.max : bounds.min;
+
+  for (const slot of slots) {
+    const [candidate, ok] = kindIntegerOnly(kind)
+      ? boundDerivedIntegerCandidate(trueNumber, bound, slot)
+      : boundDerivedCandidate(trueNumber, bound, slot);
+    if (!ok) {
+      continue;
+    }
+    // Pre-snap strict side + raw gate, then snap, then post-snap gate.
+    if (!candidateStrictlyOnSide(candidate, trueNumber, side)) {
+      continue;
+    }
+    if (!gatePasses(kind, candidate, trueNumber, side, bounds)) {
+      continue;
+    }
+    const out = gateAndSnap(stageID, kind, candidate, side, trueNumber, bounds, source);
+    if (out.ok) {
+      return out;
+    }
+  }
+  return { success: emptyLadderSuccess(), ok: false };
+}
+
+// boundDerivedCandidate interpolates a raw candidate between truth and a bound
+// using the deterministic slot as an integer fraction of the span. The endpoints
+// are the true number (slot 0) and the bound (last slot); interior slots divide
+// the span evenly with the same variationPoint mapping the bands use, so the
+// bound-derived stage stays a pure integer computation with no floating point.
+// ok=false when the endpoints cannot be aligned within the envelope or the slot
+// mapping is unavailable.
+function boundDerivedCandidate(
+  trueNumber: FixedPointValue,
+  bound: FixedPointValue,
+  slot: number,
+): [FixedPointValue, boolean] {
+  const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
+  const [loMant, hiMant, scale, ok] = alignFixed(trueNumber, bound);
+  if (!ok) {
+    return fail;
+  }
+  // Signed mantissas at the common scale so the interpolation respects the
+  // mathematical value (a bound below a negative truth still interpolates
+  // correctly).
+  const loSigned = signedMantissa(trueNumber.negative, loMant);
+  const hiSigned = signedMantissa(bound.negative, hiMant);
+
+  const [point, pointOK] = variationPoint(loSigned, hiSigned, slot);
+  if (!pointOK) {
+    return fail;
+  }
+  const neg = point < 0;
+  const mag = neg ? -point : point;
+  return normalizeFixed({ negative: neg, mantissa: mag, scale });
+}
+
+// boundDerivedIntegerCandidate enumerates whole numbers strictly on the bound
+// side of truth. Slot 0 is the integer nearest truth (true±1); the last slot is
+// the integer at the bound (floor above, ceil below). Emitting integers here
+// means the integer_only hard boundary never discards a fractional interpolation
+// of an otherwise legal count/year span.
+function boundDerivedIntegerCandidate(
+  trueNumber: FixedPointValue,
+  bound: FixedPointValue,
+  slot: number,
+): [FixedPointValue, boolean] {
+  const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
+  const [n, slotsOK] = variationSlotCount();
+  if (!slotsOK || n < 2 || slot < 0 || slot >= n) return fail;
+  const [cmp, cok] = compareFixed(bound, trueNumber);
+  if (!cok || cmp === 0) return fail;
+  const above = cmp > 0;
+  let closest: number;
+  let farthest: number;
+  if (above) {
+    const [truthFloor, floorOK] = floorToInt64(trueNumber);
+    if (!floorOK) return fail;
+    const [next, nextOK] = addSignedInt(truthFloor, 1);
+    if (!nextOK) return fail;
+    closest = next;
+    const [boundFloor, boundOK] = floorToInt64(bound);
+    if (!boundOK || boundFloor < closest) return fail;
+    farthest = boundFloor;
+  } else {
+    const [truthCeil, ceilOK] = ceilToInt64(trueNumber);
+    if (!ceilOK) return fail;
+    const [prev, prevOK] = addSignedInt(truthCeil, -1);
+    if (!prevOK) return fail;
+    closest = prev;
+    const [boundCeil, boundOK] = ceilToInt64(bound);
+    if (!boundOK || boundCeil > closest) return fail;
+    farthest = boundCeil;
+  }
+  let span = farthest - closest;
+  if (span < 0) span = -span;
+  if (!guardedMulMag(span, slot)[1]) return fail;
+  const [point, ok] = variationPoint(closest, farthest, slot);
+  if (!ok) return fail;
+  return [intToFixed(point), true];
+}
+
+function floorToInt64(v: FixedPointValue): [number, boolean] {
+  const [n, ok] = normalizeFixed(v);
+  if (!ok) return [0, false];
+  if (n.scale === 0) {
+    return [signedMantissa(n.negative, n.mantissa), true];
+  }
+  const [div, pok] = pow10(n.scale);
+  if (!pok) return [0, false];
+  const quot = Math.trunc(n.mantissa / div);
+  const rem = n.mantissa % div;
+  if (n.negative) {
+    if (rem !== 0) {
+      const [mag, aok] = guardedAddMag(quot, 1);
+      if (!aok) return [0, false];
+      return [-mag, true];
+    }
+    return [-quot, true];
+  }
+  return [quot, true];
+}
+
+function ceilToInt64(v: FixedPointValue): [number, boolean] {
+  const [n, ok] = normalizeFixed(v);
+  if (!ok) return [0, false];
+  if (n.scale === 0) {
+    return [signedMantissa(n.negative, n.mantissa), true];
+  }
+  const [div, pok] = pow10(n.scale);
+  if (!pok) return [0, false];
+  const quot = Math.trunc(n.mantissa / div);
+  const rem = n.mantissa % div;
+  if (n.negative) {
+    return [-quot, true];
+  }
+  if (rem !== 0) {
+    return guardedAddMag(quot, 1);
+  }
+  return [quot, true];
+}
+
+function addSignedInt(n: number, delta: number): [number, boolean] {
+  const sum = n + delta;
+  const mag = sum < 0 ? -sum : sum;
+  if (mag > SafeMantissaMax) return [0, false];
+  return [sum, true];
+}
+
+// signedMantissa applies a sign flag to a non-negative aligned mantissa,
+// producing a signed integer suitable for exact interpolation arithmetic.
+function signedMantissa(negative: boolean, mantissa: number): number {
+  return negative ? -mantissa : mantissa;
+}
+
+// gateAndSnap runs the shared post-screen path for one raw candidate: snap it
+// through the refinement sequence (task 6.1) and re-run the ordered Giveaway
+// Gate on the snapped value (task 6.2). It returns the winning LadderSuccess with
+// a strict-direction correct_direction computed from the SNAPPED value on
+// success. The raw candidate is assumed to have already passed its pre-snap
+// screen/gate; snapCandidate itself re-validates side/boundary/bounds/dead-zone
+// because snapping can move a value across a limit.
+function gateAndSnap(
+  stageID: string,
+  kind: QuantityKind,
+  rawCandidate: FixedPointValue,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  bounds: ResolvedBounds,
+  source: DerivationSource,
+): { success: LadderSuccess; ok: boolean } {
+  const fail = { success: emptyLadderSuccess(), ok: false };
+  const snapped = snapCandidate(kind, rawCandidate, side, trueNumber, bounds);
+  if (!snapped.accepted) {
+    return fail;
+  }
+  // Authoritative post-snap gate (first-match ordering owned by task 6.2).
+  if (!gatePasses(kind, snapped.value, trueNumber, side, bounds)) {
+    return fail;
+  }
+  const [direction, ok] = finalDirection(snapped.value, trueNumber);
+  if (!ok) {
+    return fail;
+  }
+  return {
+    success: { presented: snapped.value, direction, source, remedyStage: stageID },
+    ok: true,
+  };
+}
+
+// composeAlternativeBand recomposes the SAME canonical surprise band with the
+// opposite magnitude variant (small<->large). This is the "same-surprise
+// alternative calibration" remedy stage: it changes only the in-row magnitude
+// calibration, never the selected surprise row. It works by composing the band
+// at a magnitude that selects the opposite variant so composeDistanceBand's own
+// calibration produces the alternate factors/deltas, keeping all table authority
+// in task 5.1.
+function composeAlternativeBand(
+  kind: QuantityKind,
+  canonicalSurprise: number,
+  magnitude: number,
+): { band: ComposedBand; ok: boolean } {
+  const fail = { band: emptyComposedBand(), ok: false };
+  const current = selectMagnitudeVariant(magnitude);
+  const [altMagnitude, mOK] = magnitudeForOppositeVariant(current);
+  if (!mOK) {
+    // No opposite variant is reachable (degenerate calibration table); the stage
+    // simply yields no alternative band and the ladder advances.
+    return fail;
+  }
+  const { band, ok } = composeDistanceBand(kind, canonicalSurprise, altMagnitude);
+  if (!ok) {
+    return fail;
+  }
+  // Guard: if the alternate composition collapsed to the same variant (e.g. a
+  // table with a single variant), there is no genuine alternative — report
+  // not-ok so the ladder does not re-try an identical band.
+  if (band.variant === current) {
+    return fail;
+  }
+  return { band, ok: true };
+}
+
+// magnitudeForOppositeVariant returns a magnitude_scale that selects the variant
+// opposite to `current` under the generated magnitude_calibration rules, so the
+// alternative-calibration stage can obtain the alternate band without reaching
+// into task 5.1's private table shape. It probes a small, fixed set of candidate
+// magnitudes and returns the first whose selected variant differs. ok=false when
+// no probed magnitude flips the variant.
+function magnitudeForOppositeVariant(current: MagnitudeVariant): [number, boolean] {
+  for (const m of alternativeMagnitudeProbes) {
+    if (selectMagnitudeVariant(m) !== current) {
+      return [m, true];
+    }
+  }
+  return [0, false];
+}
+
+// alternativeMagnitudeProbes is a small fixed set of magnitude scales spanning
+// the small and large calibration buckets. It is NOT a table of thresholds —
+// selectMagnitudeVariant (task 5.1) remains the sole authority for which variant
+// a magnitude selects — it is only a deterministic search space for finding a
+// magnitude on the opposite side of that authority's threshold.
+const alternativeMagnitudeProbes: readonly number[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15];
+
+// remedyStagesInOrder returns the generated remedy stages sorted by their
+// declared index so the ladder walks on-side stages (preferred_side,
+// alternative_calibration, bound_derived) before opposite_side regardless of
+// decode order
+// (Requirements 5.14, 5.15). The generated array is constant, so this sort is
+// pure and single-sources the remedy order from the generated table.
+function remedyStagesInOrder(): RemedyStageRow[] {
+  return [...variationTablesView.remedy_stages].sort((a, b) => a.index - b.index);
+}
+
+// --- Result assembly ---------------------------------------------------------
+
+// finalizeSuccess stamps every resolved, round-wide field onto a LadderSuccess,
+// producing the complete DerivationSuccess. The canonical surprise (0..3) is
+// always emitted, the true number and presented number are the canonical
+// fixed-point values, and correct_direction is the ladder's strict-direction
+// result computed from the presented value vs truth (Requirements 3.11, 8.9). It
+// never reads the trap or enumerated side for the direction.
+function finalizeSuccess(
+  success: LadderSuccess,
+  trueNumber: FixedPointValue,
+  normalizedUnit: string,
+  kind: QuantityKind,
+  canonicalSurprise: number,
+  magnitude: number,
+  trap: TrapDirection,
+  bounds: ResolvedBounds,
+): DerivationSuccess {
+  return {
+    outcome: "success",
+    fixedPointValue: success.presented,
+    trueNumber,
+    normalizedUnit,
+    quantityKind: kind,
+    surpriseFactor: canonicalSurprise,
+    magnitudeScale: magnitude,
+    trapDirection: trap,
+    plausibleMin: bounds.min,
+    plausibleMax: bounds.max,
+    presentedNumber: success.presented,
+    correctDirection: success.direction,
+    source: success.source,
+    remedyStage: success.remedyStage,
+  };
+}
+
+// boundsIncoherentAbstain builds the BOUNDS_INCOHERENT abstain diagnostic with
+// every field resolved before the bounds failure. plausible_min/max are omitted
+// because no coherent pair was resolved (Requirements 2.10, 2.11, 8.11).
+function boundsIncoherentAbstain(
+  input: DerivationInput,
+  trueNumber: FixedPointValue,
+  kind: QuantityKind,
+  normalizedUnit: string,
+  canonicalSurprise: number,
+): DerivationAbstain {
+  return {
+    outcome: "abstain",
+    reason: AbstainBoundsIncoherent,
+    incomingNumericToken: input.incomingNumericToken,
+    fixedPointValue: trueNumber,
+    normalizedUnit,
+    quantityKind: kind,
+    surpriseFactor: canonicalSurprise,
+  };
+}
+
+// --- Strict direction --------------------------------------------------------
+
+// finalDirection computes correct_direction from the final normalized
+// truth-vs-presented comparison, and NOTHING else (Requirements 3.10, 7.1, 7.2,
+// 7.6, 7.7): a presented number strictly greater than truth means the true
+// answer is LESS than presented (SideLess); strictly less means MORE (SideMore).
+// Equality is impossible because the gate rejects an equal candidate, so an equal
+// comparison here is treated as a failure (ok=false) and the caller fails closed.
+// The comparison is exact fixed-point, never floating.
+export function finalDirection(
+  presented: FixedPointValue,
+  trueNumber: FixedPointValue,
+): [CandidateSide, boolean] {
+  const [cmp, ok] = compareFixed(presented, trueNumber);
+  if (!ok || cmp === 0) {
+    return [SideMore, false];
+  }
+  if (cmp > 0) {
+    // presented > truth  =>  truth is LESS than presented.
+    return [SideLess, true];
+  }
+  // presented < truth  =>  truth is MORE than presented.
+  return [SideMore, true];
+}
+
+// --- Small pure helpers ------------------------------------------------------
+
+// isFixedZero reports whether a canonical fixed-point value is exactly zero. A
+// canonical zero always has mantissa 0 and a cleared sign; normalizeFixed is
+// applied defensively for a non-canonical caller.
+function isFixedZero(v: FixedPointValue): boolean {
+  const [n, ok] = normalizeFixed(v);
+  if (!ok) {
+    return false;
+  }
+  return n.mantissa === 0;
+}
+
+// copyForcedSide returns a copy of an optional forced candidate side so the
+// resolved sides never alias the caller's input. Keeps derive strictly
+// non-mutating (Requirement 8.4). CandidateSide is a string literal so the copy
+// is by value; this mirrors Go's pointer-copy intent.
+function copyForcedSide(forced: CandidateSide | undefined): CandidateSide | undefined {
+  return forced;
+}
+
+// emptyLadderSuccess returns a zero-value LadderSuccess used only as the failure
+// sentinel alongside ok=false.
+function emptyLadderSuccess(): LadderSuccess {
+  return { presented: { negative: false, mantissa: 0, scale: 0 }, direction: SideMore, source: SourceLive, remedyStage: "" };
+}
+
+// successResult / abstainResult wrap a success or abstain into the
+// DerivationResult union with exactly one non-undefined arm (Requirement 8.1).
+function successResult(s: DerivationSuccess): DerivationResult {
+  return { success: s };
+}
+
+function abstainResult(a: DerivationAbstain): DerivationResult {
+  return { abstain: a };
+}
+
+// ===========================================================================
+// Fixed-order success/abstain result serialization (task 6.4)
+// (port of agent-go/derivation_derive.go deriveResultJSON)
+//
+// deriveResultJSON produces the canonical, compact JSON encoding of a
+// DerivationResult that is BYTE-IDENTICAL to the Go reference's json.Marshal of
+// the DerivationSuccess / DerivationAbstain structs. This is the authoritative
+// parity surface: the same parity fixture (tests/fixtures/derivation_parity.json)
+// and adversarial corpus are replayed against this port and compared byte-for-
+// byte in tasks 11.1/11.2.
+//
+// The serializer builds the JSON MANUALLY in Go's exact struct field order with
+// Go's exact json-tag names (snake_case) and omitempty semantics. It does NOT
+// use JSON.stringify on the camelCase interface object, because that would emit
+// the wrong keys, wrong order, and wrong presence rules. Numbers are emitted as
+// plain integer digit strings via intToDigits — never through runtime float
+// formatting (Requirements 8.9, 12.9, 12.10, 16.14).
+//
+// omitempty parity with Go:
+//   - DerivationSuccess has NO omitempty fields: every field is always present,
+//     in declaration order.
+//   - DerivationAbstain omits string fields (normalized_unit, quantity_kind,
+//     trap_direction) when "" and pointer fields (fixed_point_value,
+//     surprise_factor, magnitude_scale, plausible_min, plausible_max) when
+//     absent. incoming_numeric_token has NO omitempty and is always present.
+// ===========================================================================
+
+// deriveResultJSON returns the canonical compact JSON string for a
+// DerivationResult and ok=false when neither arm is present. The output is a
+// single JSON object with keys in Go struct declaration order.
+export function deriveResultJSON(r: DerivationResult): [string, boolean] {
+  if (r.success !== undefined) {
+    return [serializeSuccess(r.success), true];
+  }
+  if (r.abstain !== undefined) {
+    return [serializeAbstain(r.abstain), true];
+  }
+  return ["", false];
+}
+
+// serializeSuccess encodes a DerivationSuccess in Go's exact field order. Every
+// field is present (no omitempty on the success struct).
+function serializeSuccess(s: DerivationSuccess): string {
+  const parts: string[] = [];
+  parts.push(`"outcome":${jsonString(s.outcome)}`);
+  parts.push(`"fixed_point_value":${serializeFixed(s.fixedPointValue)}`);
+  parts.push(`"true_number":${serializeFixed(s.trueNumber)}`);
+  parts.push(`"normalized_unit":${jsonString(s.normalizedUnit)}`);
+  parts.push(`"quantity_kind":${jsonString(s.quantityKind)}`);
+  parts.push(`"surprise_factor":${intToDigits(s.surpriseFactor)}`);
+  parts.push(`"magnitude_scale":${jsonInt(s.magnitudeScale)}`);
+  parts.push(`"trap_direction":${jsonString(s.trapDirection)}`);
+  parts.push(`"plausible_min":${serializeFixed(s.plausibleMin)}`);
+  parts.push(`"plausible_max":${serializeFixed(s.plausibleMax)}`);
+  parts.push(`"presented_number":${serializeFixed(s.presentedNumber)}`);
+  parts.push(`"correct_direction":${jsonString(s.correctDirection)}`);
+  parts.push(`"source":${jsonString(s.source)}`);
+  parts.push(`"remedy_stage":${jsonString(s.remedyStage)}`);
+  return "{" + parts.join(",") + "}";
+}
+
+// serializeAbstain encodes a DerivationAbstain in Go's exact field order with
+// Go's omitempty semantics. String fields are omitted when "", pointer fields
+// when undefined; incoming_numeric_token is always present.
+function serializeAbstain(a: DerivationAbstain): string {
+  const parts: string[] = [];
+  parts.push(`"outcome":${jsonString(a.outcome)}`);
+  parts.push(`"reason":${jsonString(a.reason)}`);
+  parts.push(`"incoming_numeric_token":${jsonString(a.incomingNumericToken ?? "")}`);
+  if (a.fixedPointValue !== undefined) {
+    parts.push(`"fixed_point_value":${serializeFixed(a.fixedPointValue)}`);
+  }
+  if (a.normalizedUnit !== undefined && a.normalizedUnit !== "") {
+    parts.push(`"normalized_unit":${jsonString(a.normalizedUnit)}`);
+  }
+  if (a.quantityKind !== undefined && (a.quantityKind as string) !== "") {
+    parts.push(`"quantity_kind":${jsonString(a.quantityKind)}`);
+  }
+  if (a.surpriseFactor !== undefined) {
+    parts.push(`"surprise_factor":${jsonInt(a.surpriseFactor)}`);
+  }
+  if (a.magnitudeScale !== undefined) {
+    parts.push(`"magnitude_scale":${jsonInt(a.magnitudeScale)}`);
+  }
+  if (a.trapDirection !== undefined && a.trapDirection !== ("" as TrapDirection)) {
+    parts.push(`"trap_direction":${jsonString(a.trapDirection)}`);
+  }
+  if (a.plausibleMin !== undefined) {
+    parts.push(`"plausible_min":${serializeFixed(a.plausibleMin)}`);
+  }
+  if (a.plausibleMax !== undefined) {
+    parts.push(`"plausible_max":${serializeFixed(a.plausibleMax)}`);
+  }
+  return "{" + parts.join(",") + "}";
+}
+
+// serializeFixed encodes a FixedPointValue as {"negative":bool,"mantissa":int,
+// "scale":int} in Go's struct field order. The value is normalized first so the
+// serialized form is canonical (matching Go, where every stored FixedPointValue
+// is already canonical). The mantissa is emitted via intToDigits (never a float
+// formatter). A non-normalizable value is emitted as canonical zero, matching
+// the kernel's fail-closed formatting sentinel.
+function serializeFixed(v: FixedPointValue): string {
+  const [n, ok] = normalizeFixed(v);
+  const fv = ok ? n : { negative: false, mantissa: 0, scale: 0 };
+  return `{"negative":${fv.negative ? "true" : "false"},"mantissa":${intToDigits(fv.mantissa)},"scale":${jsonInt(fv.scale)}}`;
+}
+
+// jsonInt encodes a signed integer as JSON digits, preserving a leading minus.
+// Uses intToDigits on the magnitude so no float/locale formatter is involved.
+function jsonInt(v: number): string {
+  if (v < 0) {
+    return "-" + intToDigits(-v);
+  }
+  return intToDigits(v);
+}
+
+// jsonString encodes a string as a JSON string literal byte-identically to Go's
+// default encoding/json encoder (which has HTML escaping ON): it escapes '"' and
+// '\\', the control characters below 0x20 (with the short \n/\r/\t forms Go uses
+// and a \u00xx form otherwise), and the HTML-significant bytes '<', '>', '&' as
+// \u003c / \u003e / \u0026 exactly as json.Marshal does. DDM string fields are
+// drawn from fixed closed sets and generated ids (kinds, directions, reasons,
+// remedy stage ids, normalized units), so this covers every value they can hold
+// while remaining byte-for-byte identical to the Go reference serializer.
+function jsonString(s: string): string {
+  let out = '"';
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    const ch = s[i];
+    if (ch === '"') {
+      out += '\\"';
+    } else if (ch === "\\") {
+      out += "\\\\";
+    } else if (ch === "<" || ch === ">" || ch === "&") {
+      // Go's default encoder HTML-escapes these to guard embedding in HTML.
+      out += "\\u" + c.toString(16).padStart(4, "0");
+    } else if (c < 0x20) {
+      switch (ch) {
+        case "\n":
+          out += "\\n";
+          break;
+        case "\r":
+          out += "\\r";
+          break;
+        case "\t":
+          out += "\\t";
+          break;
+        default:
+          out += "\\u" + c.toString(16).padStart(4, "0");
+      }
+    } else {
+      out += ch;
+    }
+  }
+  return out + '"';
+}

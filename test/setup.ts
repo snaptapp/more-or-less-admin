@@ -344,6 +344,7 @@ export type FirestoreDoubleModule = Pick<
   | "runQuery"
   | "deleteDoc"
   | "countCollection"
+  | "runTransaction"
   | "factId"
   | "normalizeKey"
   | "isFirestoreIndexError"
@@ -357,6 +358,8 @@ export interface RecordedFirestoreWrite {
   documentId?: string;
   data?: Record<string, Json>;
   deletePaths?: string[];
+  transaction?: boolean;
+  precondition?: { updateTime?: string; exists?: boolean };
 }
 
 export interface RecordedFirestoreRead {
@@ -486,6 +489,160 @@ export function createFirestoreDouble(): FirestoreDouble {
       .map(([path, stored]) => ({ path, stored }));
   }
 
+  type TransactionWrite =
+    | {
+        kind: "set" | "update";
+        path: string;
+        data: Record<string, unknown>;
+        deletePaths?: readonly string[];
+        precondition?: { updateTime?: string; exists?: boolean };
+      }
+    | { kind: "delete"; path: string; precondition?: { updateTime?: string; exists?: boolean } };
+
+  function cloneStore(): Map<string, StoredDoc> {
+    return new Map(
+      Array.from(store.entries(), ([path, stored]) => [
+        path,
+        {
+          data: cloneJsonRecord(stored.data),
+          createTime: stored.createTime,
+          updateTime: stored.updateTime,
+        },
+      ]),
+    );
+  }
+
+  function isTransactionContention(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      /\b(?:FAILED_PRECONDITION|PERMISSION_DENIED|INVALID_ARGUMENT|NOT_FOUND|ALREADY_EXISTS|UNAUTHENTICATED)\b/.test(
+        message,
+      )
+    ) {
+      return false;
+    }
+    return /\bABORTED\b/i.test(message) || /too much contention/i.test(message);
+  }
+
+  function checkTransactionPrecondition(
+    path: string,
+    precondition: { updateTime?: string; exists?: boolean } | undefined,
+  ): StoredDoc | undefined {
+    const current = store.get(path);
+    if (precondition?.exists === true && current === undefined) {
+      throw new Error(`FAILED_PRECONDITION: transaction document does not exist: ${path}`);
+    }
+    if (precondition?.exists === false && current !== undefined) {
+      throw new Error(`FAILED_PRECONDITION: transaction document already exists: ${path}`);
+    }
+    if (precondition?.updateTime !== undefined && current?.updateTime !== precondition.updateTime) {
+      throw new Error(
+        `FAILED_PRECONDITION: transaction updateTime mismatch for ${path}`,
+      );
+    }
+    return current;
+  }
+
+  function applyTransactionWrite(write: TransactionWrite): RecordedFirestoreWrite {
+    assertWriteAllowed();
+    if (write.kind === "delete") {
+      checkTransactionPrecondition(write.path, write.precondition);
+      store.delete(write.path);
+      return { kind: "delete", path: write.path, transaction: true, ...(write.precondition ? { precondition: { ...write.precondition } } : {}) };
+    }
+
+    const current = checkTransactionPrecondition(write.path, write.precondition);
+    if (write.kind === "set") {
+      put(write.path, write.data);
+      return {
+        kind: "create",
+        path: write.path,
+        collection: write.path.split("/")[0],
+        documentId: write.path.split("/").slice(1).join("/"),
+        data: toJsonRecord(write.data),
+        transaction: true,
+      };
+    }
+
+    if (!current) {
+      throw new Error(`FAILED_PRECONDITION: transaction update target does not exist: ${write.path}`);
+    }
+    const merged: Record<string, unknown> = { ...current.data, ...write.data };
+    for (const fieldPath of write.deletePaths ?? []) delete merged[fieldPath];
+    put(write.path, merged);
+    return {
+      kind: "patch",
+      path: write.path,
+      data: toJsonRecord(write.data),
+      ...(write.deletePaths ? { deletePaths: [...write.deletePaths] } : {}),
+      transaction: true,
+      ...(write.precondition ? { precondition: { ...write.precondition } } : {}),
+    };
+  }
+
+  async function runTransaction<T>(work: (tx: import("@/lib/firebase/firestore.server").FirestoreTransaction) => Promise<T>): Promise<T> {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const writes: TransactionWrite[] = [];
+      let writesQueued = false;
+      const tx: import("@/lib/firebase/firestore.server").FirestoreTransaction = {
+        get: async (path: string): Promise<FirestoreDoc | null> => {
+          if (writesQueued) {
+            throw new Error("Firestore transaction reads must occur before queued writes");
+          }
+          readLog.push({ kind: "get", target: path });
+          const stored = store.get(path);
+          return stored ? toFirestoreDoc(path, stored) : null;
+        },
+        set: (path: string, data: Record<string, unknown>): void => {
+          writesQueued = true;
+          writes.push({ kind: "set", path, data });
+        },
+        update: (
+          path: string,
+          data: Record<string, unknown>,
+          options?: import("@/lib/firebase/firestore.server").FirestoreTransactionUpdateOptions,
+        ): void => {
+          writesQueued = true;
+          writes.push({
+            kind: "update",
+            path,
+            data,
+            ...(options?.deletePaths ? { deletePaths: options.deletePaths } : {}),
+            ...(options?.updateTime !== undefined || options?.exists !== undefined
+              ? {
+                  precondition: {
+                    ...(options.updateTime !== undefined ? { updateTime: options.updateTime } : {}),
+                    ...(options.exists !== undefined ? { exists: options.exists } : {}),
+                  },
+                }
+              : {}),
+          });
+        },
+        delete: (path: string): void => {
+          writesQueued = true;
+          writes.push({ kind: "delete", path });
+        },
+      };
+
+      try {
+        const result = await work(tx);
+        const before = cloneStore();
+        try {
+          const recorded = writes.map((write) => applyTransactionWrite(write));
+          writeLog.push(...recorded);
+          return result;
+        } catch (error) {
+          store.clear();
+          for (const [path, stored] of before) store.set(path, stored);
+          throw error;
+        }
+      } catch (error) {
+        if (!isTransactionContention(error) || attempt === 4) throw error;
+      }
+    }
+    throw new Error("Firestore transaction retry budget exhausted");
+  }
+
   const module: FirestoreDoubleModule = {
     createDoc: async (collection, documentId, data) => {
       assertWriteAllowed();
@@ -583,6 +740,8 @@ export function createFirestoreDouble(): FirestoreDouble {
       }).length;
     },
 
+    runTransaction,
+
     // The real implementations are pure, so the double reuses their behaviour
     // verbatim rather than approximating it.
     factId: async (subjectKey, angleKey) => {
@@ -644,7 +803,10 @@ export function createFirestoreDouble(): FirestoreDouble {
 // --- 5b. Audit log double ------------------------------------------------
 
 /** The `audit.server` surface the double stands in for. */
-export type AuditDoubleModule = Pick<AuditModule, "logAdminAction" | "listAuditLogs">;
+export type AuditDoubleModule = Pick<
+  AuditModule,
+  "logAdminAction" | "listAuditLogs" | "buildAuditEntry" | "createAuditIdentity" | "stageAuditEntry"
+>;
 
 /** A recorded entry: the persisted shape plus the admin who triggered it. */
 export interface RecordedAuditEntry extends AuditLogEntry {
@@ -673,8 +835,40 @@ export function createAuditDouble(): AuditDouble {
   const entries: RecordedAuditEntry[] = [];
   const pendingFailures: string[] = [];
   let sequence = 0;
+  let preparedSequence = 0;
 
   const module: AuditDoubleModule = {
+    createAuditIdentity: () => {
+      preparedSequence += 1;
+      return {
+        id: `prepared_${String(preparedSequence).padStart(4, "0")}`,
+        createdAt: new Date(Date.UTC(2024, 0, 1, 0, 0, 0, 0) + preparedSequence).toISOString(),
+      };
+    },
+
+    buildAuditEntry: (adminUser, entry, identity) => {
+      const resolved = identity ?? module.createAuditIdentity();
+      return {
+        id: resolved.id,
+        data: {
+          adminUid: adminUser.uid,
+          adminEmail: adminUser.email,
+          action: entry.action,
+          targetType: entry.targetType,
+          targetId: entry.targetId,
+          details: entry.details ?? null,
+          before: entry.before ?? null,
+          after: entry.after ?? null,
+          createdAt: resolved.createdAt,
+        },
+      };
+    },
+
+    // The production mutation path stages the document through the Firestore
+    // transaction. This no-op keeps the audit double's surface complete for
+    // modules that import the helper, without creating a second audit write.
+    stageAuditEntry: () => undefined,
+
     logAdminAction: async (adminUser, entry) => {
       const failure = pendingFailures.shift();
       if (failure !== undefined) throw new Error(failure);
@@ -708,6 +902,7 @@ export function createAuditDouble(): AuditDouble {
       entries.length = 0;
       pendingFailures.length = 0;
       sequence = 0;
+      preparedSequence = 0;
     },
   });
 }

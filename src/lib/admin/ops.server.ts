@@ -17,7 +17,7 @@ import {
 import type { AdminUser } from "../firebase/verify.server";
 import { sanitizeDraftRounds } from "./daily-blitz";
 import { STATUS } from "./contract";
-import { validateTaxonomy } from "./taxonomy";
+import { GENRES, validateTaxonomy } from "./taxonomy";
 
 function str(value: Json | undefined): string {
   return typeof value === "string" ? value : "";
@@ -347,10 +347,235 @@ export async function listCrawlQueue(input: { status?: string }) {
   return items;
 }
 
+const DEFAULT_CRAWL_PRIORITY = 5;
+const MAX_CRAWL_SUBJECT_LENGTH = 64;
+const CRAWL_REQUESTED_BY = new Set(["cron", "report", "demand", "manual", "strategist"]);
+
+export type EnqueueDecision = "insert" | "requeue" | "skip";
+
+export interface EnqueueResult {
+  subject: string;
+  subjectKey: string;
+  action: "inserted" | "requeued" | "skipped";
+  reason?: string;
+}
+
+export interface EnqueueSubjectInput {
+  subject: string;
+  priority?: number;
+  refresh?: boolean;
+  category?: string;
+  requestedBy?: string;
+}
+
+interface EnqueueExecution {
+  result: EnqueueResult;
+  record: CrawlRecord;
+}
+
+function isActiveLease(existing: Record<string, unknown>, now: Date): boolean {
+  const raw = existing["claim_expires_at"];
+  let expiresAt: number;
+  if (raw instanceof Date) {
+    expiresAt = raw.getTime();
+  } else if (typeof raw === "string") {
+    expiresAt = Date.parse(raw);
+  } else {
+    return false;
+  }
+  return Number.isFinite(expiresAt) && expiresAt > now.getTime();
+}
+
+/** Mirrors the Go queue decision table, including an invalid/expired lease. */
+export function decideEnqueueAction(
+  existing: Record<string, unknown> | null | undefined,
+  now = new Date(),
+): EnqueueDecision {
+  if (!existing) return "insert";
+  const status = typeof existing["status"] === "string" ? existing["status"] : "";
+  switch (status) {
+    case "processing":
+      return isActiveLease(existing, now) ? "skip" : "requeue";
+    case "completed":
+    case "done":
+      return "requeue";
+    case "queued":
+      return "skip";
+    default:
+      return "requeue";
+  }
+}
+
+function categoryMatchKey(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/ & /g, " and ");
+}
+
+function canonicalCategory(value: string | undefined): string {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return "";
+  const key = categoryMatchKey(trimmed);
+  const match = GENRES.find((candidate) => categoryMatchKey(candidate) === key);
+  if (!match) {
+    throw new Error(`invalid category ${JSON.stringify(value)} (must be one of CanonicalCategories)`);
+  }
+  return match;
+}
+
+function canonicalRequestedBy(value: string | undefined): string {
+  const requestedBy = value?.trim().toLowerCase() || "manual";
+  if (!CRAWL_REQUESTED_BY.has(requestedBy)) {
+    throw new Error(`invalid requested_by ${JSON.stringify(value)}`);
+  }
+  return requestedBy;
+}
+
+function existingPriority(existing: Record<string, Json> | null): number {
+  const value = existing?.["priority"];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function claimReset(existing: Record<string, Json> | null): Record<string, Json> {
+  const reset: Record<string, Json> = {
+    claim_token: null,
+    claiming_agent: null,
+    claim_expires_at: null,
+  };
+  if (existing && "claimed_by" in existing) reset["claimed_by"] = null;
+  if (existing && "claimed_at" in existing) reset["claimed_at"] = null;
+  return reset;
+}
+
+function toCrawlData(id: string, data: Record<string, Json>): CrawlRecord {
+  return toCrawl({ id, path: `crawl_queue/${id}`, data });
+}
+
+function shouldUpgradeQueued(
+  existing: Record<string, Json>,
+  isBanked: boolean,
+  priority: number,
+  requestedRefresh: boolean,
+): boolean {
+  const refresh = existing["refresh"] === true;
+  return (
+    (isBanked && !refresh) ||
+    priority > existingPriority(existing) ||
+    (requestedRefresh && !refresh)
+  );
+}
+
+function queueResult(
+  subject: string,
+  subjectKey: string,
+  action: EnqueueResult["action"],
+  reason?: string,
+): EnqueueResult {
+  return {
+    subject,
+    subjectKey,
+    action,
+    ...(reason ? { reason } : {}),
+  };
+}
+
+async function enqueueSubjectInternal(input: EnqueueSubjectInput): Promise<EnqueueExecution> {
+  const subject = input.subject.trim();
+  if (!subject) throw new Error("subject is required");
+  if (subject.length > MAX_CRAWL_SUBJECT_LENGTH) {
+    throw new Error(`subject exceeds ${MAX_CRAWL_SUBJECT_LENGTH} characters`);
+  }
+  const subjectKey = normalizeKey(subject);
+  if (!subjectKey) throw new Error("normalized subject key is empty");
+
+  const category = canonicalCategory(input.category);
+  const taxonomyError = validateTaxonomy(category, "", subject);
+  if (taxonomyError) throw new Error(taxonomyError);
+  const requestedBy = canonicalRequestedBy(input.requestedBy);
+  const priority =
+    typeof input.priority === "number" && input.priority > 0 ? input.priority : DEFAULT_CRAWL_PRIORITY;
+  const requestedRefresh = input.refresh === true;
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const subjectPath = `fact_subjects/${subjectKey}`;
+  const queuePath = `crawl_queue/${subjectKey}`;
+
+  return runTransaction(async (tx) => {
+    // Every read is deliberately completed before the first write. runTransaction
+    // reruns this whole callback after contention, so the decision is never based
+    // on a stale pre-read snapshot.
+    const subjectDoc = await tx.get(subjectPath);
+    const queueDoc = await tx.get(queuePath);
+    const isBanked = subjectDoc !== null;
+    const existing = queueDoc?.data ?? null;
+    const decision = decideEnqueueAction(existing, now);
+
+    if (decision === "skip") {
+      if (existing?.["status"] === "queued" && shouldUpgradeQueued(existing, isBanked, priority, requestedRefresh)) {
+        const upgrades: Record<string, Json> = {
+          requested_by: requestedBy,
+          updated_at: nowIso,
+        };
+        if (isBanked || requestedRefresh) upgrades["refresh"] = true;
+        if (priority > existingPriority(existing)) upgrades["priority"] = priority;
+        if (category) upgrades["category"] = category;
+        tx.update(queuePath, upgrades);
+        const data = { ...existing, ...upgrades };
+        return {
+          result: queueResult(subject, subjectKey, "requeued"),
+          record: toCrawlData(subjectKey, data),
+        };
+      }
+      return {
+        result: queueResult(subject, subjectKey, "skipped", "already queued or actively processing"),
+        record: toCrawlData(subjectKey, existing ?? {}),
+      };
+    }
+
+    const effectivePriority = Math.max(priority, existingPriority(existing));
+    const effectiveRefresh = isBanked || requestedRefresh || existing?.["refresh"] === true;
+    const payload: Record<string, Json> = {
+      subject,
+      subject_key: subjectKey,
+      priority: effectivePriority,
+      status: "queued",
+      refresh: effectiveRefresh,
+      requested_by: requestedBy,
+      enqueued_at: nowIso,
+      updated_at: nowIso,
+      completed_at: null,
+      ...claimReset(existing),
+    };
+    if (category) payload["category"] = category;
+
+    if (decision === "insert") {
+      tx.set(queuePath, payload);
+      return {
+        result: queueResult(subject, subjectKey, "inserted"),
+        record: toCrawlData(subjectKey, payload),
+      };
+    }
+
+    tx.update(queuePath, payload);
+    return {
+      result: queueResult(subject, subjectKey, "requeued"),
+      record: toCrawlData(subjectKey, { ...(existing ?? {}), ...payload }),
+    };
+  });
+}
+
+/** Enqueue one subject using the Go queue decision table inside one transaction. */
+export async function enqueueSubject(input: EnqueueSubjectInput): Promise<EnqueueResult> {
+  return (await enqueueSubjectInternal(input)).result;
+}
+
 export async function enqueueCrawl(input: {
   subject: string;
   priority: number;
   refresh: boolean;
+  category?: string;
 }): Promise<{ items: CrawlRecord[]; expandedFrom: string | null }> {
   const playlists = await listPlaylists();
   const needle = input.subject.trim().toLowerCase();
@@ -363,27 +588,25 @@ export async function enqueueCrawl(input: {
     for (const key of playlist.topic_keys) {
       const topic = await getDoc(`fact_subjects/${key}`);
       const name = topic ? str(topic.data["subject"]) || key : key;
-      items.push(await enqueueOneTopic(name, input.priority, input.refresh));
+      const category = input.category ?? (topic ? str(topic.data["category"]) : "");
+      items.push((await enqueueSubjectInternal({
+        subject: name,
+        priority: input.priority,
+        refresh: input.refresh,
+        category,
+      })).record);
     }
     return { items, expandedFrom: playlist.name };
   }
-  return { items: [await enqueueOneTopic(input.subject, input.priority, input.refresh)], expandedFrom: null };
-}
-
-async function enqueueOneTopic(subject: string, priority: number, refresh: boolean): Promise<CrawlRecord> {
-  const subjectKey = normalizeKey(subject);
-  const payload = {
-    subject,
-    priority,
-    status: "queued",
-    requested_by: "manual",
-    refresh,
-    enqueued_at: new Date().toISOString(),
-    completed_at: null,
+  return {
+    items: [(await enqueueSubjectInternal({
+      subject: input.subject,
+      priority: input.priority,
+      refresh: input.refresh,
+      category: input.category,
+    })).record],
+    expandedFrom: null,
   };
-  const existing = await getDoc(`crawl_queue/${subjectKey}`);
-  if (existing) return toCrawl(await patchDoc(`crawl_queue/${subjectKey}`, payload));
-  return toCrawl(await createDoc("crawl_queue", subjectKey, payload));
 }
 
 export async function setCrawlPriority(input: {
@@ -393,31 +616,62 @@ export async function setCrawlPriority(input: {
   return toCrawl(await patchDoc(`crawl_queue/${input.id}`, { priority: input.priority }));
 }
 
-export async function triggerFoundryWorkflow(adminUser?: AdminUser): Promise<{ ok: boolean; message: string }> {
-  const token = process.env["GITHUB_TOKEN"] || process.env["GH_TOKEN"];
-  const repo = process.env["GITHUB_REPOSITORY"] || "the-og-more-or-less/more-or-less";
+const FOUNDRY_REPOSITORY = "snaptapp/more-or-less";
+const FOUNDRY_WORKFLOW = "fact-foundry.yml";
+const FOUNDRY_REF = "main";
+const FOUNDRY_INPUTS = {
+  subjects: "",
+  refresh_stale_days: "0",
+  facts_per_subject: "8",
+} as const;
+
+export interface FoundryDispatchResult {
+  configured: boolean;
+  ok: boolean;
+  message: string;
+}
+
+function foundryToken(): string | null {
+  return (process.env["GITHUB_TOKEN"] || process.env["GH_TOKEN"] || "").trim() || null;
+}
+
+export async function getFoundryDispatchStatus(): Promise<{ configured: boolean }> {
+  return { configured: foundryToken() !== null };
+}
+
+export async function triggerFoundryWorkflow(adminUser?: AdminUser): Promise<FoundryDispatchResult> {
+  const token = foundryToken();
 
   if (!token) {
     return {
+      configured: false,
       ok: false,
-      message: "GITHUB_TOKEN is not configured on the server. Topic is saved in queue for the nightly run.",
+      message: "On-demand dispatch is not configured. Topics remain queued for nightly hydration.",
     };
   }
 
   try {
-    const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/fact-foundry.yml/dispatches`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github.v3+json",
-        "User-Agent": "more-or-less-admin",
+    const res = await fetch(
+      `https://api.github.com/repos/${FOUNDRY_REPOSITORY}/actions/workflows/${FOUNDRY_WORKFLOW}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "more-or-less-admin",
+        },
+        body: JSON.stringify({ ref: FOUNDRY_REF, inputs: FOUNDRY_INPUTS }),
       },
-      body: JSON.stringify({ ref: "main" }),
-    });
+    );
 
     if (!res.ok) {
       const errText = await res.text();
-      return { ok: false, message: `GitHub Action dispatch failed (${res.status}): ${errText.slice(0, 200)}` };
+      return {
+        configured: true,
+        ok: false,
+        message: `GitHub Action dispatch failed (${res.status}): ${errText.slice(0, 200)}`,
+      };
     }
 
     if (adminUser) {
@@ -430,9 +684,17 @@ export async function triggerFoundryWorkflow(adminUser?: AdminUser): Promise<{ o
       });
     }
 
-    return { ok: true, message: "Fact Foundry workflow triggered successfully on GitHub Actions." };
+    return {
+      configured: true,
+      ok: true,
+      message: "Fact Foundry workflow triggered successfully on GitHub Actions.",
+    };
   } catch (err: unknown) {
-    return { ok: false, message: err instanceof Error ? err.message : "Failed to trigger GitHub Action" };
+    return {
+      configured: true,
+      ok: false,
+      message: err instanceof Error ? err.message : "Failed to trigger GitHub Action",
+    };
   }
 }
 

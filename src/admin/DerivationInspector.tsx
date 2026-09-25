@@ -111,6 +111,7 @@ const QUANTITY_KIND_LABELS: Record<QuantityKind, string> = {
   [QK.year]: "year (additive)",
   [QK.count]: "count (multiplicative)",
   [QK.percentage]: "percentage (bounded)",
+  [QK.percent_change]: "percent change (multiplicative)",
   [QK.ratio]: QK.ratio,
   [QK.physical_measure]: QK.physical_measure,
   [QK.money]: "money (multiplicative)",

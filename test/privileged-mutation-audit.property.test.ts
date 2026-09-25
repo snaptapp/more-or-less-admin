@@ -1,11 +1,11 @@
 /**
  * Feature: admin-quality-gates-and-shared-contracts
  *
- * Property 19: Every privileged mutation records exactly one well-formed audit entry
+ * Property 19: Every persisted privileged fact records one well-formed audit entry
  *   *For all* `Privileged_Mutation_Path` invocations exercised behind test
- *   doubles, exactly one audit entry is recorded whose `action`, `targetType`,
- *   and `targetId` are each non-empty strings and whose `targetType` is a member
- *   of the declared `AuditLogEntry` target-type union.
+ *   doubles, every persisted fact has exactly one atomic audit entry whose
+ *   `action`, `targetType`, and `targetId` are non-empty and whose `targetType`
+ *   is a member of the declared `AuditLogEntry` target-type union.
  *   Validates: Requirement 6.7
  *
  * Scope
@@ -344,7 +344,8 @@ const saveFactScenario: fc.Arbitrary<MutationScenario> = fc
     expectedTargetType: "fact" as const,
     expectedTargetId: id,
     expectMutated: () => {
-      expect(firestoreDouble().writeCount()).toBe(1);
+      // The fact update and its prepared audit entry share one transaction.
+      expect(firestoreDouble().writeCount()).toBe(2);
       expect(firestoreDouble().document(`fact_bank/${id}`)?.data["question"]).toBe(question);
     },
   }));
@@ -371,7 +372,8 @@ const changeFactStatusScenario: fc.Arbitrary<MutationScenario> = fc
       expectedTargetType: "fact" as const,
       expectedTargetId: id,
       expectMutated: () => {
-        expect(firestoreDouble().writeCount()).toBe(1);
+        // The fact transition and its prepared audit entry share one transaction.
+        expect(firestoreDouble().writeCount()).toBe(2);
         expect(firestoreDouble().document(`fact_bank/${id}`)?.data["status"]).toBe(status);
       },
     };
@@ -423,7 +425,7 @@ const bulkImportScenario: fc.Arbitrary<MutationScenario> = fc
     // Keyed by a generated import-batch id.
     expectedTargetId: null,
     expectMutated: () => {
-      expect(firestoreDouble().writeCount()).toBe(angles.length);
+      expect(firestoreDouble().writeCount()).toBe(angles.length * 2);
     },
   }));
 
@@ -450,7 +452,7 @@ const bulkUpdateScenario: fc.Arbitrary<MutationScenario> = fc
       // generated batch id.
       expectedTargetId: updates.length === 1 ? updates[0].id : null,
       expectMutated: () => {
-        expect(firestoreDouble().writeCount()).toBe(updates.length);
+        expect(firestoreDouble().writeCount()).toBe(updates.length * 2);
       },
     };
   });
@@ -631,6 +633,28 @@ function expectWellFormedEntry(entry: RecordedAuditEntry, scenario: MutationScen
   expect(entry.adminEmail, where).toBe(ADMIN.email);
 }
 
+/** Read audit documents staged by a fact transaction, if this scenario used one. */
+function transactionalAuditEntries(): RecordedAuditEntry[] {
+  return firestoreDouble()
+    .documents()
+    .filter((doc) => doc.path.startsWith("admin_audit_logs/"))
+    .map((doc) => {
+      const data = doc.data;
+      return {
+        id: doc.id,
+        adminUid: String(data["adminUid"] ?? ""),
+        adminEmail: data["adminEmail"] ? String(data["adminEmail"]) : null,
+        action: String(data["action"] ?? ""),
+        targetType: (data["targetType"] as AuditLogEntry["targetType"]) ?? "system",
+        targetId: String(data["targetId"] ?? ""),
+        details: data["details"] ? String(data["details"]) : undefined,
+        before: data["before"] ?? null,
+        after: data["after"] ?? null,
+        createdAt: typeof data["createdAt"] === "string" ? data["createdAt"] : "",
+      };
+    });
+}
+
 /** Seed, validate, invoke, and assert the whole Requirement 6.7 contract. */
 async function runScenario(scenario: MutationScenario): Promise<void> {
   resetDoubles();
@@ -647,10 +671,22 @@ async function runScenario(scenario: MutationScenario): Promise<void> {
 
   await handler({ data: validated as never, context: { user: ADMIN } });
 
-  // Requirement 6.7: exactly one entry.
-  const entries = auditDouble().entries();
-  expect(auditDouble().entryCount(), `${scenario.label}: audit entry count`).toBe(1);
-  expectWellFormedEntry(entries[0], scenario);
+  // One audit is committed with every persisted fact. Non-fact service
+  // boundaries still record one entry for their single logical mutation.
+  const transactional =
+    scenario.mutation === "updateFact" ||
+    scenario.mutation === "setFactStatus" ||
+    scenario.mutation === "importFactsBatch" ||
+    scenario.mutation === "bulkUpdateFacts";
+  const entries = transactional ? transactionalAuditEntries() : auditDouble().entries();
+  const expectedCount =
+    scenario.mutation === "importFactsBatch"
+      ? (scenario.payload as { facts: unknown[] }).facts.length
+      : scenario.mutation === "bulkUpdateFacts"
+        ? (scenario.payload as { updates: unknown[] }).updates.length
+        : 1;
+  expect(entries, `${scenario.label}: audit entry count`).toHaveLength(expectedCount);
+  for (const entry of entries) expectWellFormedEntry(entry, scenario);
 
   // The privileged mutation really happened, so the entry is not recording a
   // no-op.
@@ -664,7 +700,7 @@ async function runScenario(scenario: MutationScenario): Promise<void> {
 // Property 19
 // ---------------------------------------------------------------------------
 
-describe("Feature: admin-quality-gates-and-shared-contracts, Property 19: Every privileged mutation records exactly one well-formed audit entry", () => {
+describe("Feature: admin-quality-gates-and-shared-contracts, Property 19: Every persisted privileged fact records one well-formed audit entry", () => {
   it("reads a non-trivial target-type union and captures every scenario handler", () => {
     // Non-vacuity: membership is a real constraint, and every handler the
     // scenarios name exists and registered a handler.
@@ -691,7 +727,7 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Property 19: Every 
     ).toBeTypeOf("function");
   });
 
-  it("records exactly one well-formed entry for any privileged mutation invocation", async () => {
+  it("records one well-formed entry per persisted fact for any privileged mutation invocation", async () => {
     const seen = new Set<MutationPath>();
 
     await fc.assert(

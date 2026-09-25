@@ -269,6 +269,9 @@ async function proposeSwap(roundNumber: number, factId: string, preferredSide?: 
     unit: fact.unit,
     true_number: fact.true_number,
     surprise_factor: fact.surprise_factor,
+    quantity_kind: fact.quantity_kind,
+    plausible_min: fact.plausible_min,
+    plausible_max: fact.plausible_max,
     derivation: fact.derivation,
     preferredSide,
     round_number: roundNumber,
@@ -589,7 +592,11 @@ export async function executeTool(
     case "trigger_foundry": {
       const dispatched = await triggerFoundryWorkflow();
       return {
-        result: dispatched,
+        result: {
+          configured: dispatched.configured,
+          ok: dispatched.ok,
+          message: dispatched.message,
+        },
         card: {
           id: newCardId("foundry"),
           tool: name,

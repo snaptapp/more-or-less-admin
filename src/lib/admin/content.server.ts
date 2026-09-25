@@ -5,18 +5,34 @@
 import { z } from "zod";
 import {
   createDoc,
+  countCollection,
   factId,
   getDoc,
   normalizeKey,
   patchDoc,
   runQuery,
+  runTransaction,
   type FirestoreDoc,
   type Json,
   type QueryFilter,
 } from "../firebase/firestore.server";
+import { type PreparedAuditEntry } from "../firebase/audit.server";
 import { GENRES } from "./taxonomy";
+import { QK } from "./contract";
 import { parseDerivationBlock, type FactDerivationBlock } from "./daily-blitz";
 import { isDuplicateFlag, isNonDuplicateFlag } from "./quality-flags";
+import {
+  runPerItemBatch,
+  type BatchItemOutcome,
+  type BatchMutationResult,
+} from "./batch-mutation-semantics";
+import {
+  buildPendingFact,
+  PENDING_FACT_ORIGINS,
+  type PendingFact,
+  type PendingFactInput,
+  type PendingFactOrigin,
+} from "./fact-admission";
 import {
   FACT_STATUSES as CONTRACT_FACT_STATUSES,
   QUANTITY_KINDS as CONTRACT_QUANTITY_KINDS,
@@ -43,6 +59,150 @@ export const STATUS: { [K in FactStatus]: K } = (() => {
 })();
 export const CONTENT_RATINGS = ["standard", "after_dark"] as const;
 export const REPORT_STATUSES = ["pending_review", "resolved", "rejected"] as const;
+
+const DEPLOYED_BANK_SCHEMA = z.object({
+  bank_version: z.string().trim().min(1),
+  fact_count: z.number().int().nonnegative(),
+  ddm_version: z.string().trim().min(1),
+});
+
+const BANK_VERSION_TIMEOUT_MS = 5_000;
+
+/** The only user-facing explanation of how Firestore state reaches players. */
+export const HYDRATION_EXPLANATION =
+  "Firestore changes go live only after export, hydration PR merge, and Worker deployment.";
+
+/**
+ * The comparison shown beside the deployed endpoint. It intentionally compares
+ * source lifecycle state with the embedded serving bank; it is not a claim that
+ * every active Firestore row is export-eligible (after-dark, flagged, duplicate,
+ * or malformed rows are filtered by the export projection).
+ */
+export const EXPORTED_DELTA_DEFINITION =
+  "Firestore active lifecycle count minus deployed fact_count; export filters can make the populations differ.";
+
+type DeployedBankKnown = {
+  readonly state: "known";
+  readonly stale: false;
+  readonly bankVersion: string;
+  readonly factCount: number;
+  readonly ddmVersion: string;
+};
+
+type DeployedBankUnknown = {
+  readonly state: "unknown";
+  readonly stale: true;
+  readonly reason: string;
+};
+
+export type DeployedBank = DeployedBankKnown | DeployedBankUnknown;
+
+export interface BankObservability {
+  readonly checkedAt: string;
+  readonly deployed: DeployedBank;
+  readonly firestore: {
+    readonly lifecycle: Readonly<Record<FactStatus, number>>;
+    readonly total: number;
+    readonly active: number;
+  };
+  /** Active Firestore rows minus embedded Worker facts; null when deployment is unknown. */
+  readonly exportedDelta: number | null;
+  readonly exportedDeltaDefinition: string;
+}
+
+export interface BankObservabilityDependencies {
+  readonly fetch?: typeof fetch;
+  readonly env?: Readonly<Record<string, string | undefined>>;
+}
+
+function unknownDeployed(reason: string): DeployedBankUnknown {
+  return { state: "unknown", stale: true, reason };
+}
+
+function workerUrl(env: Readonly<Record<string, string | undefined>>): URL | null {
+  const raw = (env["GAME_WORKER_URL"] ?? "").trim().replace(/\/+$/, "");
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return new URL("/api/bank/version", url);
+  } catch {
+    return null;
+  }
+}
+
+/** Read the public deployment stamp, degrading to an explicit unknown state. */
+export async function fetchDeployedBank(
+  deps: BankObservabilityDependencies = {},
+): Promise<DeployedBank> {
+  const url = workerUrl(deps.env ?? process.env);
+  if (!url) return unknownDeployed("GAME_WORKER_URL is not configured with a valid HTTP(S) URL.");
+
+  const request = deps.fetch ?? fetch;
+  let response: Response;
+  try {
+    response = await request(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(BANK_VERSION_TIMEOUT_MS),
+    });
+  } catch {
+    return unknownDeployed("The Game Worker bank-version endpoint could not be reached.");
+  }
+
+  if (!response.ok) {
+    return unknownDeployed(`The Game Worker bank-version endpoint returned HTTP ${response.status}.`);
+  }
+
+  const parsed = DEPLOYED_BANK_SCHEMA.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) {
+    return unknownDeployed("The Game Worker bank-version endpoint returned an invalid response.");
+  }
+
+  return {
+    state: "known",
+    stale: false,
+    bankVersion: parsed.data.bank_version,
+    factCount: parsed.data.fact_count,
+    ddmVersion: parsed.data.ddm_version,
+  };
+}
+
+function emptyLifecycle(): Record<FactStatus, number> {
+  return Object.fromEntries(FACT_STATUSES.map((status) => [status, 0])) as Record<FactStatus, number>;
+}
+
+/** Build the deployed-versus-Firestore snapshot consumed by the facts page. */
+export async function getBankObservability(
+  deps: BankObservabilityDependencies = {},
+): Promise<BankObservability> {
+  const countsPromise = Promise.all(
+    FACT_STATUSES.map(async (status) => ({
+      status,
+      count: await countCollection("fact_bank", [
+        { field: "status", op: "EQUAL", value: status },
+      ]),
+    })),
+  );
+  const [deployed, counts] = await Promise.all([fetchDeployedBank(deps), countsPromise]);
+  const lifecycle = emptyLifecycle();
+  for (const row of counts) lifecycle[row.status] = row.count;
+  const total = Object.values(lifecycle).reduce((sum, count) => sum + count, 0);
+  const active = lifecycle[STATUS.active];
+
+  return {
+    checkedAt: new Date().toISOString(),
+    deployed,
+    firestore: { lifecycle, total, active },
+    exportedDelta: deployed.state === "known" ? active - deployed.factCount : null,
+    exportedDeltaDefinition: EXPORTED_DELTA_DEFINITION,
+  };
+}
+
+/** User-facing copy for a report that enters the Foundry admission queue. */
+export const PENDING_ADMISSION_COPY =
+  "Saved as pending; the nightly Foundry audit promotes it.";
 
 export const CATEGORIES = GENRES;
 
@@ -89,6 +249,26 @@ function num(value: Json | undefined): number | null {
   return typeof value === "number" ? value : null;
 }
 
+function firstStr(data: Record<string, Json>, keys: readonly string[]): string {
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+/**
+ * Read the canonical reveal copy while accepting the legacy context field.
+ * The canonical field wins whenever it contains text; empty legacy values are
+ * ignored so a partially migrated document remains readable.
+ */
+export function canonicalExplanation(
+  data: Record<string, Json>,
+  legacyAliases: readonly string[] = [],
+): string {
+  return firstStr(data, ["explanation", ...legacyAliases, "context"]);
+}
+
 export function toFact(doc: FirestoreDoc): FactRecord {
   const d = doc.data;
   return {
@@ -100,7 +280,9 @@ export function toFact(doc: FirestoreDoc): FactRecord {
     true_number: num(d["true_number"]),
     unit: str(d["unit"]),
     claim_template: str(d["claim_template"]),
-    context: str(d["context"]),
+    // FactRecord keeps the legacy `context` property for existing admin
+    // consumers, but its value is always the canonical explanation projection.
+    context: canonicalExplanation(d),
     question: str(d["question"]),
     surprise_factor: (() => {
       const raw = num(d["surprise_factor"]);
@@ -134,6 +316,13 @@ export function toFact(doc: FirestoreDoc): FactRecord {
     pinned_reason: typeof d["pinned_reason"] === "string" ? d["pinned_reason"] : null,
     updateTime: doc.updateTime,
   };
+}
+
+/** Text searched by both list and export paths, including canonical explanation. */
+function factSearchText(fact: FactRecord): string {
+  return [fact.subject, fact.angle, fact.question, fact.claim_template, fact.context]
+    .join(" ")
+    .toLowerCase();
 }
 
 export interface FactListInput {
@@ -239,12 +428,7 @@ export async function listFacts(input: FactListInput) {
   }
   const term = input.search?.trim().toLowerCase();
   if (term) {
-    facts = facts.filter((fact) =>
-      [fact.subject, fact.angle, fact.question, fact.claim_template, fact.context]
-        .join(" ")
-        .toLowerCase()
-        .includes(term),
-    );
+    facts = facts.filter((fact) => factSearchText(fact).includes(term));
   }
 
   const sortField = input.sortField || "subject";
@@ -310,12 +494,7 @@ export async function exportFacts(input: FactListInput): Promise<FactRecord[]> {
   }
   const term = input.search?.trim().toLowerCase();
   if (term) {
-    facts = facts.filter((fact) =>
-      [fact.subject, fact.angle, fact.question, fact.claim_template, fact.context]
-        .join(" ")
-        .toLowerCase()
-        .includes(term),
-    );
+    facts = facts.filter((fact) => factSearchText(fact).includes(term));
   }
 
   const sortField = input.sortField || "subject";
@@ -338,66 +517,183 @@ export async function exportFacts(input: FactListInput): Promise<FactRecord[]> {
   return facts;
 }
 
-export async function importFactsBatch(
-  facts: Array<{
-    subject: string;
-    angle: string;
-    true_number: number;
-    unit?: string;
-    claim_template: string;
-    context?: string;
-    question?: string;
-    surprise_factor?: number;
-    difficulty_hint?: "casual" | "medium" | "hard";
-    content_rating?: "standard" | "after_dark";
-    source_urls?: string[];
-  }>,
-): Promise<{ imported: number; skipped: number; errors: string[] }> {
-  let imported = 0;
-  let skipped = 0;
-  const errors: string[] = [];
+export interface ImportFactInput {
+  subject: string;
+  category?: string | null;
+  sub_category?: string | null;
+  angle: string;
+  true_number: number;
+  unit: string;
+  claim_template?: string;
+  context?: string | null;
+  explanation?: string | null;
+  question?: string;
+  surprise_factor?: number;
+  quantity_kind?: QuantityKind | "";
+  plausible_min?: string | null;
+  plausible_max?: string | null;
+  number_pinned?: boolean;
+  pinned_reason?: string | null;
+  source_urls?: readonly string[];
+  origin?: PendingFactOrigin;
+  difficulty_hint?: "casual" | "medium" | "hard";
+  content_rating?: "standard" | "after_dark";
+}
 
-  for (const item of facts) {
-    try {
-      const subject_key = normalizeKey(item.subject);
-      const angle_key = normalizeKey(item.angle);
-      const id = await factId(subject_key, angle_key);
-      const existing = await getDoc(`fact_bank/${id}`);
-      if (existing) {
-        skipped++;
-        continue;
-      }
-      const question = (item.question ?? "").trim() || `${item.subject} - ${item.angle}`.trim();
-      const claim = (item.claim_template ?? "").trim() || `${question}: {n}`;
-      const claim_template = claim.includes("{n}") ? claim : `${claim} {n}`;
-      await createDoc("fact_bank", id, {
-        subject: item.subject.trim(),
-        angle: item.angle.trim(),
-        true_number: item.true_number,
-        unit: (item.unit ?? "").trim(),
-        claim_template,
-        context: (item.context ?? "").trim() || question,
-        question,
-        surprise_factor: item.surprise_factor ?? 2,
-        content_rating: item.content_rating ?? "standard",
-        source_urls: item.source_urls ?? [],
-        subject_key,
-        angle_key,
-        status: STATUS.active,
-        previous_true_number: null,
-        retired_reason: null,
-        verifier_model: "csv_import",
-        verified_at: new Date().toISOString(),
-        served_count: 0,
-        last_served_at: null,
-      });
-      imported++;
-    } catch (err) {
-      errors.push(`${item.subject} / ${item.angle}: ${err instanceof Error ? err.message : String(err)}`);
-    }
+function pendingCategory(value: string | null | undefined): PendingFactInput["category"] {
+  return value?.trim() ? (value as PendingFactInput["category"]) : null;
+}
+
+function pendingQuantityKind(value: QuantityKind | "" | undefined): QuantityKind {
+  return value === undefined || value === "" ? QK.count : value;
+}
+
+function pendingText(value: string | null | undefined, fallback: string): string {
+  return value?.trim() || fallback;
+}
+
+/** Build the one fact-bank payload that either manual admission path may persist. */
+function buildAdmissionFact(
+  input: ImportFactInput,
+  origin: PendingFactOrigin,
+  timestamp = new Date().toISOString(),
+): PendingFact {
+  const question = pendingText(input.question, `${input.subject} - ${input.angle}`.trim());
+  const claim = pendingText(input.claim_template, `${question}: {n}`);
+  const claimTemplate = claim.includes("{n}") ? claim : `${claim} {n}`;
+  return buildPendingFact({
+    subject: input.subject,
+    category: pendingCategory(input.category),
+    sub_category: input.sub_category ?? null,
+    angle: input.angle,
+    true_number: input.true_number,
+    unit: input.unit,
+    claim_template: claimTemplate,
+    question,
+    explanation: pendingText(input.explanation, pendingText(input.context, question)),
+    source_urls: input.source_urls ?? [],
+    surprise_factor: input.surprise_factor ?? 2,
+    quantity_kind: pendingQuantityKind(input.quantity_kind),
+    ...(input.plausible_min !== undefined ? { plausible_min: input.plausible_min } : {}),
+    ...(input.plausible_max !== undefined ? { plausible_max: input.plausible_max } : {}),
+    ...(input.number_pinned !== undefined ? { number_pinned: input.number_pinned } : {}),
+    ...(input.pinned_reason !== undefined ? { pinned_reason: input.pinned_reason } : {}),
+    origin,
+  });
+}
+
+export interface ImportFactAuditContext {
+  readonly id: string;
+  readonly index: number;
+  readonly input: ImportFactInput;
+}
+
+/**
+ * Builds the one audit entry that may commit with a CSV row. The server-function
+ * boundary allocates its identity before the per-fact transaction starts, so a
+ * transaction retry stages the same audit document id.
+ */
+export type ImportFactAuditFactory = (context: ImportFactAuditContext) => PreparedAuditEntry;
+
+/** Canonical per-item import result plus the legacy counters consumed by the CSV UI. */
+export type ImportFactsResult = Omit<BatchMutationResult, "operation"> & {
+  readonly operation: "import";
+  /** Number of facts committed with their audit entry. */
+  readonly imported: number;
+  /** Number of duplicate identities intentionally left unchanged. */
+  readonly skipped: number;
+  /** Human-readable failures aligned with `items[].index`. */
+  readonly errors: readonly string[];
+  /** Stable user-facing explanation of the non-atomic batch outcome. */
+  readonly summary: string;
+};
+
+function importSummary(result: BatchMutationResult): string {
+  const persisted = result.counts.persisted;
+  const skipped = result.counts.skipped;
+  const failed = result.counts.failed;
+  const failedId = result.failedId ? ` at ${result.failedId}` : "";
+  if (failed === 0) {
+    return (
+      `Imported ${persisted} fact(s) and skipped ${skipped} duplicate(s). ` +
+      "Rows commit independently; this import is not batch-atomic."
+    );
+  }
+  return (
+    `Imported ${persisted} fact(s), skipped ${skipped} duplicate(s), and failed ${failed} row(s)${failedId}. ` +
+    "Later rows were still attempted independently; this import is not batch-atomic."
+  );
+}
+
+/**
+ * Import CSV rows in input order with one fact-plus-audit transaction per row.
+ * A duplicate is a skipped item and receives no audit. Every persisted item has
+ * exactly one audit staged in the same transaction, while a row failure never
+ * rolls back an earlier committed row.
+ */
+export async function importFactsBatch(
+  facts: ImportFactInput[],
+  auditFor: ImportFactAuditFactory,
+): Promise<ImportFactsResult> {
+  const prepared: Array<{ id: string; input: ImportFactInput; audit: PreparedAuditEntry }> = [];
+  for (let index = 0; index < facts.length; index += 1) {
+    const input = facts[index];
+    const id = await factId(normalizeKey(input.subject), normalizeKey(input.angle));
+    prepared.push({ id, input, audit: auditFor({ id, index, input }) });
   }
 
-  return { imported, skipped, errors };
+  const result = await runPerItemBatch(
+    "import",
+    prepared.map((entry) => entry.id),
+    async (id, index): Promise<BatchItemOutcome> => {
+      const entry = prepared[index];
+      if (!entry) {
+        return {
+          status: "failed",
+          failure: { code: "missing_import_entry", message: `Missing prepared import entry ${id}` },
+        };
+      }
+      try {
+        // Duplicate detection and both writes share this transaction. If another
+        // writer creates the identity after our read, Firestore aborts and retries
+        // the callback; the retry then observes the existing fact and skips it.
+        const pendingFact = buildAdmissionFact(entry.input, PENDING_FACT_ORIGINS[1]);
+        return await runTransaction(async (tx): Promise<BatchItemOutcome> => {
+          const existing = await tx.get(`fact_bank/${id}`);
+          if (existing) {
+            return { status: "skipped", reason: "identity already exists" };
+          }
+          tx.set(`fact_bank/${id}`, pendingFact);
+          stagePreparedAudit(tx, entry.audit);
+          return { status: "persisted", auditCommitted: true };
+        });
+      } catch (error) {
+        return {
+          status: "failed",
+          failure: {
+            code: "item_execution_failed",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        };
+      }
+    },
+  );
+
+  const errors = result.items.flatMap((item) => {
+    if (item.status !== "failed") return [];
+    const input = facts[item.index];
+    const label = input ? `${input.subject} / ${input.angle}` : item.id;
+    return [`${label} (${item.id}): ${item.failure?.message ?? "Import failed"}`];
+  });
+
+  return {
+    ...result,
+    operation: "import",
+    imported: result.counts.persisted,
+    skipped: result.counts.skipped,
+    errors,
+    summary: importSummary(result),
+  };
 }
 
 export async function getFact(id: string): Promise<FactRecord | null> {
@@ -414,6 +710,8 @@ export interface FactEditInput {
   true_number?: number;
   unit?: string;
   claim_template?: string;
+  /** Canonical reveal copy; `context` remains a legacy input alias. */
+  explanation?: string;
   context?: string;
   question?: string;
   surprise_factor?: number;
@@ -439,91 +737,252 @@ const SEMANTIC_EDIT_KEYS: (keyof FactEditInput)[] = [
   "plausible_max",
 ];
 
-export async function updateFact(input: FactEditInput): Promise<FactRecord> {
-  const existing = await getFact(input.id);
-  if (!existing) throw new Error(`Fact ${input.id} not found`);
+/** The persisted fields that make a fact's identity deterministic. */
+export type FactIdentityField = "subject" | "angle";
 
-  const patch: Record<string, unknown> = {};
-  const assignable: (keyof FactEditInput)[] = [
-    "subject",
-    "category",
-    "angle",
-    "unit",
-    "claim_template",
-    "context",
-    "question",
-    "surprise_factor",
-    "difficulty_hint",
-    "content_rating",
-    "source_urls",
-    "quantity_kind",
-    "plausible_min",
-    "plausible_max",
-  ];
-  for (const key of assignable) {
-    if (input[key] !== undefined) patch[key] = input[key];
+/**
+ * A request tried to change a fact's identity through the ordinary edit path.
+ * Subject and angle are part of the document's deterministic identity: changing
+ * either would also require a new canonical key and document id. Corrections
+ * must create a replacement instead, so this error is raised before any write.
+ */
+export class FactIdentityChangeError extends Error {
+  readonly factId: string;
+  readonly field: FactIdentityField;
+  readonly current: string;
+  readonly requested: string;
+
+  constructor(factId: string, field: FactIdentityField, current: string, requested: string) {
+    super(
+      `Fact identity change rejected for fact ${factId}: ${field} is immutable ` +
+        `(current "${current}", requested "${requested}").`,
+    );
+    this.name = "FactIdentityChangeError";
+    this.factId = factId;
+    this.field = field;
+    this.current = current;
+    this.requested = requested;
   }
-  if (input.subject !== undefined) patch["subject_key"] = normalizeKey(input.subject);
-  if (input.angle !== undefined) patch["angle_key"] = normalizeKey(input.angle);
+}
 
-  // Changing the value preserves the old one for the reveal-diff history.
-  if (input.true_number !== undefined && input.true_number !== existing.true_number) {
-    patch["previous_true_number"] = existing.true_number;
-    patch["number_changed_at"] = new Date().toISOString();
-    patch["number_change_source"] = "admin_portal";
-    patch["true_number"] = input.true_number;
+/**
+ * Identity fields may still be present in a legacy or full-form edit payload,
+ * but only an exact stored value is a no-op. This comparison intentionally
+ * happens after the current document read and before constructing any patch so
+ * no caller path can re-key the fact or write an adjacent taxonomy document.
+ */
+function assertFactIdentityUnchanged(input: FactEditInput, existing: FactRecord): void {
+  if (input.subject !== undefined && input.subject !== existing.subject) {
+    throw new FactIdentityChangeError(input.id, "subject", existing.subject, input.subject);
   }
-
-  // Semantic edits invalidate the stored derivation: delete the precomputed
-  // blocks and input fingerprint so the next backfill regenerates under the
-  // corrected semantics instead of exporting a stale block.
-  const semanticChanged = SEMANTIC_EDIT_KEYS.some((key) => {
-    if (input[key] === undefined) return false;
-    const next = input[key];
-    const prev = existing[key as keyof FactRecord];
-    return String(next ?? "") !== String(prev ?? "");
-  });
-  const deletePaths = semanticChanged
-    ? ["derivation", "precomputed_derivation", "derivation_input_fingerprint"]
-    : undefined;
-
-  let updatedFactDoc: FirestoreDoc | null = null;
-  if (Object.keys(patch).length > 0 || deletePaths) {
-    patch["updated_at"] = new Date().toISOString();
-    updatedFactDoc = await patchDoc(`fact_bank/${input.id}`, patch, deletePaths);
+  if (input.angle !== undefined && input.angle !== existing.angle) {
+    throw new FactIdentityChangeError(input.id, "angle", existing.angle, input.angle);
   }
+}
 
-  // Link/update taxonomy in fact_subjects when category is assigned
-  if (input.category && (input.subject || existing.subject)) {
-    const subj = (input.subject || existing.subject).trim();
-    const subjectKey = normalizeKey(subj);
-    const existingSubject = await getDoc(`fact_subjects/${subjectKey}`);
-    if (existingSubject) {
-      await patchDoc(`fact_subjects/${subjectKey}`, {
-        category: input.category,
-        ...(input.sub_category ? { sub_category: input.sub_category } : {}),
+/** Optional transaction-scoped audit input accepted by ordinary fact mutations. */
+export interface FactMutationOptions {
+  audit?: PreparedAuditEntry;
+  /** Compatibility alias for callers that name the prebuilt entry explicitly. */
+  auditEntry?: PreparedAuditEntry;
+}
+
+/**
+ * A prepared entry can be passed directly, or wrapped in mutation options. The
+ * direct form keeps the server module convenient for internal callers while the
+ * wrapper makes the transaction contract explicit at server-function seams.
+ */
+export type FactMutationAudit = PreparedAuditEntry | FactMutationOptions;
+
+function resolveAuditEntry(value: FactMutationAudit | undefined): PreparedAuditEntry | undefined {
+  if (value === undefined) return undefined;
+  if ("id" in value && "data" in value) return value;
+  return value.audit ?? value.auditEntry;
+}
+
+function requireUpdateTime(doc: FirestoreDoc): string {
+  if (doc.updateTime === undefined || doc.updateTime === "") {
+    throw new Error(`Fact ${doc.id} cannot be updated without an exact updateTime precondition`);
+  }
+  return doc.updateTime;
+}
+
+function asJson(value: unknown): Json {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" || typeof value === "boolean" || typeof value === "number") {
+    return value;
+  }
+  if (Array.isArray(value)) return value.map((entry) => asJson(entry));
+  if (typeof value === "object") {
+    const output: { [key: string]: Json } = {};
+    for (const [key, entry] of Object.entries(value)) output[key] = asJson(entry);
+    return output;
+  }
+  return null;
+}
+
+function asJsonRecord(value: Record<string, unknown>): Record<string, Json> {
+  const output: Record<string, Json> = {};
+  for (const [key, entry] of Object.entries(value)) output[key] = asJson(entry);
+  return output;
+}
+
+function mergedFactDoc(
+  current: FirestoreDoc,
+  patch: Record<string, unknown>,
+  deletePaths?: readonly string[],
+): FirestoreDoc {
+  const data: Record<string, Json> = { ...current.data };
+  for (const [key, value] of Object.entries(patch)) data[key] = asJson(value);
+  for (const path of deletePaths ?? []) delete data[path];
+  return { ...current, data };
+}
+
+function withoutVerificationMetadata(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((entry) => withoutVerificationMetadata(entry));
+  if (value === null || typeof value !== "object") return value;
+  const output: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (key === "verified_at" || key === "verifier_model") continue;
+    output[key] = withoutVerificationMetadata(entry);
+  }
+  return output;
+}
+
+function auditAt(
+  prepared: PreparedAuditEntry,
+  current: FirestoreDoc,
+  after?: unknown,
+): PreparedAuditEntry {
+  const data: Record<string, unknown> = {
+    ...prepared.data,
+    before: current.data,
+  };
+  if (after !== undefined) data["after"] = withoutVerificationMetadata(after);
+  return { id: prepared.id, data };
+}
+
+function stagePreparedAudit(
+  tx: import("../firebase/firestore.server").FirestoreTransaction,
+  prepared: PreparedAuditEntry,
+): void {
+  tx.set(`admin_audit_logs/${prepared.id}`, prepared.data);
+}
+
+/**
+ * Apply one ordinary fact edit under an exact transaction CAS.
+ * `auditInput`, when supplied, is staged in the same transaction and must be
+ * prepared before the call so its identity survives transaction retries.
+ */
+export async function updateFact(
+  input: FactEditInput,
+  auditInput?: FactMutationAudit,
+): Promise<FactRecord> {
+  const audit = resolveAuditEntry(auditInput);
+  const updatedAt = new Date().toISOString();
+  const numberChangedAt = updatedAt;
+
+  return runTransaction(async (tx) => {
+    // The fact read is inside the transaction callback. A contention retry
+    // therefore rebuilds the decision from a fresh snapshot and fresh CAS token.
+    const currentDoc = await tx.get(`fact_bank/${input.id}`);
+    if (!currentDoc) throw new Error(`Fact ${input.id} not found`);
+    const existing = toFact(currentDoc);
+    assertFactIdentityUnchanged(input, existing);
+
+    const patch: Record<string, unknown> = {};
+    // Subject and angle are deliberately absent: even an exact-value payload is
+    // a no-op, and the persisted canonical keys/document id remain untouched.
+    if (input.explanation !== undefined) {
+      patch["explanation"] = input.explanation;
+    } else if (input.context !== undefined) {
+      patch["context"] = input.context;
+      patch["explanation"] = input.context;
+    }
+    const assignable: (keyof FactEditInput)[] = [
+      "category",
+      "unit",
+      "claim_template",
+      "context",
+      "question",
+      "surprise_factor",
+      "difficulty_hint",
+      "content_rating",
+      "source_urls",
+      "quantity_kind",
+      "plausible_min",
+      "plausible_max",
+    ];
+    for (const key of assignable) {
+      if (input[key] !== undefined) patch[key] = input[key];
+    }
+
+    // Changing the value preserves the old one for the reveal-diff history.
+    if (input.true_number !== undefined && input.true_number !== existing.true_number) {
+      patch["previous_true_number"] = existing.true_number;
+      patch["number_changed_at"] = numberChangedAt;
+      patch["number_change_source"] = "admin_portal";
+      patch["true_number"] = input.true_number;
+    }
+
+    // Semantic edits invalidate the stored derivation: delete the precomputed
+    // blocks and input fingerprint so the next backfill regenerates under the
+    // corrected semantics instead of exporting a stale block.
+    const semanticChanged = SEMANTIC_EDIT_KEYS.some((key) => {
+      if (input[key] === undefined) return false;
+      const next = input[key];
+      const prev = existing[key as keyof FactRecord];
+      return String(next ?? "") !== String(prev ?? "");
+    });
+    const deletePaths = semanticChanged
+      ? ["derivation", "precomputed_derivation", "derivation_input_fingerprint"]
+      : undefined;
+
+    // Read the taxonomy document before queueing any write. This keeps the
+    // subject-side linkage in the same transaction as the fact mutation when a
+    // category is assigned, and derives its key only from the persisted fact.
+    let subjectPath: string | null = null;
+    let subjectDoc: FirestoreDoc | null = null;
+    if (input.category && existing.subject) {
+      const subject = existing.subject.trim();
+      subjectPath = `fact_subjects/${normalizeKey(subject)}`;
+      subjectDoc = await tx.get(subjectPath);
+    }
+
+    const hasFactChange = Object.keys(patch).length > 0 || deletePaths !== undefined;
+    if (hasFactChange || audit !== undefined) {
+      patch["updated_at"] = updatedAt;
+      tx.update(`fact_bank/${input.id}`, patch, {
+        updateTime: requireUpdateTime(currentDoc),
+        ...(deletePaths ? { deletePaths } : {}),
       });
-    } else {
-      await createDoc("fact_subjects", subjectKey, {
-        subject: subj,
+    }
+
+    if (subjectPath !== null && subjectDoc !== null && input.category) {
+      const subjectPatch: Record<string, unknown> = { category: input.category };
+      if (input.sub_category) subjectPatch["sub_category"] = input.sub_category;
+      tx.update(subjectPath, subjectPatch, {
+        ...(subjectDoc.updateTime ? { updateTime: subjectDoc.updateTime } : {}),
+      });
+    } else if (subjectPath !== null && input.category) {
+      const subject = existing.subject.trim();
+      const subjectKey = normalizeKey(subject);
+      tx.set(subjectPath, {
+        subject,
         subject_key: subjectKey,
         category: input.category,
         ...(input.sub_category ? { sub_category: input.sub_category } : {}),
         aliases: [],
         playlist_ids: [],
-        fact_count: 1,
-        createdAt: new Date().toISOString(),
+        createdAt: updatedAt,
       });
     }
-  }
 
-  if (updatedFactDoc) {
-    return toFact(updatedFactDoc);
-  }
-  return toFact((await getDoc(`fact_bank/${input.id}`)) ?? {
-    id: input.id,
-    path: `fact_bank/${input.id}`,
-    data: { ...(existing as unknown as Record<string, Json>), ...(patch as Record<string, Json>) },
+    if (audit !== undefined) {
+      stagePreparedAudit(tx, auditAt(audit, currentDoc, input));
+    }
+
+    return toFact(mergedFactDoc(currentDoc, patch, deletePaths));
   });
 }
 
@@ -556,6 +1015,7 @@ export const factEditSchema = z.object({
   true_number: z.number().optional(),
   unit: z.string().optional(),
   claim_template: z.string().optional(),
+  explanation: z.string().optional(),
   context: z.string().optional(),
   question: z.string().optional(),
   surprise_factor: z.number().int().min(0).max(3).optional(),
@@ -566,13 +1026,27 @@ export const factEditSchema = z.object({
   plausible_max: z.string().optional(),
 });
 
-export interface BulkUpdateResult {
+export type BulkUpdateResult = Omit<BatchMutationResult, "operation" | "failedId"> & {
+  readonly operation: "bulk-update";
   /** Number of edits persisted. */
-  count: number;
+  readonly count: number;
   /** Fact ids persisted, in application order. */
-  editedIds: string[];
+  readonly editedIds: string[];
   /** Set only when the batch stopped early: the fact whose edit did not persist. */
-  failedId?: string;
+  readonly failedId?: string;
+};
+
+function asBulkUpdateResult(result: BatchMutationResult): BulkUpdateResult {
+  if (result.operation !== "bulk-update") {
+    throw new Error(`Unexpected batch operation: ${result.operation}`);
+  }
+  return {
+    ...result,
+    operation: "bulk-update",
+    count: result.counts.persisted,
+    editedIds: [...result.persistedIds],
+    failedId: result.failedId ?? undefined,
+  };
 }
 
 /**
@@ -613,22 +1087,30 @@ export class BulkUpdatePartialFailureError extends Error {
   }
 }
 
+function auditTargetsFact(audit: PreparedAuditEntry, factIdValue: string): boolean {
+  return audit.data["targetId"] === factIdValue;
+}
+
+function bulkFailure(error: unknown): BatchItemOutcome {
+  return {
+    status: "failed",
+    failure: {
+      code: "item_execution_failed",
+      message: error instanceof Error ? error.message : String(error),
+    },
+  };
+}
+
 /**
- * Apply a bounded batch of fact edits.
- *
- * The whole batch is validated before the first write: an empty batch, a batch
- * larger than {@link BULK_UPDATE_MAX_BATCH}, or any edit that fails
- * {@link factEditSchema} rejects with a {@link BulkUpdateValidationError} and
- * leaves every targeted document untouched. Once validated, edits are applied
- * in order through {@link updateFact}; a failure at edit *k* stops the batch
- * and raises {@link BulkUpdatePartialFailureError} carrying the persisted
- * prefix, so only edits before *k* are in Firestore.
- *
- * Audit logging is the caller's responsibility — like every other export in
- * this module, this function writes no audit entry, so exactly one entry per
- * batch is emitted by the server-function handler.
+ * Apply a bounded batch of fact edits with one fact-plus-audit transaction per
+ * edit. The batch is deliberately not atomic: edits run in input order, the
+ * first failed transaction stops the suffix, and the thrown partial-failure
+ * result carries the exact persisted prefix and failed id.
  */
-export async function bulkUpdateFacts(updates: FactEditInput[]): Promise<BulkUpdateResult> {
+export async function bulkUpdateFacts(
+  updates: FactEditInput[],
+  audits: readonly PreparedAuditEntry[],
+): Promise<BulkUpdateResult> {
   if (!Array.isArray(updates)) {
     throw new BulkUpdateValidationError(
       "batch must be an array of fact edits",
@@ -647,6 +1129,12 @@ export async function bulkUpdateFacts(updates: FactEditInput[]): Promise<BulkUpd
       `Bulk update rejected: batch must contain at most ${BULK_UPDATE_MAX_BATCH} edits, received ${updates.length}`,
     );
   }
+  if (!Array.isArray(audits) || audits.length !== updates.length) {
+    throw new BulkUpdateValidationError(
+      "one prepared audit per edit",
+      `Bulk update rejected: expected ${updates.length} prepared audit entries, received ${Array.isArray(audits) ? audits.length : 0}`,
+    );
+  }
   for (let index = 0; index < updates.length; index++) {
     const parsed = factEditSchema.safeParse(updates[index]);
     if (!parsed.success) {
@@ -659,25 +1147,46 @@ export async function bulkUpdateFacts(updates: FactEditInput[]): Promise<BulkUpd
         index,
       );
     }
-  }
-
-  // Validation passed for the whole batch, so the first write happens only
-  // once no rule can still reject it.
-  const editedIds: string[] = [];
-  for (const update of updates) {
-    try {
-      await updateFact(update);
-    } catch (err) {
-      throw new BulkUpdatePartialFailureError(
-        update.id,
-        { count: editedIds.length, editedIds: [...editedIds], failedId: update.id },
-        err,
+    const audit = audits[index];
+    if (!audit || !auditTargetsFact(audit, updates[index].id)) {
+      throw new BulkUpdateValidationError(
+        "audit targetId matches edit id",
+        `Bulk update rejected: prepared audit at index ${index} must target fact ${updates[index].id}`,
+        index,
       );
     }
-    editedIds.push(update.id);
   }
 
-  return { count: editedIds.length, editedIds };
+  const firstIdentity: { current: FactIdentityChangeError | null } = { current: null };
+  const firstFailure: { current: { id: string; error: unknown } | null } = { current: null };
+  const result = await runPerItemBatch(
+    "bulk-update",
+    updates.map((update) => update.id),
+    async (_id, index) => {
+      try {
+        await updateFact(updates[index], audits[index]);
+        return { status: "persisted", auditCommitted: true } as const;
+      } catch (error) {
+        if (error instanceof FactIdentityChangeError && index === 0) {
+          firstIdentity.current = error;
+        } else {
+          firstFailure.current ??= { id: updates[index].id, error };
+        }
+        return bulkFailure(error);
+      }
+    },
+    "stop",
+  );
+
+  if (firstIdentity.current) throw firstIdentity.current;
+  if (firstFailure.current) {
+    throw new BulkUpdatePartialFailureError(
+      firstFailure.current.id,
+      asBulkUpdateResult(result),
+      firstFailure.current.error,
+    );
+  }
+  return asBulkUpdateResult(result);
 }
 
 /**
@@ -718,19 +1227,18 @@ function isAdminAuthorizedTransition(from: string, to: string): boolean {
 }
 
 /**
- * The "live" status a corrected fact is reinstated to, derived from the shared
- * contract rather than a restated literal: the status that is both an
- * admin-authorized transition *target* (something can be promoted into it) and
- * an admin-authorized transition *source* (it is not terminal). `active` is the
- * only status satisfying both in the current contract, but the rule follows the
- * contract if the transition table changes.
+ * The live status used when moderation reinstates a corrected fact. The value
+ * comes from the generated contract's `active` member, while the transition
+ * table must still prove that admins may enter and leave that status. Inferring
+ * liveness from any non-terminal graph node would incorrectly select `disputed`
+ * once pending → active became Foundry-only.
  */
 function liveStatus(): FactStatus | null {
-  const authorized = STATUS_TRANSITIONS.filter((t) => t.adminAuthorized);
-  const sources = new Set(authorized.map((t) => t.from));
-  const targets = authorized.map((t) => t.to);
-  const live = targets.filter((status) => sources.has(status));
-  return live.length > 0 ? live[0] : null;
+  const live = STATUS.active;
+  const authorized = STATUS_TRANSITIONS.filter((transition) => transition.adminAuthorized);
+  const hasAuthorizedTarget = authorized.some((transition) => transition.to === live);
+  const hasAuthorizedSource = authorized.some((transition) => transition.from === live);
+  return hasAuthorizedTarget && hasAuthorizedSource ? live : null;
 }
 
 /**
@@ -744,97 +1252,270 @@ function reinstatementTargetFor(from: string): FactStatus | null {
   return isAdminAuthorizedTransition(from, target) ? target : null;
 }
 
-export async function setFactStatus(input: {
-  id: string;
-  status: (typeof FACT_STATUSES)[number];
-  reason?: string;
-  verifierModel?: string;
-}): Promise<FactRecord> {
-  // The transition is evaluated current-status → requested-status, reading the
-  // current status from the persisted document, and rejected before any write
-  // when the contract does not mark it admin-authorized (Requirements 9.3, 9.4).
-  const existing = await getFact(input.id);
-  if (!existing) throw new Error(`Fact ${input.id} not found`);
-  if (!isAdminAuthorizedTransition(existing.status, input.status)) {
-    throw new FactStatusTransitionError(input.id, existing.status, input.status);
-  }
+/**
+ * Apply one contract-authorized lifecycle transition under an exact
+ * transaction CAS. The optional prepared audit is committed with the fact and
+ * is never used to grant verification authority.
+ */
+export async function setFactStatus(
+  input: {
+    id: string;
+    status: (typeof FACT_STATUSES)[number];
+    reason?: string;
+    /** @deprecated Moderation transitions never write verifier metadata. */
+    verifierModel?: string;
+  },
+  auditInput?: FactMutationAudit,
+): Promise<FactRecord> {
+  const audit = resolveAuditEntry(auditInput);
+  const updatedAt = new Date().toISOString();
 
-  const patch: Record<string, unknown> = {
-    status: input.status,
-    updated_at: new Date().toISOString(),
-  };
-  if (input.status === STATUS.retired) {
-    patch["retired_reason"] = input.reason ?? "Retired from admin portal";
-  }
-  if (input.status === STATUS.active) {
-    patch["verified_at"] = new Date().toISOString();
-    patch["verifier_model"] = input.verifierModel ?? "admin_portal";
-    patch["retired_reason"] = null;
-  }
-  return toFact(await patchDoc(`fact_bank/${input.id}`, patch));
+  return runTransaction(async (tx) => {
+    // Read and revalidate on every transaction attempt. In particular, the
+    // Foundry-only pending→active edge is never evaluated from a stale status.
+    const currentDoc = await tx.get(`fact_bank/${input.id}`);
+    if (!currentDoc) throw new Error(`Fact ${input.id} not found`);
+    const existing = toFact(currentDoc);
+    if (!isAdminAuthorizedTransition(existing.status, input.status)) {
+      throw new FactStatusTransitionError(input.id, existing.status, input.status);
+    }
+
+    const patch: Record<string, unknown> = {
+      status: input.status,
+      updated_at: updatedAt,
+    };
+    if (input.status === STATUS.retired) {
+      patch["retired_reason"] = input.reason ?? "Retired from admin portal";
+    }
+    if (input.status === STATUS.active) {
+      // Reinstating a disputed fact clears only retirement state. Verification
+      // timestamps/models are owned by the banked-fact auditor, never by this
+      // admin transition path.
+      patch["retired_reason"] = null;
+    }
+
+    tx.update(`fact_bank/${input.id}`, patch, {
+      updateTime: requireUpdateTime(currentDoc),
+    });
+    if (audit !== undefined) {
+      stagePreparedAudit(
+        tx,
+        auditAt(audit, currentDoc, {
+          status: input.status,
+          reason: input.reason ?? null,
+        }),
+      );
+    }
+    return toFact(mergedFactDoc(currentDoc, patch));
+  });
 }
 
-export async function createFact(input: {
-  subject: string;
-  category?: string;
-  sub_category?: string;
-  angle: string;
-  true_number: number;
-  unit: string;
-  claim_template?: string;
-  context: string;
-  question: string;
-  surprise_factor: number;
-  difficulty_hint?: string;
-  content_rating: string;
-  source_urls: string[];
-}): Promise<FactRecord> {
-  const subject_key = normalizeKey(input.subject);
-  const angle_key = normalizeKey(input.angle);
-  const id = await factId(subject_key, angle_key);
+/** Input for the one-fact-plus-retirement correction operation. */
+export interface CorrectedReplacementInput {
+  /** The immutable source document to retire. */
+  originalId: string;
+  /** Fields for the new fact; its subject/angle are never read from the source. */
+  replacement: ImportFactInput;
+  /** Human-readable reason persisted on the retired source. */
+  reason?: string;
+  /** Optional caller token used to reject a stale edit before any write. */
+  originalUpdateTime?: string;
+}
+
+/** Both sides of a committed correction, returned after the transaction commits. */
+export interface CorrectedReplacementResult {
+  readonly original: FactRecord;
+  readonly replacement: FactRecord;
+}
+
+export type CorrectedReplacementErrorCode =
+  | "missing_original"
+  | "stale_original"
+  | "replacement_exists"
+  | "replacement_identity_collision"
+  | "missing_audit";
+
+/** A correction rejection that is safe to surface to the moderation boundary. */
+export class CorrectedReplacementError extends Error {
+  override readonly name = "CorrectedReplacementError";
+  readonly code: CorrectedReplacementErrorCode;
+  readonly originalId: string;
+  readonly replacementId?: string;
+
+  constructor(
+    code: CorrectedReplacementErrorCode,
+    message: string,
+    originalId: string,
+    replacementId?: string,
+  ) {
+    super(message);
+    this.code = code;
+    this.originalId = originalId;
+    this.replacementId = replacementId;
+  }
+}
+
+/**
+ * Commit a corrected fact and retire its source as one Firestore transaction.
+ *
+ * The source is updated with the exact `updateTime` returned by the transaction
+ * read. Identity fields are intentionally absent from that patch: a correction
+ * never re-keys the immutable source document. The replacement receives a fresh
+ * canonical id and pending admission payload, while the prepared audit entry is
+ * staged alongside both writes.
+ */
+export async function createCorrectedReplacement(
+  input: CorrectedReplacementInput,
+  auditInput?: FactMutationAudit,
+): Promise<CorrectedReplacementResult> {
+  const originalId = input.originalId.trim();
+  if (!originalId) {
+    throw new CorrectedReplacementError(
+      "missing_original",
+      "Corrected replacement requires an original fact id",
+      input.originalId,
+    );
+  }
+
+  const timestamp = new Date().toISOString();
+  const origin = input.replacement.origin ?? PENDING_FACT_ORIGINS[0];
+  const replacement = buildAdmissionFact(input.replacement, origin, timestamp);
+  const replacementId = await factId(replacement.subject_key, replacement.angle_key);
+
+  // A canonical id collision would turn a correction into an in-place overwrite
+  // of the immutable source. Require a genuinely distinct replacement identity.
+  if (replacementId === originalId) {
+    throw new CorrectedReplacementError(
+      "replacement_identity_collision",
+      `Corrected replacement for fact ${originalId} resolves to the original document id; ` +
+        "the replacement must have a distinct subject and angle identity",
+      originalId,
+      replacementId,
+    );
+  }
+
+  const audit = resolveAuditEntry(auditInput);
+  if (audit === undefined) {
+    throw new CorrectedReplacementError(
+      "missing_audit",
+      "Corrected replacement requires one prepared audit entry",
+      originalId,
+      replacementId,
+    );
+  }
+
+  const retirementReason = input.reason?.trim() || "Retired by corrected replacement";
+  const expectedOriginalUpdateTime = input.originalUpdateTime?.trim();
+
+  return runTransaction(async (tx) => {
+    const originalDoc = await tx.get(`fact_bank/${originalId}`);
+    if (!originalDoc) {
+      throw new CorrectedReplacementError(
+        "missing_original",
+        `Fact ${originalId} not found`,
+        originalId,
+        replacementId,
+      );
+    }
+
+    const original = toFact(originalDoc);
+    if (
+      expectedOriginalUpdateTime !== undefined &&
+      expectedOriginalUpdateTime !== originalDoc.updateTime
+    ) {
+      throw new CorrectedReplacementError(
+        "stale_original",
+        `Fact ${originalId} changed since the correction was prepared`,
+        originalId,
+        replacementId,
+      );
+    }
+
+    if (!isAdminAuthorizedTransition(original.status, STATUS.retired)) {
+      throw new FactStatusTransitionError(originalId, original.status, STATUS.retired);
+    }
+
+    // Read the replacement path before queueing either write. A transaction
+    // read plus the subsequent set is an atomic create-or-conflict boundary;
+    // an existing identity must never be overwritten by a correction.
+    const existingReplacement = await tx.get(`fact_bank/${replacementId}`);
+    if (existingReplacement) {
+      throw new CorrectedReplacementError(
+        "replacement_exists",
+        `A fact already exists at the canonical replacement id ${replacementId}`,
+        originalId,
+        replacementId,
+      );
+    }
+
+    // Resolve the CAS token before queueing either write. A malformed snapshot
+    // therefore cannot leave a replacement write waiting behind a thrown
+    // validation error, even in a defensive transaction double.
+    const originalUpdateTime = requireUpdateTime(originalDoc);
+    const originalPatch: Record<string, unknown> = {
+      status: STATUS.retired,
+      retired_reason: retirementReason,
+      updated_at: timestamp,
+    };
+
+    tx.set(`fact_bank/${replacementId}`, replacement);
+    tx.update(`fact_bank/${originalId}`, originalPatch, {
+      updateTime: originalUpdateTime,
+    });
+    stagePreparedAudit(
+      tx,
+      auditAt(audit, originalDoc, {
+        operation: "corrected_replacement",
+        originalId,
+        replacementId,
+        original: {
+          status: STATUS.retired,
+          retired_reason: retirementReason,
+        },
+        replacement,
+      }),
+    );
+
+    return {
+      original: toFact(mergedFactDoc(originalDoc, originalPatch)),
+      replacement: toFact({
+        id: replacementId,
+        path: `fact_bank/${replacementId}`,
+        data: asJsonRecord(replacement),
+      }),
+    };
+  });
+}
+
+/** Backwards-compatible name for the correction operation. */
+export const replaceFact = createCorrectedReplacement;
+
+export async function createFact(input: ImportFactInput): Promise<FactRecord> {
+  const pendingFact = buildAdmissionFact(input, input.origin ?? PENDING_FACT_ORIGINS[0]);
+  const id = await factId(pendingFact.subject_key, pendingFact.angle_key);
   if (await getDoc(`fact_bank/${id}`)) {
     throw new Error("A fact with this subject and angle already exists");
   }
-  const question = input.question?.trim() || `${input.subject} - ${input.angle}`.trim();
-  const claim = (input.claim_template ?? "").trim() || `${question}: {n}`;
-  const claim_template = claim.includes("{n}") ? claim : `${claim} {n}`;
+  const doc = await createDoc("fact_bank", id, pendingFact);
 
-  const doc = await createDoc("fact_bank", id, {
-    ...input,
-    category: input.category || null,
-    claim_template,
-    question,
-    context: input.context?.trim() || question,
-    subject_key,
-    angle_key,
-    status: STATUS.active,
-    previous_true_number: null,
-    retired_reason: null,
-    verifier_model: "admin_portal",
-    verified_at: new Date().toISOString(),
-    served_count: 0,
-    last_served_at: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  });
-
-  if (input.category) {
-    const existingSubject = await getDoc(`fact_subjects/${subject_key}`);
+  if (pendingFact.category) {
+    const subjectKey = pendingFact.subject_key;
+    const existingSubject = await getDoc(`fact_subjects/${subjectKey}`);
     if (existingSubject) {
-      await patchDoc(`fact_subjects/${subject_key}`, {
-        category: input.category,
-        ...(input.sub_category ? { sub_category: input.sub_category } : {}),
+      await patchDoc(`fact_subjects/${subjectKey}`, {
+        category: pendingFact.category,
+        ...(pendingFact.sub_category ? { sub_category: pendingFact.sub_category } : {}),
       });
     } else {
-      await createDoc("fact_subjects", subject_key, {
-        subject: input.subject.trim(),
-        subject_key,
-        category: input.category,
-        ...(input.sub_category ? { sub_category: input.sub_category } : {}),
+      await createDoc("fact_subjects", subjectKey, {
+        subject: pendingFact.subject,
+        subject_key: subjectKey,
+        category: pendingFact.category,
+        ...(pendingFact.sub_category ? { sub_category: pendingFact.sub_category } : {}),
         aliases: [],
         playlist_ids: [],
-        fact_count: 1,
-        createdAt: new Date().toISOString(),
+        // Coverage is maintained by the reconciler, not by admission.
+        createdAt: pendingFact.created_at,
       });
     }
   }
@@ -873,14 +1554,6 @@ export interface ReportRecord {
   ombudsmanArbiter?: "gemini" | "edge_worker" | "unspecified";
   qualityFlags?: string[];
   duplicateFactIds?: string[];
-}
-
-function firstStr(d: Record<string, Json>, keys: string[]): string {
-  for (const key of keys) {
-    const value = d[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "";
 }
 
 function asNum(value: Json | undefined): number | null {
@@ -964,7 +1637,7 @@ function toReport(doc: FirestoreDoc): ReportRecord {
     topic: firstStr(d, ["topic", "questionTopic", "question_topic"]),
     initialTopic: firstStr(d, ["initialTopic", "initial_topic", "selectedTopic", "category"]) || undefined,
     claimStatement: firstStr(d, ["claimStatement", "claim_statement", "claim", "question"]),
-    explanation: firstStr(d, ["explanation", "reveal", "context"]),
+    explanation: canonicalExplanation(d, ["reveal"]),
     presentedNumber: asNum(d["presentedNumber"]) ?? asNum(d["presented_number"]),
     trueNumber: asNum(d["trueNumber"]) ?? asNum(d["true_number"]),
     unit: firstStr(d, ["unit"]),
@@ -1535,22 +2208,32 @@ export async function resolveReport(input: {
       ? input.claimStatement.replace(new RegExp(String(true_number), "g"), "{n}")
       : `${subject}: {n} ${unit}`;
 
+    const reportDoc = await getDoc(`trivia_reports/${input.reportId}`);
+    const reportExplanation = reportDoc
+      ? canonicalExplanation(reportDoc.data, ["reveal"])
+      : "";
+    const explanation = reportExplanation || input.note?.trim() || input.claimStatement || subject;
+
     await createFact({
       subject,
       angle,
       true_number,
       unit,
       claim_template: claim_template.includes("{n}") ? claim_template : `${claim_template} {n}`,
-      context: input.note || input.claimStatement || "",
+      // The report path is admitted with the same canonical builder as manual
+      // and CSV paths, but carries its own origin for auditability.
+      explanation,
       question: input.claimStatement || subject,
       surprise_factor: 2,
       content_rating: "standard",
       source_urls: [],
+      origin: PENDING_FACT_ORIGINS[2],
     });
 
+    const note = input.note?.trim();
     await patchDoc(`trivia_reports/${input.reportId}`, {
       status: "resolved",
-      resolutionNote: input.note ?? `Added to fact bank with value ${true_number}`,
+      resolutionNote: note ? `${note} — ${PENDING_ADMISSION_COPY}` : PENDING_ADMISSION_COPY,
       resolved_at: now,
     });
     return { ok: true };

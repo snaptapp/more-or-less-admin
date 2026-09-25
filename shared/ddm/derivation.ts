@@ -1,0 +1,1784 @@
+// Distractor Derivation Model (DDM) — Worker TypeScript port (task 9.1 slice).
+//
+// This module is the Worker (`src/`) port of the Go reference DDM kernel and
+// ingest layers. It is intended to be BYTE-IDENTICAL in behavior to the Go
+// reference in `agent-go/` (derivation.go, derivation_kernel.go,
+// derivation_ingest.go, derivation_schema.go). Later tasks (11.x) replay the
+// same parity fixture and adversarial corpus against this port and compare
+// serialized bytes, so every rounding, normalization, envelope, and formatting
+// decision here MUST match Go exactly.
+//
+// SCOPE (task 9.1): the kernel/ingest slice only —
+//   1. Raw JSON token lexer + path association and an explicit-token function
+//      API so downstream code receives EXACT token strings, never pre-parsed
+//      numbers.
+//   2. Decimal-string Numeric_Ingest (scale-3 half-away-from-zero rounding,
+//      2^53-1 safe envelope, negative-zero normalization).
+//   3. The exact fixed-point arithmetic kernel, canonical/display formatting,
+//      and result encoding.
+//
+// PURITY / EXACTNESS CONTRACT (Requirements 8.12, 8.13, 8.14, 8.15, 8.16, 9.11,
+// 12.9, 12.10, 16.11, 16.12, 16.13, 16.14): this module MUST NOT convert any
+// numeric TOKEN through binary floating point. There is deliberately NO
+// `Number(token)`, `parseFloat`, `parseInt` on a numeric magnitude token,
+// `Math.round`, `Math.pow`, `Math.log`, `toLocaleString`, or any locale/float
+// formatter anywhere on the DDM numeric path. All magnitude arithmetic is
+// integer arithmetic on JavaScript `number` values kept within the shared
+// 2^53-1 envelope, which is exactly representable and identical to Go's int64
+// within that envelope. Canonical JSON numeric output is produced from integer
+// digit strings plus decimal-point insertion, never from runtime float
+// formatting.
+//
+// The symbol names here mirror the Go reference so the two implementations read
+// as line-for-line ports.
+
+// ---------------------------------------------------------------------------
+// Contract types (port of derivation.go)
+// ---------------------------------------------------------------------------
+
+// DDMVersion is the derivation model version. It MUST match
+// derivation_tables.json `model_version` ("ddm-4").
+export const DDMVersion = "ddm-4";
+
+// FixedScale is the canonical decimal scale bound. Values are ingested to a
+// canonical fixed point with scale 0..3; more precise inputs are rounded to
+// scale 3 (half away from zero) before derivation.
+export const FixedScaleMin = 0;
+export const FixedScaleMax = 3;
+
+// SafeMantissaMax is the shared exact numeric envelope: the largest integer a
+// canonical scale-3 mantissa (and any guarded intermediate product) may take,
+// equal to 2^53-1. It is identical in Go (int64) and JavaScript (Number), so
+// integer arithmetic stays byte-identical across runtimes (Requirements 8.12,
+// 8.16). 2^53-1 === Number.MAX_SAFE_INTEGER.
+export const SafeMantissaMax = 9007199254740991; // 2^53 - 1
+
+// QuantityKind is the resolved quantity domain. Members mirror
+// closed_sets.quantity_kind in derivation_tables.json.
+export type QuantityKind =
+  | "year"
+  | "count"
+  | "percentage"
+  | "percent_change"
+  | "ratio"
+  | "physical_measure"
+  | "money"
+  | "duration"
+  | "rating";
+
+export const KindYear: QuantityKind = "year";
+export const KindCount: QuantityKind = "count";
+export const KindPercentage: QuantityKind = "percentage";
+export const KindPercentChange: QuantityKind = "percent_change";
+export const KindRatio: QuantityKind = "ratio";
+export const KindPhysicalMeasure: QuantityKind = "physical_measure";
+export const KindMoney: QuantityKind = "money";
+export const KindDuration: QuantityKind = "duration";
+export const KindRating: QuantityKind = "rating";
+
+// TrapDirection names the misconception-preferred side of the true number.
+export type TrapDirection = "OVERESTIMATE" | "UNDERESTIMATE";
+export const TrapOverestimate: TrapDirection = "OVERESTIMATE";
+export const TrapUnderestimate: TrapDirection = "UNDERESTIMATE";
+
+// CandidateSide is the side of the true number a candidate lies on, expressed
+// as the resulting correct_direction.
+export type CandidateSide = "MORE" | "LESS";
+export const SideMore: CandidateSide = "MORE";
+export const SideLess: CandidateSide = "LESS";
+
+// DerivationSource records how a successful presented number was produced.
+export type DerivationSource = "precomputed" | "live" | "zero_value";
+export const SourcePrecomputed: DerivationSource = "precomputed";
+export const SourceLive: DerivationSource = "live";
+export const SourceZeroValue: DerivationSource = "zero_value";
+
+// AbstainReason is the deterministic reason code carried on an abstain result.
+// Members mirror closed_sets.abstain_reason in derivation_tables.json, in the
+// same order.
+export type AbstainReason =
+  | "INVALID_NUMERIC_TOKEN"
+  | "NON_FINITE_INPUT"
+  | "OUT_OF_SAFE_RANGE"
+  | "INVALID_SURPRISE"
+  | "BOUNDS_INCOHERENT"
+  | "ZERO_OUTSIDE_YEAR_DOMAIN"
+  | "NO_CANDIDATE_PASSES_GATE"
+  | "STATEMENT_UNRECOVERABLE"
+  | "TABLE_VERSION_MISMATCH";
+
+export const AbstainInvalidNumericToken: AbstainReason = "INVALID_NUMERIC_TOKEN";
+export const AbstainNonFiniteInput: AbstainReason = "NON_FINITE_INPUT";
+export const AbstainOutOfSafeRange: AbstainReason = "OUT_OF_SAFE_RANGE";
+export const AbstainInvalidSurprise: AbstainReason = "INVALID_SURPRISE";
+export const AbstainBoundsIncoherent: AbstainReason = "BOUNDS_INCOHERENT";
+export const AbstainZeroOutsideYearDomain: AbstainReason = "ZERO_OUTSIDE_YEAR_DOMAIN";
+export const AbstainNoCandidatePassesGate: AbstainReason = "NO_CANDIDATE_PASSES_GATE";
+export const AbstainStatementUnrecoverable: AbstainReason = "STATEMENT_UNRECOVERABLE";
+export const AbstainTableVersionMismatch: AbstainReason = "TABLE_VERSION_MISMATCH";
+
+// FixedPointValue is the canonical exact numeric value used throughout the DDM.
+// It represents sign * mantissa / 10^scale. mantissa is a non-negative safe
+// integer (0..SafeMantissaMax); scale is 0..3. negative is always false when
+// mantissa is zero, so every negative-zero spelling normalizes to canonical
+// zero.
+export interface FixedPointValue {
+  negative: boolean;
+  mantissa: number;
+  scale: number;
+}
+
+// BoundsHint is an untrusted, unvalidated plausibility-bound pair carried on
+// the derivation input. Each bound is an exact numeric token (raw spelling).
+export interface BoundsHint {
+  minToken: string;
+  maxToken: string;
+}
+
+// PrecomputedDistractor is one vetted Fact-Bank distractor, uniquely keyed by
+// (surpriseFactor, side). presentedNumber is stored as an exact numeric token.
+export interface PrecomputedDistractor {
+  surpriseFactor: number;
+  side: CandidateSide;
+  presentedNumber: string;
+}
+
+// PrecomputedDerivation is the Fact-Bank precompute block.
+export interface PrecomputedDerivation {
+  modelVersion: string;
+  quantityKind: QuantityKind;
+  trapDirection: TrapDirection;
+  plausibleMin: string;
+  plausibleMax: string;
+  distractors: PrecomputedDistractor[];
+}
+
+// DerivationInput is the allowlisted DDM input. It carries ONLY the exact
+// numeric token, unit, untrusted kind/trap hints, plausibility-bound hints, the
+// canonical-or-legacy surprise value, an optional forced side, and an optional
+// precompute block. There is deliberately no topic, round number, clock, or
+// pack/round difficulty field (Requirements 3.13, 8.7, 8.8, 12.12).
+export interface DerivationInput {
+  incomingNumericToken: string;
+  unit: string;
+  quantityKind?: string;
+  trapDirection?: string;
+  factBankBounds?: BoundsHint;
+  modelBounds?: BoundsHint;
+  surpriseFactor: number;
+  forcedSide?: CandidateSide;
+  precomputed?: PrecomputedDerivation;
+}
+
+// NumericDiagnostic records the exact incoming token alongside the ingest
+// outcome. The unchanged token spelling is diagnostic data only; equivalent
+// spellings (e.g. "0.070", "7e-2", "0.07") normalize to the same
+// FixedPointValue.
+export interface NumericDiagnostic {
+  incomingNumericToken: string;
+  fixedPointValue?: FixedPointValue;
+  ingestReason?: AbstainReason;
+}
+
+// ---------------------------------------------------------------------------
+// Exact fixed-point arithmetic kernel (port of derivation_kernel.go)
+// ---------------------------------------------------------------------------
+
+// pow10Table holds 10^0 .. 10^18. Every entry is an exact integer within the
+// JS safe integer range for exponents up to 15 (10^15 < 2^53); 10^16..10^18 are
+// still exactly representable as they are round decimal powers, matching Go's
+// int64 table entries used only for length screening. pow10 restricts callers
+// to in-range exponents via its ok flag.
+const pow10Table: number[] = [
+  1,
+  10,
+  100,
+  1000,
+  10000,
+  100000,
+  1000000,
+  10000000,
+  100000000,
+  1000000000,
+  10000000000,
+  100000000000,
+  1000000000000,
+  10000000000000,
+  100000000000000,
+  1000000000000000,
+  10000000000000000,
+  100000000000000000,
+  1000000000000000000,
+];
+
+// pow10MaxExp is the largest exponent pow10 can return.
+const pow10MaxExp = pow10Table.length - 1;
+
+// pow10 returns 10^exp as an exact integer together with ok=true when exp is in
+// [0, pow10MaxExp]. For a negative or too-large exponent it returns [0, false];
+// callers must treat !ok as an out-of-envelope / programming error. This is the
+// only decimal-power primitive in the kernel; Math.pow is banned.
+export function pow10(exp: number): [number, boolean] {
+  if (exp < 0 || exp > pow10MaxExp) {
+    return [0, false];
+  }
+  return [pow10Table[exp], true];
+}
+
+// magInEnvelope reports whether m is a valid non-negative magnitude within the
+// shared 2^53-1 envelope.
+function magInEnvelope(m: number): boolean {
+  return m >= 0 && m <= SafeMantissaMax;
+}
+
+// guardedAddMag returns a+b for non-negative magnitudes, ok=false on negative
+// input or when the sum would exceed the envelope.
+export function guardedAddMag(a: number, b: number): [number, boolean] {
+  if (a < 0 || b < 0) {
+    return [0, false];
+  }
+  // a and b are each <= SafeMantissaMax, so a+b <= 2*(2^53-1) < 2^54 is still
+  // exactly representable in a JS number, so the sum is exact before the
+  // envelope check.
+  const sum = a + b;
+  if (sum > SafeMantissaMax) {
+    return [0, false];
+  }
+  return [sum, true];
+}
+
+// guardedSubMag returns a-b for non-negative magnitudes, ok=false on negative
+// input or when the difference would be negative.
+export function guardedSubMag(a: number, b: number): [number, boolean] {
+  if (a < 0 || b < 0) {
+    return [0, false];
+  }
+  if (b > a) {
+    return [0, false];
+  }
+  return [a - b, true];
+}
+
+// guardedMulMag returns a*b for non-negative magnitudes, ok=false on negative
+// input or when the product would exceed the envelope. Overflow is detected by
+// division (Math.floor of the exact quotient) rather than by computing a wider
+// product, so it never relies on precision loss (Requirements 8.16, 12.9).
+export function guardedMulMag(a: number, b: number): [number, boolean] {
+  if (a < 0 || b < 0) {
+    return [0, false];
+  }
+  if (a === 0 || b === 0) {
+    return [0, true];
+  }
+  // a*b <= SafeMantissaMax  <=>  b <= floor(SafeMantissaMax/a). Screen with the
+  // integer floor first so the direct product is only computed when it is known
+  // to be in-envelope and therefore exactly representable.
+  if (a > Math.floor(SafeMantissaMax / b)) {
+    return [0, false];
+  }
+  const product = a * b;
+  if (product > SafeMantissaMax) {
+    return [0, false];
+  }
+  return [product, true];
+}
+
+// idivmod returns the floor quotient and non-negative remainder of a/b for
+// non-negative magnitudes: q = floor(a/b), r = a - q*b, with 0 <= r < b.
+// ok=false when b <= 0 or an input is negative.
+export function idivmod(a: number, b: number): [number, number, boolean] {
+  if (a < 0 || b <= 0) {
+    return [0, 0, false];
+  }
+  const q = Math.floor(a / b);
+  const r = a - q * b;
+  return [q, r, true];
+}
+
+// divideMagnitudeHalfAway divides non-negative magnitude a by positive divisor
+// b and rounds half away from zero (half-up on magnitudes; sign applied later).
+// A remainder strictly greater than half the divisor, or exactly equal to half,
+// rounds the quotient up (Requirements 4.3, 16.13).
+export function divideMagnitudeHalfAway(a: number, b: number): [number, boolean] {
+  const [q0, r, ok] = idivmod(a, b);
+  if (!ok) {
+    return [0, false];
+  }
+  let q = q0;
+  // 2*r >= b including the exact-half case, computed without forming 2*r by
+  // comparing r against b - r instead.
+  if (r >= b - r) {
+    if (q === SafeMantissaMax) {
+      return [0, false];
+    }
+    q++;
+  }
+  if (!magInEnvelope(q)) {
+    return [0, false];
+  }
+  return [q, true];
+}
+
+// normalizeFixed returns the canonical form of a FixedPointValue: mantissa and
+// scale reduced to the smallest scale in [FixedScaleMin, FixedScaleMax] by
+// stripping trailing zero digits, and the sign cleared when the mantissa is
+// zero (so every negative-zero spelling becomes canonical zero). ok=false when
+// the mantissa is negative, out of envelope, or the scale is out of range. Does
+// not change the represented value.
+export function normalizeFixed(v: FixedPointValue): [FixedPointValue, boolean] {
+  if (v.mantissa < 0 || !magInEnvelope(v.mantissa)) {
+    return [zeroFixed(), false];
+  }
+  if (v.scale < FixedScaleMin || v.scale > FixedScaleMax) {
+    return [zeroFixed(), false];
+  }
+  let m = v.mantissa;
+  let s = v.scale;
+  while (s > FixedScaleMin && m % 10 === 0 && m !== 0) {
+    m = m / 10;
+    s--;
+  }
+  let neg = v.negative;
+  if (m === 0) {
+    s = FixedScaleMin;
+    neg = false;
+  }
+  return [{ negative: neg, mantissa: m, scale: s }, true];
+}
+
+// scaleMantissaTo rescales a non-negative mantissa from scale `from` to scale
+// `to`. Only upscaling (to >= from), which is exact, is supported here. ok=false
+// when to < from, either scale is out of range, or the result leaves the
+// envelope.
+function scaleMantissaTo(mantissa: number, from: number, to: number): [number, boolean] {
+  if (mantissa < 0 || from < FixedScaleMin || to > FixedScaleMax || to < from) {
+    return [0, false];
+  }
+  const [factor, ok] = pow10(to - from);
+  if (!ok) {
+    return [0, false];
+  }
+  return guardedMulMag(mantissa, factor);
+}
+
+// alignFixed rescales two fixed-point values to their common (larger) scale and
+// returns their non-negative mantissas at that scale plus the shared scale.
+function alignFixed(
+  a: FixedPointValue,
+  b: FixedPointValue,
+): [number, number, number, boolean] {
+  if (
+    a.scale < FixedScaleMin ||
+    a.scale > FixedScaleMax ||
+    b.scale < FixedScaleMin ||
+    b.scale > FixedScaleMax
+  ) {
+    return [0, 0, 0, false];
+  }
+  let common = a.scale;
+  if (b.scale > common) {
+    common = b.scale;
+  }
+  const [ma, okA] = scaleMantissaTo(a.mantissa, a.scale, common);
+  if (!okA) {
+    return [0, 0, 0, false];
+  }
+  const [mb, okB] = scaleMantissaTo(b.mantissa, b.scale, common);
+  if (!okB) {
+    return [0, 0, 0, false];
+  }
+  return [ma, mb, common, true];
+}
+
+// compareFixed returns -1, 0, or +1 as a is less than, equal to, or greater
+// than b, comparing the exact rational values sign*mantissa/10^scale. ok=false
+// when the values cannot be aligned within the envelope. Canonical zero on
+// either side compares by magnitude only.
+export function compareFixed(a: FixedPointValue, b: FixedPointValue): [number, boolean] {
+  const [ma, mb, , ok] = alignFixed(a, b);
+  if (!ok) {
+    return [0, false];
+  }
+  const aNeg = a.negative && ma !== 0;
+  const bNeg = b.negative && mb !== 0;
+  if (aNeg && !bNeg) {
+    return [-1, true];
+  }
+  if (!aNeg && bNeg) {
+    return [1, true];
+  }
+  if (!aNeg && !bNeg) {
+    // both non-negative: order by magnitude.
+    return [cmpInt(ma, mb), true];
+  }
+  // both negative: larger magnitude is the smaller value.
+  return [cmpInt(mb, ma), true];
+}
+
+// cmpInt returns -1, 0, +1 comparing two integer values.
+function cmpInt(a: number, b: number): number {
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return 0;
+}
+
+// addFixed returns the exact sum a+b as a canonical FixedPointValue. ok=false
+// when any intermediate leaves the envelope.
+export function addFixed(a: FixedPointValue, b: FixedPointValue): [FixedPointValue, boolean] {
+  const [ma, mb, scale, ok] = alignFixed(a, b);
+  if (!ok) {
+    return [zeroFixed(), false];
+  }
+  const aNeg = a.negative && ma !== 0;
+  const bNeg = b.negative && mb !== 0;
+
+  let mag: number;
+  let neg: boolean;
+  if (aNeg === bNeg) {
+    // same sign: magnitudes add, sign preserved.
+    const [sum, okSum] = guardedAddMag(ma, mb);
+    if (!okSum) {
+      return [zeroFixed(), false];
+    }
+    mag = sum;
+    neg = aNeg;
+  } else {
+    // opposite signs: subtract smaller magnitude from larger; sign follows the
+    // larger magnitude.
+    if (ma >= mb) {
+      mag = ma - mb;
+      neg = aNeg;
+    } else {
+      mag = mb - ma;
+      neg = bNeg;
+    }
+  }
+  return normalizeFixed({ negative: neg, mantissa: mag, scale });
+}
+
+// negateFixed returns the additive inverse of v in canonical form. Canonical
+// zero is its own inverse (sign stays cleared).
+export function negateFixed(v: FixedPointValue): [FixedPointValue, boolean] {
+  const [out, ok] = normalizeFixed(v);
+  if (!ok) {
+    return [zeroFixed(), false];
+  }
+  if (out.mantissa !== 0) {
+    out.negative = !out.negative;
+  }
+  return [out, true];
+}
+
+// subtractFixed returns the exact difference a-b as a canonical FixedPointValue.
+export function subtractFixed(a: FixedPointValue, b: FixedPointValue): [FixedPointValue, boolean] {
+  const [nb, ok] = negateFixed(b);
+  if (!ok) {
+    return [zeroFixed(), false];
+  }
+  return addFixed(a, nb);
+}
+
+// digitCount returns the number of base-10 digits in the non-negative magnitude
+// m. digitCount(0) is 1. ok=false for negative input. Pure integer routine; no
+// logarithms (Requirement 16.12).
+export function digitCount(m: number): [number, boolean] {
+  if (m < 0) {
+    return [0, false];
+  }
+  if (m === 0) {
+    return [1, true];
+  }
+  let count = 0;
+  let x = m;
+  while (x > 0) {
+    x = Math.floor(x / 10);
+    count++;
+  }
+  return [count, true];
+}
+
+// magnitudeScale returns the decimal order of magnitude of a FixedPointValue's
+// exact value: magnitudeScale(0) = 0; otherwise the integer exponent e with
+// 10^e <= |value| < 10^(e+1). Because value = mantissa / 10^scale, we have
+// e = (digitCount(mantissa) - 1) - scale. Computed purely from the integer
+// digit count and the scale, never from a logarithm (Requirements 3.7, 16.12).
+export function magnitudeScale(v: FixedPointValue): [number, boolean] {
+  if (v.mantissa < 0 || !magInEnvelope(v.mantissa)) {
+    return [0, false];
+  }
+  if (v.mantissa === 0) {
+    return [0, true];
+  }
+  const [dc, ok] = digitCount(v.mantissa);
+  if (!ok) {
+    return [0, false];
+  }
+  return [dc - 1 - v.scale, true];
+}
+
+// formatFixedCanonical returns the canonical decimal string of v (e.g. "1897",
+// "-0.07", "1.005", "0"). Negative zero is rendered as "0". Built from integer
+// digits plus decimal-point insertion — never from runtime float formatting
+// (Requirements 8.9, 12.9, 12.10, 16.14).
+export function formatFixedCanonical(v: FixedPointValue): string {
+  const [n, ok] = normalizeFixed(v);
+  if (!ok) {
+    // Out-of-contract values should never reach formatting; emit a stable
+    // sentinel rather than throwing so callers stay deterministic.
+    return "0";
+  }
+  let digits = intToDigits(n.mantissa);
+  let out = "";
+  if (n.negative && n.mantissa !== 0) {
+    out += "-";
+  }
+  if (n.scale === 0) {
+    out += digits;
+    return out;
+  }
+  // Left-pad the integer portion so there are at least scale+1 digits, then
+  // insert the decimal point `scale` places from the right.
+  while (digits.length <= n.scale) {
+    digits = "0" + digits;
+  }
+  const intPart = digits.slice(0, digits.length - n.scale);
+  const fracPart = digits.slice(digits.length - n.scale);
+  out += intPart + "." + fracPart;
+  return out;
+}
+
+// formatFixedGrouped returns the display spelling of v with thousands grouping
+// (ASCII comma separators) applied to the integer portion only. NOT locale-aware
+// — the separator is a fixed ASCII comma so output is deterministic across
+// runtimes and never depends on locale formatting (Requirement 16.14).
+export function formatFixedGrouped(v: FixedPointValue): string {
+  const [n, ok] = normalizeFixed(v);
+  if (!ok) {
+    return "0";
+  }
+  const canonical = formatFixedCanonical(n);
+  let sign = "";
+  let body = canonical;
+  if (body.startsWith("-")) {
+    sign = "-";
+    body = body.slice(1);
+  }
+  let intPart = body;
+  let fracPart = "";
+  const dot = body.indexOf(".");
+  if (dot >= 0) {
+    intPart = body.slice(0, dot);
+    fracPart = body.slice(dot); // includes the '.'
+  }
+  return sign + groupThousands(intPart) + fracPart;
+}
+
+// groupThousands inserts an ASCII comma every three digits from the right of a
+// plain (unsigned, no decimal point) digit string. Input <= 3 chars is returned
+// unchanged.
+export function groupThousands(digits: string): string {
+  const n = digits.length;
+  if (n <= 3) {
+    return digits;
+  }
+  let first = n % 3;
+  if (first === 0) {
+    first = 3;
+  }
+  let out = digits.slice(0, first);
+  for (let i = first; i < n; i += 3) {
+    out += "," + digits.slice(i, i + 3);
+  }
+  return out;
+}
+
+// intToDigits returns the base-10 digit string of a non-negative integer without
+// any sign, using only ASCII digit assembly (no float paths, no locale
+// formatting). Negative input is treated as its magnitude.
+export function intToDigits(m: number): string {
+  let x = m;
+  if (x === 0) {
+    return "0";
+  }
+  if (x < 0) {
+    x = -x;
+  }
+  let out = "";
+  while (x > 0) {
+    const d = x % 10;
+    out = String.fromCharCode(48 + d) + out;
+    x = Math.floor(x / 10);
+  }
+  return out;
+}
+
+// fnv1a32Offset and fnv1a32Prime are the standard FNV-1a 32-bit constants.
+const fnv1a32Offset = 2166136261;
+const fnv1a32Prime = 16777619;
+
+// fnv1a32 computes the FNV-1a 32-bit hash of the UTF-8 bytes of s.
+// The arithmetic uses uint32 wraparound via Math.imul + `>>> 0`, identical to
+// Go's uint32 semantics, so the hash is byte-for-byte reproducible across
+// runtimes, including non-ASCII unit text in variation keys. No randomness
+// or clocks (Requirements 8.2, 8.3).
+export function fnv1a32(s: string): number {
+  const bytes = new TextEncoder().encode(s);
+  let hash = fnv1a32Offset >>> 0;
+  for (let i = 0; i < bytes.length; i++) {
+    hash ^= bytes[i];
+    // Math.imul performs the multiplication modulo 2^32 exactly, matching Go's
+    // uint32 overflow; `>>> 0` re-coerces to an unsigned 32-bit value.
+    hash = Math.imul(hash, fnv1a32Prime) >>> 0;
+  }
+  return hash >>> 0;
+}
+
+// zeroFixed returns the canonical zero fixed-point value.
+function zeroFixed(): FixedPointValue {
+  return { negative: false, mantissa: 0, scale: 0 };
+}
+
+// ---------------------------------------------------------------------------
+// Decimal-string Numeric_Ingest (port of derivation_ingest.go)
+// ---------------------------------------------------------------------------
+
+// ingestScale3ExpMax bounds how far below scale 3 a value may sit before it is
+// treated as an underflow-to-zero. Present to mirror the Go reference; the
+// shift-based path resolves underflow directly. Exported for parity with the Go
+// source so the constant remains part of the shared, documented contract.
+export const ingestScale3ExpMax = 40;
+
+// ingestExpMagnitudeMax bounds the parsed magnitude of the token's explicit
+// exponent. Anything larger is unambiguously outside the safe envelope (huge
+// positive exponent) or underflows to zero (huge negative exponent) and is
+// classified without expanding the number.
+const ingestExpMagnitudeMax = 1000000;
+
+// True when a valid, mathematically nonzero JSON number token was rounded to
+// canonical zero by scale-3 ingest. Numeric_Ingest itself remains reusable for
+// optional bounds/diagnostics; required true_number boundaries reject this.
+export function numericTokenUnderflowedToZero(token: string, value: FixedPointValue): boolean {
+  if (value.mantissa !== 0) return false;
+  const split = splitNumericToken(token);
+  if (!split.ok) return false;
+  return /[1-9]/.test(split.intDigits + split.fracDigits);
+}
+
+// numericIngest parses the exact JSON numeric token and returns a
+// NumericDiagnostic carrying the original token spelling plus either the
+// canonical FixedPointValue or a deterministic ingest reason. It is the single
+// entry point for decimal ingest; callers pass the raw token STRING and never a
+// pre-parsed number. There is no Number(token) anywhere in this path.
+export function numericIngest(token: string): NumericDiagnostic {
+  const diag: NumericDiagnostic = { incomingNumericToken: token };
+
+  const split = splitNumericToken(token);
+  if (!split.ok) {
+    diag.ingestReason = AbstainInvalidNumericToken;
+    return diag;
+  }
+
+  const [exp, expOk] = parseBoundedExponent(split.expStr);
+  if (!expOk) {
+    diag.ingestReason = AbstainInvalidNumericToken;
+    return diag;
+  }
+
+  // coefficient magnitude digits = integer digits followed by fraction digits,
+  // with leading zeroes stripped (retaining at least one digit).
+  const coefficient = stripLeadingZeroes(split.intDigits + split.fracDigits);
+
+  // value = sign * coefficient * 10^decimalExponent
+  // where decimalExponent = exp - fractionLength.
+  const decimalExponent = exp - split.fracDigits.length;
+
+  // scaled scale-3 mantissa exponent: multiply coefficient by
+  // 10^(decimalExponent + 3), rounding half away from zero when negative.
+  const shift = decimalExponent + 3;
+
+  const shifted = shiftScale3(coefficient, shift);
+  if (shifted.overflow) {
+    diag.ingestReason = AbstainOutOfSafeRange;
+    return diag;
+  }
+
+  const [mantissa, mantOk] = digitsToSafeInt(shifted.digits);
+  if (!mantOk) {
+    diag.ingestReason = AbstainOutOfSafeRange;
+    return diag;
+  }
+
+  const [fixed, normOk] = normalizeFixed({
+    negative: split.neg,
+    mantissa,
+    scale: FixedScaleMax,
+  });
+  if (!normOk) {
+    diag.ingestReason = AbstainOutOfSafeRange;
+    return diag;
+  }
+
+  diag.fixedPointValue = fixed;
+  return diag;
+}
+
+interface SplitToken {
+  neg: boolean;
+  intDigits: string;
+  fracDigits: string;
+  expStr: string;
+  ok: boolean;
+}
+
+// splitNumericToken validates the JSON number grammar and splits the token into
+// its sign, integer digit string, fraction digit string, and exponent string
+// (the substring from 'e'/'E' onward, including any sign, or "" when absent).
+// ok=false for any token that is not a well-formed JSON number.
+//
+// Grammar (RFC 8259 number): -? int frac? exp?
+//   int  = "0" / ( digit1-9 *DIGIT )    ; no leading zeroes, no leading '+'
+//   frac = "." 1*DIGIT
+//   exp  = ("e" / "E") ["+" / "-"] 1*DIGIT
+export function splitNumericToken(token: string): SplitToken {
+  const fail: SplitToken = { neg: false, intDigits: "", fracDigits: "", expStr: "", ok: false };
+  if (token === "") {
+    return fail;
+  }
+  let i = 0;
+  const n = token.length;
+  let neg = false;
+
+  // Optional leading minus. A leading '+' is not valid JSON.
+  if (token[i] === "-") {
+    neg = true;
+    i++;
+  }
+  if (i >= n) {
+    return fail;
+  }
+
+  // Integer part: "0" alone, or a nonzero digit followed by more digits.
+  const intStart = i;
+  if (token[i] === "0") {
+    i++;
+    // A leading zero must not be followed by another digit (e.g. "01").
+    if (i < n && isASCIIDigit(token[i])) {
+      return fail;
+    }
+  } else if (isASCIIDigit(token[i])) {
+    while (i < n && isASCIIDigit(token[i])) {
+      i++;
+    }
+  } else {
+    return fail;
+  }
+  const intDigits = token.slice(intStart, i);
+
+  // Optional fraction: '.' followed by at least one digit.
+  let fracDigits = "";
+  if (i < n && token[i] === ".") {
+    i++;
+    const fracStart = i;
+    while (i < n && isASCIIDigit(token[i])) {
+      i++;
+    }
+    if (i === fracStart) {
+      // A '.' with no following digit is invalid.
+      return fail;
+    }
+    fracDigits = token.slice(fracStart, i);
+  }
+
+  // Optional exponent: 'e'/'E', optional sign, at least one digit.
+  let expStr = "";
+  if (i < n && (token[i] === "e" || token[i] === "E")) {
+    const expStart = i; // include the 'e'/'E' marker in expStr for the parser
+    i++;
+    if (i < n && (token[i] === "+" || token[i] === "-")) {
+      i++;
+    }
+    const digitStart = i;
+    while (i < n && isASCIIDigit(token[i])) {
+      i++;
+    }
+    if (i === digitStart) {
+      // exponent marker with no digits is invalid.
+      return fail;
+    }
+    expStr = token.slice(expStart, i);
+  }
+
+  // Any trailing characters mean the token is not a bare JSON number.
+  if (i !== n) {
+    return fail;
+  }
+
+  return { neg, intDigits, fracDigits, expStr, ok: true };
+}
+
+// parseBoundedExponent parses the exponent substring produced by
+// splitNumericToken (either "" or "e"/"E" + optional sign + digits) into an
+// integer. It never converts through a float and clamps obviously-huge
+// magnitudes to a bounded sentinel so downstream shift classification can
+// resolve them to overflow or underflow without expanding the number. A
+// grammatically malformed exponent returns ok=false as a defensive backstop.
+export function parseBoundedExponent(expStr: string): [number, boolean] {
+  if (expStr === "") {
+    return [0, true];
+  }
+  // expStr starts with 'e' or 'E'.
+  if (expStr.length < 2) {
+    return [0, false];
+  }
+  let i = 1;
+  let expNeg = false;
+  if (expStr[i] === "+") {
+    i++;
+  } else if (expStr[i] === "-") {
+    expNeg = true;
+    i++;
+  }
+  let digits = expStr.slice(i);
+  if (digits === "") {
+    return [0, false];
+  }
+  digits = stripLeadingZeroes(digits);
+
+  // Bounded parse: if the exponent has more digits than the bound, or exceeds
+  // it numerically, clamp to the bound magnitude. The bound is far larger than
+  // any in-envelope shift, so a clamped exponent always resolves to overflow
+  // (positive) or underflow-to-zero (negative) deterministically.
+  if (digits.length > 7) {
+    if (expNeg) {
+      return [-ingestExpMagnitudeMax, true];
+    }
+    return [ingestExpMagnitudeMax, true];
+  }
+  let val = 0;
+  for (let j = 0; j < digits.length; j++) {
+    if (!isASCIIDigit(digits[j])) {
+      return [0, false];
+    }
+    val = val * 10 + (digits.charCodeAt(j) - 48);
+  }
+  if (val > ingestExpMagnitudeMax) {
+    val = ingestExpMagnitudeMax;
+  }
+  if (expNeg) {
+    return [-val, true];
+  }
+  return [val, true];
+}
+
+interface ShiftResult {
+  digits: string;
+  isZero: boolean;
+  overflow: boolean;
+}
+
+// shiftScale3 computes the scale-3 mantissa digit string for a magnitude
+// coefficient (a plain digit string with leading zeroes already stripped)
+// scaled by 10^shift. It returns the scale-3 mantissa as a plain digit string
+// ("0" for zero), whether the canonical result is exactly zero, and whether the
+// magnitude clearly exceeds the safe envelope.
+//
+// A non-negative shift appends `shift` zeroes (after a length screen). A
+// negative shift removes the low |shift| digits, rounding half away from zero by
+// comparing the discarded tail against exactly half of 10^|shift|.
+export function shiftScale3(coefficient: string, shift: number): ShiftResult {
+  // Zero coefficient is always zero regardless of shift.
+  if (coefficient === "0") {
+    return { digits: "0", isZero: true, overflow: false };
+  }
+
+  if (shift >= 0) {
+    // Length screen: SafeMantissaMax (2^53-1) has 16 digits, so any magnitude
+    // with more than 16 digits is out of range. Reject before building an
+    // oversized string.
+    if (coefficient.length + shift > 16) {
+      return { digits: "", isZero: false, overflow: true };
+    }
+    return { digits: coefficient + "0".repeat(shift), isZero: false, overflow: false };
+  }
+
+  // Negative shift: divide by 10^drop with half-away-from-zero rounding.
+  const drop = -shift;
+
+  // If everything (and more) is discarded, the retained magnitude is 0; round
+  // half away from zero based on the topmost discarded digit position.
+  if (drop >= coefficient.length) {
+    if (drop === coefficient.length && coefficient.charCodeAt(0) >= 53 /* '5' */) {
+      return { digits: "1", isZero: false, overflow: false };
+    }
+    return { digits: "0", isZero: true, overflow: false };
+  }
+
+  const keep = coefficient.length - drop;
+  let retained = coefficient.slice(0, keep);
+  const discarded = coefficient.slice(keep);
+
+  // Round half away from zero: discarded >= half of 10^drop rounds up.
+  if (discardedAtLeastHalf(discarded)) {
+    retained = incrementDigits(retained);
+  }
+  retained = stripLeadingZeroes(retained);
+  if (retained === "0") {
+    return { digits: "0", isZero: true, overflow: false };
+  }
+  return { digits: retained, isZero: false, overflow: false };
+}
+
+// discardedAtLeastHalf reports whether a discarded low-order digit string is
+// greater than or equal to exactly half of 10^len(discarded). Half of 10^k is
+// "5" followed by (k-1) zeroes. The first digit decides unless it is exactly
+// '5', which is the exact halfway case (rounds up, away from zero).
+export function discardedAtLeastHalf(discarded: string): boolean {
+  if (discarded === "") {
+    return false;
+  }
+  const first = discarded.charCodeAt(0);
+  if (first > 53 /* '5' */) {
+    return true;
+  }
+  if (first < 53) {
+    return false;
+  }
+  // first === '5': exact half or above -> round up (away from zero).
+  return true;
+}
+
+// digitsToSafeInt converts a plain non-negative digit string to an integer,
+// returning ok=false when the value would exceed SafeMantissaMax (2^53-1). The
+// comparison is done on the digit string first (length, then lexicographic) so
+// no precision loss can occur during conversion.
+export function digitsToSafeInt(digitsIn: string): [number, boolean] {
+  const digits = stripLeadingZeroes(digitsIn);
+  const safeMax = "9007199254740991"; // SafeMantissaMax as decimal digits
+  if (digits.length > safeMax.length) {
+    return [0, false];
+  }
+  if (digits.length === safeMax.length && digits > safeMax) {
+    return [0, false];
+  }
+  let v = 0;
+  for (let i = 0; i < digits.length; i++) {
+    if (!isASCIIDigit(digits[i])) {
+      return [0, false];
+    }
+    v = v * 10 + (digits.charCodeAt(i) - 48);
+  }
+  return [v, true];
+}
+
+// stripLeadingZeroes removes leading '0' characters from a digit string while
+// retaining at least one digit ("000" -> "0", "007" -> "7").
+export function stripLeadingZeroes(digits: string): string {
+  let i = 0;
+  while (i < digits.length - 1 && digits[i] === "0") {
+    i++;
+  }
+  return digits.slice(i);
+}
+
+// incrementDigits adds one to a plain non-negative digit string, propagating any
+// carry and prepending a new leading digit as needed ("999" -> "1000").
+export function incrementDigits(digits: string): string {
+  if (digits === "") {
+    return "1";
+  }
+  const buf = digits.split("");
+  for (let i = buf.length - 1; i >= 0; i--) {
+    if (buf[i] < "9") {
+      buf[i] = String.fromCharCode(buf[i].charCodeAt(0) + 1);
+      return buf.join("");
+    }
+    buf[i] = "0";
+  }
+  return "1" + buf.join("");
+}
+
+// isASCIIDigit reports whether the single-character string c is an ASCII decimal
+// digit.
+export function isASCIIDigit(c: string): boolean {
+  return c >= "0" && c <= "9";
+}
+
+// ---------------------------------------------------------------------------
+// Raw JSON token lexer + path association + explicit-token API
+// (port of derivation_schema.go token preservation)
+// ---------------------------------------------------------------------------
+
+// SchemaIngestResult is the outcome of schemaIngest. Exactly one of input or
+// abstain is present. abstain is populated only for a REQUIRED numeric-token
+// failure; optional hint failures never abstain — they are omitted from input.
+export interface SchemaIngestResult {
+  input?: DerivationInput;
+  abstain?: DerivationAbstain;
+}
+
+// DerivationAbstain mirrors the Go DerivationAbstain struct
+// (derivation.go) field-for-field. It is the deterministic no-round result: a
+// reason code plus every diagnostic field resolved BEFORE the failing stage.
+// Fields resolved after the failure are absent (undefined) so an absent
+// diagnostic is distinguishable from a zero value, exactly like Go's pointer /
+// omitempty fields. deriveResultJSON serializes it with the SAME field order and
+// omitempty semantics as Go's json.Marshal (task 6.4), so the serialized bytes
+// are byte-identical across runtimes (Requirements 3.11, 8.11, 12.10).
+//
+// The required-numeric schema-ingest path (schemaIngest) also produces this
+// shape, populating only the token/ingest fields; the full DDM entry point
+// (derive, task 9.4) populates the resolved diagnostics.
+export interface DerivationAbstain {
+  outcome: "abstain";
+  reason: AbstainReason;
+  incomingNumericToken?: string;
+  fixedPointValue?: FixedPointValue;
+  normalizedUnit?: string;
+  quantityKind?: QuantityKind;
+  surpriseFactor?: number;
+  magnitudeScale?: number;
+  trapDirection?: TrapDirection;
+  plausibleMin?: FixedPointValue;
+  plausibleMax?: FixedPointValue;
+}
+
+// DerivationSuccess mirrors the Go DerivationSuccess struct (derivation.go)
+// field-for-field, in the SAME declaration order deriveResultJSON serializes.
+// It is the complete, emittable round: the canonical presented/true numbers, the
+// resolved round-wide fields, the canonical surprise (0..3), the strict-direction
+// correct_direction, the derivation source, and the winning remedy stage id. All
+// numeric fields are canonical FixedPointValues (Requirements 3.11, 8.9, 12.10).
+export interface DerivationSuccess {
+  outcome: "success";
+  fixedPointValue: FixedPointValue;
+  trueNumber: FixedPointValue;
+  normalizedUnit: string;
+  quantityKind: QuantityKind;
+  surpriseFactor: number; // canonical 0..3
+  magnitudeScale: number;
+  trapDirection: TrapDirection;
+  plausibleMin: FixedPointValue;
+  plausibleMax: FixedPointValue;
+  presentedNumber: FixedPointValue;
+  correctDirection: CandidateSide;
+  source: DerivationSource;
+  remedyStage: string;
+}
+
+// DerivationResult is the success/abstain union returned by derive. Exactly one
+// arm is present (Requirement 8.1). It mirrors Go's DerivationResult value.
+export interface DerivationResult {
+  success?: DerivationSuccess;
+  abstain?: DerivationAbstain;
+}
+
+// RawNumericToken is a numeric token captured verbatim from raw JSON, together
+// with the object key path it was found at. Downstream code receives the EXACT
+// token string, not a pre-parsed number (Requirements 8.10, 8.11, 12.9).
+export interface RawNumericToken {
+  path: string;
+  token: string;
+}
+
+// lexJSONNumericTokens scans raw JSON bytes/text and returns every numeric
+// literal with its dotted object path (arrays use `[index]` segments). It is a
+// minimal streaming lexer whose sole purpose is to preserve EXACT numeric token
+// spellings before any structural parse could coerce them into binary floats.
+// It never calls JSON.parse, Number(), or parseFloat on numeric literals.
+//
+// Non-numeric structure (strings, objects, arrays, booleans, null) is walked
+// only enough to associate numbers with their key paths. Malformed JSON stops
+// the scan at the point of the error and returns the tokens found so far
+// together with ok=false so callers can distinguish partial input.
+export function lexJSONNumericTokens(raw: string): { tokens: RawNumericToken[]; ok: boolean } {
+  const tokens: RawNumericToken[] = [];
+  const lexer = new JSONNumberLexer(raw);
+  const ok = lexer.scan(tokens);
+  return { tokens, ok };
+}
+
+// JSONNumberLexer is a tiny recursive-descent JSON walker that records numeric
+// literal spellings and their paths without ever parsing numbers into floats.
+class JSONNumberLexer {
+  private readonly s: string;
+  private i = 0;
+  private readonly n: number;
+
+  constructor(s: string) {
+    this.s = s;
+    this.n = s.length;
+  }
+
+  scan(out: RawNumericToken[]): boolean {
+    this.skipWs();
+    const ok = this.value("", out);
+    if (!ok) {
+      return false;
+    }
+    this.skipWs();
+    // Trailing non-whitespace means the document is not a single JSON value.
+    return this.i >= this.n;
+  }
+
+  private value(path: string, out: RawNumericToken[]): boolean {
+    this.skipWs();
+    if (this.i >= this.n) {
+      return false;
+    }
+    const c = this.s[this.i];
+    if (c === "{") {
+      return this.object(path, out);
+    }
+    if (c === "[") {
+      return this.array(path, out);
+    }
+    if (c === '"') {
+      return this.stringLiteral();
+    }
+    if (c === "-" || isASCIIDigit(c)) {
+      return this.numberLiteral(path, out);
+    }
+    if (this.s.startsWith("true", this.i)) {
+      this.i += 4;
+      return true;
+    }
+    if (this.s.startsWith("false", this.i)) {
+      this.i += 5;
+      return true;
+    }
+    if (this.s.startsWith("null", this.i)) {
+      this.i += 4;
+      return true;
+    }
+    return false;
+  }
+
+  private object(path: string, out: RawNumericToken[]): boolean {
+    this.i++; // consume '{'
+    this.skipWs();
+    if (this.i < this.n && this.s[this.i] === "}") {
+      this.i++;
+      return true;
+    }
+    for (; ;) {
+      this.skipWs();
+      if (this.i >= this.n || this.s[this.i] !== '"') {
+        return false;
+      }
+      const key = this.readStringValue();
+      if (key === null) {
+        return false;
+      }
+      this.skipWs();
+      if (this.i >= this.n || this.s[this.i] !== ":") {
+        return false;
+      }
+      this.i++; // consume ':'
+      const childPath = path === "" ? key : path + "." + key;
+      if (!this.value(childPath, out)) {
+        return false;
+      }
+      this.skipWs();
+      if (this.i >= this.n) {
+        return false;
+      }
+      if (this.s[this.i] === ",") {
+        this.i++;
+        continue;
+      }
+      if (this.s[this.i] === "}") {
+        this.i++;
+        return true;
+      }
+      return false;
+    }
+  }
+
+  private array(path: string, out: RawNumericToken[]): boolean {
+    this.i++; // consume '['
+    this.skipWs();
+    if (this.i < this.n && this.s[this.i] === "]") {
+      this.i++;
+      return true;
+    }
+    let index = 0;
+    for (; ;) {
+      const childPath = path + "[" + String(index) + "]";
+      if (!this.value(childPath, out)) {
+        return false;
+      }
+      index++;
+      this.skipWs();
+      if (this.i >= this.n) {
+        return false;
+      }
+      if (this.s[this.i] === ",") {
+        this.i++;
+        continue;
+      }
+      if (this.s[this.i] === "]") {
+        this.i++;
+        return true;
+      }
+      return false;
+    }
+  }
+
+  // stringLiteral consumes a string value without recording it.
+  private stringLiteral(): boolean {
+    return this.readStringValue() !== null;
+  }
+
+  // readStringValue consumes a JSON string starting at the opening quote and
+  // returns its decoded-enough-for-keys content, or null on malformed input.
+  // Only escape sequences relevant to key spelling are handled; the lexer's
+  // sole job is number preservation, so string content beyond keys is not used.
+  private readStringValue(): string | null {
+    if (this.i >= this.n || this.s[this.i] !== '"') {
+      return null;
+    }
+    this.i++; // consume opening quote
+    let out = "";
+    while (this.i < this.n) {
+      const c = this.s[this.i];
+      if (c === '"') {
+        this.i++;
+        return out;
+      }
+      if (c === "\\") {
+        this.i++;
+        if (this.i >= this.n) {
+          return null;
+        }
+        const esc = this.s[this.i];
+        switch (esc) {
+          case '"':
+            out += '"';
+            break;
+          case "\\":
+            out += "\\";
+            break;
+          case "/":
+            out += "/";
+            break;
+          case "b":
+            out += "\b";
+            break;
+          case "f":
+            out += "\f";
+            break;
+          case "n":
+            out += "\n";
+            break;
+          case "r":
+            out += "\r";
+            break;
+          case "t":
+            out += "\t";
+            break;
+          case "u": {
+            if (this.i + 4 >= this.n) {
+              return null;
+            }
+            const hex = this.s.slice(this.i + 1, this.i + 5);
+            if (!/^[0-9a-fA-F]{4}$/.test(hex)) {
+              return null;
+            }
+            out += String.fromCharCode(parseInt(hex, 16));
+            this.i += 4;
+            break;
+          }
+          default:
+            return null;
+        }
+        this.i++;
+        continue;
+      }
+      out += c;
+      this.i++;
+    }
+    return null; // unterminated string
+  }
+
+  // numberLiteral records the EXACT numeric token spelling at the current path
+  // and advances past it. It validates the JSON number grammar via
+  // splitNumericToken so a malformed number stops the scan.
+  private numberLiteral(path: string, out: RawNumericToken[]): boolean {
+    const start = this.i;
+    if (this.s[this.i] === "-") {
+      this.i++;
+    }
+    while (this.i < this.n && isASCIIDigit(this.s[this.i])) {
+      this.i++;
+    }
+    if (this.i < this.n && this.s[this.i] === ".") {
+      this.i++;
+      while (this.i < this.n && isASCIIDigit(this.s[this.i])) {
+        this.i++;
+      }
+    }
+    if (this.i < this.n && (this.s[this.i] === "e" || this.s[this.i] === "E")) {
+      this.i++;
+      if (this.i < this.n && (this.s[this.i] === "+" || this.s[this.i] === "-")) {
+        this.i++;
+      }
+      while (this.i < this.n && isASCIIDigit(this.s[this.i])) {
+        this.i++;
+      }
+    }
+    const token = this.s.slice(start, this.i);
+    if (!splitNumericToken(token).ok) {
+      return false;
+    }
+    out.push({ path, token });
+    return true;
+  }
+
+  private skipWs(): void {
+    while (this.i < this.n) {
+      const c = this.s[this.i];
+      if (c === " " || c === "\t" || c === "\n" || c === "\r") {
+        this.i++;
+      } else {
+        break;
+      }
+    }
+  }
+}
+
+// RawSchemaRound is the untrusted wire shape schemaIngest processes. Numeric
+// fields arrive as raw token STRINGS (already captured verbatim), never as
+// pre-parsed numbers. Optional hint fields are untrusted. Fields not on this
+// shape — topic, round_number, difficulty, and other caller metadata — are
+// intentionally absent so they can never be forwarded into a DerivationInput
+// (Requirement 12.12).
+export interface RawSchemaRound {
+  // trueNumberToken is the REQUIRED exact numeric token for the round's true
+  // value (e.g. "0.070", "7e-2", "1897"). undefined/empty means absent.
+  trueNumberToken?: string;
+  unit?: string;
+  quantityKind?: string;
+  trapDirection?: string;
+  plausibleMinToken?: string;
+  plausibleMaxToken?: string;
+  surpriseFactor?: number;
+}
+
+// schemaIngestRaw builds the allowlisted DerivationInput from an explicit-token
+// RawSchemaRound (the explicit-token function API). It routes the exact
+// true_number token to numericIngest and returns an abstain rather than a
+// partial round on required-numeric failure (Requirements 8.11, 12.12). Optional
+// kind/trap hints are trimmed, case-normalized, closed-set validated, and
+// omitted when invalid; a bounds pair is captured only when both tokens are
+// present.
+export function schemaIngestRaw(
+  raw: RawSchemaRound,
+  forcedSide?: CandidateSide,
+  precomputed?: PrecomputedDerivation,
+): SchemaIngestResult {
+  // --- Required numeric token -------------------------------------------
+  const token = raw.trueNumberToken;
+  if (token === undefined || token === "" || token === "null") {
+    return {
+      abstain: {
+        outcome: "abstain",
+        reason: AbstainInvalidNumericToken,
+        incomingNumericToken: token ?? "",
+      },
+    };
+  }
+  // A JSON number token starts with '-' or a digit; anything else is not a
+  // numeric token and must not be forwarded to Numeric_Ingest.
+  const first = token[0];
+  if (first !== "-" && !isASCIIDigit(first)) {
+    return {
+      abstain: {
+        outcome: "abstain",
+        reason: AbstainInvalidNumericToken,
+        incomingNumericToken: token,
+      },
+    };
+  }
+
+  const diag = numericIngest(token);
+  if (diag.fixedPointValue === undefined) {
+    const reason = diag.ingestReason ?? AbstainInvalidNumericToken;
+    return {
+      abstain: {
+        outcome: "abstain",
+        reason,
+        incomingNumericToken: diag.incomingNumericToken,
+        fixedPointValue: diag.fixedPointValue,
+      },
+    };
+  }
+  if (numericTokenUnderflowedToZero(token, diag.fixedPointValue)) {
+    return {
+      abstain: {
+        outcome: "abstain",
+        reason: AbstainOutOfSafeRange,
+        incomingNumericToken: diag.incomingNumericToken,
+        fixedPointValue: diag.fixedPointValue,
+      },
+    };
+  }
+
+  // --- Allowlisted input construction -----------------------------------
+  const input: DerivationInput = {
+    incomingNumericToken: token,
+    unit: raw.unit ?? "",
+    surpriseFactor: raw.surpriseFactor ?? 0,
+  };
+  if (forcedSide !== undefined) {
+    input.forcedSide = forcedSide;
+  }
+  if (precomputed !== undefined) {
+    input.precomputed = precomputed;
+  }
+
+  const kind = schemaValidateKindHint(raw.quantityKind);
+  if (kind !== undefined) {
+    input.quantityKind = kind;
+  }
+
+  const trap = schemaValidateTrapHint(raw.trapDirection);
+  if (trap !== undefined) {
+    input.trapDirection = trap;
+  }
+
+  const bounds = schemaCaptureBoundsHint(raw.plausibleMinToken, raw.plausibleMaxToken);
+  if (bounds !== undefined) {
+    input.modelBounds = bounds;
+  }
+
+  return { input };
+}
+
+// schemaIngest decodes a raw round JSON string into an allowlisted
+// DerivationInput. It first captures numeric token spellings verbatim with the
+// raw lexer, then associates the required/optional numeric paths with their
+// tokens and delegates to schemaIngestRaw. Non-numeric fields (unit, kind,
+// trap) are read with a structural parse that is NEVER applied to numeric
+// tokens (Requirements 8.10, 8.11, 12.9).
+export function schemaIngest(
+  rawRound: string,
+  forcedSide?: CandidateSide,
+  precomputed?: PrecomputedDerivation,
+): SchemaIngestResult {
+  const { tokens, ok } = lexJSONNumericTokens(rawRound);
+  if (!ok) {
+    // A round whose JSON cannot be scanned has no usable required numeric token.
+    return {
+      abstain: { outcome: "abstain", reason: AbstainInvalidNumericToken },
+    };
+  }
+
+  // Associate top-level numeric paths with their exact token spellings.
+  const byPath = new Map<string, string>();
+  for (const t of tokens) {
+    // encoding/json last-writer-wins: a duplicate top-level key keeps the last
+    // token. Well-formed rounds have unique keys, so first == last.
+    byPath.set(t.path, t.token);
+  }
+
+  // Non-numeric string fields are read via a structural parse. JSON.parse would
+  // coerce numeric literals into floats, so we ONLY read string-typed fields
+  // from it and take every numeric field from the verbatim token map instead.
+  let structural: Record<string, unknown> | undefined;
+  try {
+    const parsed = JSON.parse(rawRound) as unknown;
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      structural = parsed as Record<string, unknown>;
+    }
+  } catch {
+    structural = undefined;
+  }
+
+  // Go json.Unmarshal into SurpriseFactor int rejects a non-integer (e.g. 2.5)
+  // by failing the whole decode. Mirror that here instead of defaulting to 0.
+  // encoding/json unmarshalling JSON null into int is a no-op (zero value) and
+  // produces no error, so null is accepted and forwarded as 0 like an omitted
+  // field. Non-numeric / non-integer values still abstain.
+  if (
+    structural !== undefined &&
+    Object.prototype.hasOwnProperty.call(structural, "surprise_factor")
+  ) {
+    const surprise = structural["surprise_factor"];
+    if (surprise !== null && (typeof surprise !== "number" || !Number.isInteger(surprise))) {
+      return {
+        abstain: { outcome: "abstain", reason: AbstainInvalidNumericToken },
+      };
+    }
+  }
+
+  // Numeric lexer only records JSON number tokens. A quoted true_number such as
+  // `"1897"` is still captured by Go as raw JSON bytes; preserve the same
+  // diagnostic spelling so the abstain token is not empty.
+  let trueNumberToken = byPath.get("true_number");
+  if (
+    trueNumberToken === undefined &&
+    structural !== undefined &&
+    Object.prototype.hasOwnProperty.call(structural, "true_number")
+  ) {
+    const rawTrue = structural["true_number"];
+    if (typeof rawTrue === "string" || typeof rawTrue === "boolean") {
+      trueNumberToken = JSON.stringify(rawTrue);
+    }
+  }
+
+  const rawRoundShape: RawSchemaRound = {
+    trueNumberToken,
+    unit: readStringField(structural, "unit"),
+    quantityKind: readStringField(structural, "quantity_kind"),
+    trapDirection: readStringField(structural, "trap_direction"),
+    plausibleMinToken: byPath.get("plausible_min"),
+    plausibleMaxToken: byPath.get("plausible_max"),
+    surpriseFactor: readIntField(structural, "surprise_factor"),
+  };
+
+  return schemaIngestRaw(rawRoundShape, forcedSide, precomputed);
+}
+
+// readStringField returns a string-typed field from a structural object, or
+// undefined when absent or not a string.
+function readStringField(obj: Record<string, unknown> | undefined, key: string): string | undefined {
+  if (obj === undefined) {
+    return undefined;
+  }
+  const v = obj[key];
+  return typeof v === "string" ? v : undefined;
+}
+
+// readIntField returns an integer-typed field (surprise_factor) from a
+// structural object. surprise_factor is a small bounded integer, not a numeric
+// magnitude token subject to fixed-point ingest, so reading it structurally does
+// not violate the no-float-parse rule for magnitude tokens.
+function readIntField(obj: Record<string, unknown> | undefined, key: string): number | undefined {
+  if (obj === undefined) {
+    return undefined;
+  }
+  const v = obj[key];
+  if (typeof v === "number" && Number.isInteger(v)) {
+    return v;
+  }
+  return undefined;
+}
+
+// schemaValidateKindHint trims and case-normalizes an optional model-emitted
+// quantity_kind and validates it against the closed set. Returns undefined for
+// absent, empty, or out-of-set hints so the caller omits the hint entirely.
+export function schemaValidateKindHint(hint: string | undefined): string | undefined {
+  if (hint === undefined) {
+    return undefined;
+  }
+  const norm = hint.trim().toLowerCase();
+  if (norm === "") {
+    return undefined;
+  }
+  switch (norm) {
+    case KindYear:
+    case KindCount:
+    case KindPercentage:
+    case KindPercentChange:
+    case KindRatio:
+    case KindPhysicalMeasure:
+    case KindMoney:
+    case KindDuration:
+    case KindRating:
+      return norm;
+    default:
+      return undefined;
+  }
+}
+
+// schemaValidateTrapHint trims and case-normalizes an optional model-emitted
+// trap_direction and validates it against the closed set (UPPERCASE canonical
+// spellings). Returns undefined for absent, empty, or out-of-set hints.
+export function schemaValidateTrapHint(hint: string | undefined): string | undefined {
+  if (hint === undefined) {
+    return undefined;
+  }
+  const norm = hint.trim().toUpperCase();
+  if (norm === "") {
+    return undefined;
+  }
+  switch (norm) {
+    case TrapOverestimate:
+    case TrapUnderestimate:
+      return norm;
+    default:
+      return undefined;
+  }
+}
+
+// schemaCaptureBoundsHint captures an optional plausibility-bound pair from raw
+// number tokens. Only pair COMPLETENESS is enforced here: both tokens must be
+// present JSON number spellings. Deeper validation belongs to the bounds
+// resolver (task 4.2 / 9.2). Returns undefined when either bound is absent or
+// not a JSON number.
+export function schemaCaptureBoundsHint(
+  minTok: string | undefined,
+  maxTok: string | undefined,
+): BoundsHint | undefined {
+  if (minTok === undefined || maxTok === undefined) {
+    return undefined;
+  }
+  if (!isJSONNumberToken(minTok) || !isJSONNumberToken(maxTok)) {
+    return undefined;
+  }
+  return { minToken: minTok, maxToken: maxTok };
+}
+
+// isJSONNumberToken reports whether the token begins like a JSON number and
+// parses under the grammar. Used only for shape screening; the bounds resolver
+// performs full exact ingest.
+function isJSONNumberToken(token: string): boolean {
+  if (token === "") {
+    return false;
+  }
+  const first = token[0];
+  if (first !== "-" && !isASCIIDigit(first)) {
+    return false;
+  }
+  return splitNumericToken(token).ok;
+}
+
+// ---------------------------------------------------------------------------
+// Task 9.2 resolution layers (classification, bounds, surprise, magnitude,
+// trap) — implemented in the closely co-located module derivation_resolve.ts
+// and re-exported here so the DDM presents a single import surface. That module
+// consumes ONLY the generated tables (unit_tables_gen.ts, derivation_tables_gen.ts)
+// and the allowlisted DerivationInput above; pack/round difficulty metadata is
+// structurally unobservable to it. The module remains dark (not imported by
+// production worker code) until the atomic cutover (task 16.x).
+// ---------------------------------------------------------------------------
+
+export {
+  // classification (task 4.1 port)
+  normalizeUnit,
+  classifyQuantityKind,
+  validateModelKindHint,
+  inferQuantityKind,
+  isNegative,
+  isNonNegativeInteger,
+  inCalendarYearWindow,
+  // surprise / magnitude / band (task 4.3 port)
+  canonicalizeSurprise,
+  computeMagnitudeScale,
+  selectBaseBand,
+  selectBaseBandForRawSurprise,
+  type BaseBand,
+  // trap + forced-side precedence (task 4.4 port)
+  trapDirectionInClosedSet,
+  resolveTrapDirection,
+  validateTrapDirectionHint,
+  inferTrapDirection,
+  preferredSideForTrap,
+  oppositeSide,
+  primarySide,
+  resolveCandidateSides,
+  type ResolvedCandidateSides,
+  // bounds (task 4.2 port)
+  resolveBounds,
+  validateResolvedBoundsHint,
+  deriveDefaultBounds,
+  scaleByPermille,
+  retrospectiveCeiling,
+  capByRetrospectiveCeiling,
+  type ResolvedBounds,
+  // strategy + band composition (task 5.1 port)
+  resolveKindStrategy,
+  selectMagnitudeVariant,
+  composeDistanceBand,
+  candidateSatisfiesHardBoundary,
+  candidateWithinBounds,
+  strategyAdditive,
+  strategyMultiplicative,
+  strategyBounded,
+  variantSmall,
+  variantLarge,
+  type DerivationStrategy,
+  type MagnitudeVariant,
+  type ComposedBand,
+  // deterministic variation slots (task 5.2 port)
+  variationSlotCount,
+  buildVariationKey,
+  variationStartSlot,
+  variationSlotSequence,
+  variationPoint,
+  type VariationDeterminants,
+  // signed candidate generation (task 5.3 port)
+  generateRawCandidate,
+  screenRawCandidate,
+  candidateStrictlyOnSide,
+  candidateAboveTruth,
+  rawRejectNone,
+  rawRejectArithmetic,
+  rawRejectWrongSide,
+  rawRejectHardBoundary,
+  rawRejectBounds,
+  type RawCandidateRejection,
+  type ScreenedCandidate,
+  // snapping + giveaway gate (task 6.1/6.2 dependencies of the Zero Value Strategy)
+  snapCandidate,
+  snapMantissaToExp,
+  evaluateGiveawayGate,
+  gatePasses,
+  type SnappedCandidate,
+  type GateReason,
+  // Zero Value Strategy (task 5.4 port)
+  deriveZeroValue,
+  zeroOffsetsFor,
+  zeroSurpriseKeysInOrder,
+  loadZeroStrategyTablesView,
+  type ZeroValueOutcome,
+  // finite remedy ladder + pure derive entry point + serialization (task 9.4 port)
+  derive,
+  finalDirection,
+  deriveResultJSON,
+} from "./derivation_resolve";
+
+// ---------------------------------------------------------------------------
+// Task 9.5 Statement Consistency Gate (scanner + classifier, generated
+// inflection + grammar correction, policy-parameterized rewrite/revalidation,
+// and the pinned production-policy build guard) — implemented in the
+// co-located module derivation_statement.ts and re-exported here so the DDM
+// presents a single import surface. That module consumes ONLY the generated
+// unit tables (unit_tables_gen.ts) statement_inflection block and the exact
+// kernel; the production selector is pinned to numberless_drop and the module
+// is live in production via the task 16.5 cutover.
+// ---------------------------------------------------------------------------
+
+export {
+  // scanner + classifier (task 7.1 port)
+  stmtScanStatement,
+  LiteralGoverned,
+  LiteralIncidental,
+  type StatementLiteral,
+  type StatementLiteralClass,
+  type StatementScan,
+  // inflection + grammar correction (task 7.2 port)
+  stmtInflectValueIsSingular,
+  stmtInflectNoun,
+  stmtInflectNounForValue,
+  // policy-parameterized rewrite + revalidation (task 7.3 port)
+  stmtGateApply,
+  stmtGateContainsValue,
+  stmtGateValidPolicy,
+  StmtGateStrict,
+  StmtGateGovernedIncidental,
+  StmtGateNumberlessDrop,
+  type StmtGatePolicy,
+  type StmtGateResult,
+  // production-policy selector + fail-closed guard (task 7.4 port)
+  StmtGateUnresolvedPolicy,
+  stmtProdPolicyIsResolved,
+  stmtProdPolicyResolve,
+  stmtProdPolicyCheck,
+  stmtProdPolicyUnresolvedMessage,
+  StmtProdPolicyUnresolvedError,
+} from "./derivation_statement";

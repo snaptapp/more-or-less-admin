@@ -1,7 +1,7 @@
 {
   "src/lib/admin/config.functions.ts": 0,
   "src/lib/admin/content.functions.ts": 0,
-  "src/lib/admin/content.server.ts": 1,
+  "src/lib/admin/content.server.ts": 0,
   "src/lib/admin/daily-drafts.server.ts": 0,
   "src/lib/admin/derivation.functions.ts": 0,
   "src/lib/admin/middleware.ts": 0,

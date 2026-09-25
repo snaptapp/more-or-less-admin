@@ -1,0 +1,406 @@
+{
+  "$comment": "AUTHORITATIVE, NORMATIVE derivation-table source for the Distractor Derivation Model (DDM). This JSON — together with tests/fixtures/unit_tables.json — is the SOLE normative authority for shared derivation configuration. Runtime files (agent-go/derivation_tables_gen.go, src/derivation_tables_gen.ts, functions/src/ai/derivation_tables_gen.ts, and the Dart subset) are GENERATED from these bytes by scripts/gen_derivation_tables.mjs and must never be hand-edited. Inline design tables and worked examples in design.md are explanatory and non-normative; on any conflict, THIS JSON WINS. All shared numbers are stored as exact integer or fixed-point encodings (multiplicative factors in permille = factor*1000; additive deltas and offsets as integer/decimal magnitudes with an explicit scale) — never binary floating literals. Values seeded from agent-go/guardrails.go (DeriveOffsetsFromSurprise, canonicalizeSurpriseFactor, yearDelta) but this JSON, not those literals, is authoritative.",
+  "schema_version": "ddm-tables-1",
+  "model_version": "ddm-4",
+
+  "closed_sets": {
+    "$comment": "All closed enumerations referenced elsewhere in this file. The generator rejects any reference to a value not listed here.",
+    "quantity_kind": [
+      "year",
+      "count",
+      "percentage",
+      "percent_change",
+      "ratio",
+      "physical_measure",
+      "money",
+      "duration",
+      "rating"
+    ],
+    "trap_direction": ["OVERESTIMATE", "UNDERESTIMATE"],
+    "candidate_side": ["MORE", "LESS"],
+    "strategy": ["additive", "multiplicative", "bounded"],
+    "derivation_source": ["precomputed", "live", "zero_value"],
+    "abstain_reason": [
+      "INVALID_NUMERIC_TOKEN",
+      "NON_FINITE_INPUT",
+      "OUT_OF_SAFE_RANGE",
+      "INVALID_SURPRISE",
+      "BOUNDS_INCOHERENT",
+      "ZERO_OUTSIDE_YEAR_DOMAIN",
+      "NO_CANDIDATE_PASSES_GATE",
+      "STATEMENT_UNRECOVERABLE",
+      "TABLE_VERSION_MISMATCH"
+    ],
+    "canonical_surprise": [0, 1, 2, 3]
+  },
+
+  "canonical_surprise": {
+    "$comment": "Canonicalization of surprise_factor to the 0-3 band. Canonical keys 0-3 map to themselves. Legacy keys 4-10 use the exact source mapping from canonicalizeSurpriseFactor (4:1, 5:2, 6:2, 7:2, 8:3, 9:3, 10:3). Negative inputs clamp to 0. Missing/invalid schema values use `schema_default`. Values strictly above `legacy_max` follow `upper_clamp`.",
+    "canonical_min": 0,
+    "canonical_max": 3,
+    "canonical_map": { "0": 0, "1": 1, "2": 2, "3": 3 },
+    "legacy_min": 4,
+    "legacy_max": 10,
+    "legacy_map": {
+      "4": 1,
+      "5": 2,
+      "6": 2,
+      "7": 2,
+      "8": 3,
+      "9": 3,
+      "10": 3
+    },
+    "negative_clamp": 0,
+    "upper_clamp": 3,
+    "schema_default": 2
+  },
+
+  "base_distance_bands": {
+    "$comment": "Four ordered base multiplicative bands selected by canonical surprise. Stored in permille (factor * 1000) as exact integers, never binary floats. Semantics: candidate above truth = true * factor; candidate below truth = true / factor. Row 3 carries a magnitude-dependent max via magnitude_calibration (small = 5.000x, large = 4.000x); its `factor_max_permille` here is the small-magnitude value and the large variant is applied by magnitude_calibration. Ordering is enforced: for every adjacent pair (s, s+1) both min and max at s+1 are >= those at s. Seeded from DeriveOffsetsFromSurprise.",
+    "encoding": "permille",
+    "unit_factor": 1000,
+    "bands": [
+      { "surprise": 0, "factor_min_permille": 1150, "factor_max_permille": 1350 },
+      { "surprise": 1, "factor_min_permille": 1350, "factor_max_permille": 1700 },
+      { "surprise": 2, "factor_min_permille": 1800, "factor_max_permille": 2800 },
+      { "surprise": 3, "factor_min_permille": 2500, "factor_max_permille": 5000 }
+    ]
+  },
+
+  "kind_strategies": {
+    "$comment": "Arithmetic family selected per resolved quantity_kind. `year` is additive and calendar-bounded; `percentage` and `rating` are bounded additive within a fixed scale; other kinds are multiplicative by default. `zero_uses_zero_value_strategy` marks kinds whose zero truth routes to zero_value_strategy instead of multiplicative arithmetic (every non-year kind).",
+    "year": { "strategy": "additive", "bounded": true, "zero_uses_zero_value_strategy": false },
+    "count": { "strategy": "multiplicative", "bounded": false, "zero_uses_zero_value_strategy": true },
+    "percentage": { "strategy": "bounded", "bounded": true, "zero_uses_zero_value_strategy": true },
+    "percent_change": { "strategy": "multiplicative", "bounded": false, "zero_uses_zero_value_strategy": true },
+    "ratio": { "strategy": "multiplicative", "bounded": false, "zero_uses_zero_value_strategy": true },
+    "physical_measure": { "strategy": "multiplicative", "bounded": false, "zero_uses_zero_value_strategy": true },
+    "money": { "strategy": "multiplicative", "bounded": false, "zero_uses_zero_value_strategy": true },
+    "duration": { "strategy": "multiplicative", "bounded": false, "zero_uses_zero_value_strategy": true },
+    "rating": { "strategy": "bounded", "bounded": true, "zero_uses_zero_value_strategy": true }
+  },
+
+  "kind_band_conversions": {
+    "$comment": "For additive/bounded kinds, four ordered raw delta intervals derived from the same surprise semantics. Deltas are exact integers/decimals with an explicit scale. Each kind lists one interval per canonical surprise (index 0..3). Ordering is enforced: both delta_min and delta_max are non-decreasing across surprise. `year` deltas are seeded from yearDelta (5, 12, 40, 100) as fixed additive year offsets. Multiplicative kinds have no conversion here; they use base_distance_bands directly.",
+    "year": {
+      "strategy": "additive",
+      "scale": 0,
+      "intervals": [
+        { "surprise": 0, "delta_min": 3, "delta_max": 5 },
+        { "surprise": 1, "delta_min": 8, "delta_max": 12 },
+        { "surprise": 2, "delta_min": 25, "delta_max": 40 },
+        { "surprise": 3, "delta_min": 60, "delta_max": 100 }
+      ]
+    },
+    "percentage": {
+      "strategy": "bounded",
+      "scale": 1,
+      "intervals": [
+        { "surprise": 0, "delta_min": 15, "delta_max": 30 },
+        { "surprise": 1, "delta_min": 30, "delta_max": 60 },
+        { "surprise": 2, "delta_min": 80, "delta_max": 200 },
+        { "surprise": 3, "delta_min": 200, "delta_max": 400 }
+      ]
+    },
+    "rating": {
+      "strategy": "bounded",
+      "scale": 1,
+      "intervals": [
+        { "surprise": 0, "delta_min": 5, "delta_max": 10 },
+        { "surprise": 1, "delta_min": 10, "delta_max": 20 },
+        { "surprise": 2, "delta_min": 20, "delta_max": 35 },
+        { "surprise": 3, "delta_min": 35, "delta_max": 50 }
+      ]
+    }
+  },
+
+  "magnitude_calibration": {
+    "$comment": "Selects the small/large variant of the chosen surprise ROW and picks the snap quantum; it never redirects to a different surprise row. `small_max_exclusive` = 10 mirrors the source `trueNumber < 10` split. For band 3 the large variant caps the max factor at 4.000x (large_factor_max_permille), matching DeriveOffsetsFromSurprise. calibration_ids are stable generated identifiers used in observability.",
+    "small_max_exclusive": 10,
+    "small_max_exclusive_scale": 0,
+    "variants": [
+      { "id": "small", "applies_when_magnitude_scale_lte": 0 },
+      { "id": "large", "applies_when_magnitude_scale_gte": 1 }
+    ],
+    "band3_large_factor_max_permille": 4000,
+    "band3_small_factor_max_permille": 5000
+  },
+
+  "bounds_defaults": {
+    "$comment": "Deterministic kind-derived plausibility bounds used only when no valid Fact Bank or model bounds_hint survives. `mult_lo_permille`/`mult_hi_permille` derive bounds multiplicatively from |true| for unbounded kinds; `zero_default_max` provides the default upper bound when true_number == 0 so zero-value additive distractors fit within plausibility bounds; fixed_min/fixed_max apply for kinds with a fixed scale. A resolved pair must satisfy plausible_min <= true_number <= plausible_max; otherwise the model abstains with BOUNDS_INCOHERENT. `year.retrospective_ceiling` fixes the normative upper bound for retrospective past milestones (true_number <= retrospective_ceiling) so past events never generate absurd future-year decoys; it is bumped each January by the repo maintainers alongside gen_derivation_tables.mjs. Future-dated events (true_number > retrospective_ceiling) remain unclamped.",
+    "year": { "mode": "additive_window", "window_below": 150, "window_above": 150, "hard_floor": 1, "hard_ceiling": 3000, "retrospective_ceiling": 2026 },
+    "count": { "mode": "multiplicative", "mult_lo_permille": 100, "mult_hi_permille": 8000, "hard_floor": 0, "floor_min_to_integer": true, "zero_default_max": 50 },
+    "percentage": { "mode": "fixed", "fixed_min": 0, "fixed_max": 100, "scale": 1 },
+    "percent_change": { "mode": "multiplicative", "mult_lo_permille": 100, "mult_hi_permille": 10000 },
+    "ratio": { "mode": "multiplicative", "mult_lo_permille": 100, "mult_hi_permille": 8000, "zero_default_max": 2 },
+    "physical_measure": { "mode": "multiplicative", "mult_lo_permille": 100, "mult_hi_permille": 10000, "zero_default_max": 100 },
+    "money": { "mode": "multiplicative", "mult_lo_permille": 100, "mult_hi_permille": 10000, "zero_default_max": 1000 },
+    "duration": { "mode": "multiplicative", "mult_lo_permille": 100, "mult_hi_permille": 10000, "zero_default_max": 10 },
+    "rating": { "mode": "fixed", "fixed_min": 0, "fixed_max": 10, "scale": 1 }
+  },
+
+  "unit_bounds_overrides": {
+    "$comment": "Hard domain ceilings/floors keyed by NORMALIZED unit (post-normalization spelling: lowercase, single spaces). After bounds resolve (Fact-Bank hint, model hint, or kind default), the resolved pair is intersected with the unit's override pair and re-checked for coherence: a physical/rule ceiling constrains even hint-provided bounds, and a true_number outside the override yields BOUNDS_INCOHERENT. Seed ONLY mathematically or rule-true limits (e.g. the NFL passer-rating formula caps at 158.3); soft priors belong in per-fact plausible_min/plausible_max hints, never here. Bound tokens are canonical numeric strings ingested by exact Numeric_Ingest, never floats.",
+    "passer rating": { "min_token": "0", "max_token": "158.3" }
+  },
+
+  "hard_boundaries": {
+    "$comment": "Quantity-kind domain limits that a candidate must satisfy independently of plausibility bounds. A candidate on the invalid side is rejected, never clamped. `min_inclusive`/`max_inclusive` are exact; null means no boundary on that end. integer_only forces integral candidates (count). Seeded from Giveaway Gate rules 5.8 (count >= 0) and 5.9 (percentage <= 100).",
+    "year": { "min_inclusive": 1, "max_inclusive": 3000, "integer_only": true },
+    "count": { "min_inclusive": 0, "max_inclusive": null, "integer_only": true },
+    "percentage": { "min_inclusive": 0, "max_inclusive": 100, "integer_only": false, "scale": 1 },
+    "percent_change": { "min_inclusive": null, "max_inclusive": null, "integer_only": false },
+    "ratio": { "min_inclusive": null, "max_inclusive": null, "integer_only": false },
+    "physical_measure": { "min_inclusive": null, "max_inclusive": null, "integer_only": false },
+    "money": { "min_inclusive": 0, "max_inclusive": null, "integer_only": false },
+    "duration": { "min_inclusive": 0, "max_inclusive": null, "integer_only": false },
+    "rating": { "min_inclusive": 0, "max_inclusive": 10, "integer_only": false, "scale": 1 }
+  },
+
+  "dead_zones": {
+    "$comment": "The band immediately around true_number inside which a candidate is too obvious and must be rejected. `half_width_permille` is a fraction of |true| (permille of the true magnitude); `min_absolute` with `min_absolute_scale` guarantees a floor for tiny/zero truths. A candidate c is inside the dead zone when |c - true| < max(|true| * half_width_permille/1000, min_absolute). Applies per kind. Percentage uses an absolute floor only (1.0 point): a 5% multiplicative dead zone around 95 swallows the surprise-0 additive band of 1.5-3.0 points, collapsing every surprise onto the same snapped 90.",
+    "encoding": "permille_of_true",
+    "unit_factor": 1000,
+    "kinds": {
+      "year": { "half_width_permille": 0, "min_absolute": 1, "min_absolute_scale": 0 },
+      "count": { "half_width_permille": 50, "min_absolute": 1, "min_absolute_scale": 0 },
+      "percentage": { "half_width_permille": 0, "min_absolute": 10, "min_absolute_scale": 1 },
+      "percent_change": { "half_width_permille": 80, "min_absolute": 1, "min_absolute_scale": 2 },
+      "ratio": { "half_width_permille": 80, "min_absolute": 1, "min_absolute_scale": 2 },
+      "physical_measure": { "half_width_permille": 80, "min_absolute": 1, "min_absolute_scale": 1 },
+      "money": { "half_width_permille": 80, "min_absolute": 1, "min_absolute_scale": 0 },
+      "duration": { "half_width_permille": 80, "min_absolute": 1, "min_absolute_scale": 2 },
+      "rating": { "half_width_permille": 50, "min_absolute": 5, "min_absolute_scale": 1 }
+    }
+  },
+
+  "candidate_order": {
+    "$comment": "Deterministic variation-slot enumeration and the finite remedy ladder. `slot_count` fixes how many evenly spaced slots span each band interval; slot0 is chosen by FNV-1a over the variation key and remaining slots are walked in the fixed order below. `variation_key_fields` is the exact, ordered set of canonical DDM determinants used to build the key — it deliberately excludes candidate_side, round_number, topic, clocks, and pack/round difficulty metadata. `remedy_stages` is the finite, ordered remedy sequence (first-pass-wins). All non-crossing stages exhaust on the required side before any crossing stage runs: `opposite_side` retries the calibrated band on the other side, and `opposite_bound_derived` is the last-resort bound interpolation on that same other side (reachable only when the opposite band itself cannot land a candidate, e.g. a small-count band collapsing onto landmark values).",
+    "slot_count": 8,
+    "slot_walk": [0, 4, 2, 6, 1, 5, 3, 7],
+    "variation_key_fields": [
+      "true_number",
+      "normalized_unit",
+      "quantity_kind",
+      "canonical_surprise",
+      "trap_direction",
+      "plausible_min",
+      "plausible_max"
+    ],
+    "remedy_stages": [
+      { "index": 0, "id": "preferred_side", "crosses_side": false },
+      { "index": 1, "id": "alternative_calibration", "crosses_side": false },
+      { "index": 2, "id": "bound_derived", "crosses_side": false },
+      { "index": 3, "id": "opposite_side", "crosses_side": true },
+      { "index": 4, "id": "opposite_bound_derived", "crosses_side": true }
+    ]
+  },
+
+  "snapping": {
+    "$comment": "Significant-figure / natural-number snapping. The initial step is selected by (quantity_kind, magnitude_scale); the refinement sequence is evaluated in index order and the first invariant-preserving snapped value wins. `two_sig_fig` leads so the deterministic 8-slot band variation survives snapping (e.g. slots around a 4000-truth stay 4600/4700/.../5400 instead of all collapsing to one_sig_fig's 5000); `one_sig_fig` is the first fallback when a two-figure snap violates an invariant, and half_step/unit_step terminate the ladder. Steps are exact powers-of-ten quanta expressed as (step_mantissa * 10^step_exp). Midpoint magnitudes round away from zero. Count outputs stay integral (min step exponent 0). Year and percentage cap max_step_exp at 0 so calendar years and percent-points never coarsen to a 10s/1000s quantum (1897 must not become 2000; 95 must not become 90). Snapping an already-snapped value at the same step is idempotent.",
+    "significant_figures_min": 1,
+    "significant_figures_max": 2,
+    "refinement_sequence": [
+      { "index": 0, "id": "two_sig_fig" },
+      { "index": 1, "id": "one_sig_fig" },
+      { "index": 2, "id": "half_step" },
+      { "index": 3, "id": "unit_step" }
+    ],
+    "kind_steps": {
+      "year": { "min_step_exp": 0, "prefer_step_exp": 0, "max_step_exp": 0 },
+      "count": { "min_step_exp": 0, "prefer_step_exp": 0 },
+      "percentage": { "min_step_exp": -1, "prefer_step_exp": 0, "max_step_exp": 0 },
+      "percent_change": { "min_step_exp": -1, "prefer_step_exp": 0, "max_step_exp": 0 },
+      "ratio": { "min_step_exp": -2, "prefer_step_exp": -1 },
+      "physical_measure": { "min_step_exp": -1, "prefer_step_exp": 0 },
+      "money": { "min_step_exp": 0, "prefer_step_exp": 1 },
+      "duration": { "min_step_exp": -2, "prefer_step_exp": -1 },
+      "rating": { "min_step_exp": -1, "prefer_step_exp": -1 }
+    }
+  },
+
+  "landmarks": {
+    "$comment": "Famous round-number giveaways that must be rejected when they sit adjacent to true_number. A candidate equal to a landmark within `proximity_permille` of |true| is a giveaway. Landmarks are exact integers/decimals with an explicit scale; the list is finite and unique. The grid is 0 plus the human-salient round numbers {1, 2, 2.5, 5} x 10^k for k = 0..10 (2.5 stored as 25 x 10^-1), so quarter-marks like 25/250/2500 and decade powers like 2000/5000/10000 are gated just like the classic 10/100/1000.",
+    "encoding": "permille_of_true",
+    "proximity_permille": 20,
+    "values": [
+      { "value": 0, "scale": 0 },
+      { "value": 1, "scale": 0 },
+      { "value": 2, "scale": 0 },
+      { "value": 25, "scale": 1 },
+      { "value": 5, "scale": 0 },
+      { "value": 10, "scale": 0 },
+      { "value": 20, "scale": 0 },
+      { "value": 25, "scale": 0 },
+      { "value": 50, "scale": 0 },
+      { "value": 100, "scale": 0 },
+      { "value": 200, "scale": 0 },
+      { "value": 250, "scale": 0 },
+      { "value": 500, "scale": 0 },
+      { "value": 1000, "scale": 0 },
+      { "value": 2000, "scale": 0 },
+      { "value": 2500, "scale": 0 },
+      { "value": 5000, "scale": 0 },
+      { "value": 10000, "scale": 0 },
+      { "value": 20000, "scale": 0 },
+      { "value": 25000, "scale": 0 },
+      { "value": 50000, "scale": 0 },
+      { "value": 100000, "scale": 0 },
+      { "value": 200000, "scale": 0 },
+      { "value": 250000, "scale": 0 },
+      { "value": 500000, "scale": 0 },
+      { "value": 1000000, "scale": 0 },
+      { "value": 2000000, "scale": 0 },
+      { "value": 2500000, "scale": 0 },
+      { "value": 5000000, "scale": 0 },
+      { "value": 10000000, "scale": 0 },
+      { "value": 20000000, "scale": 0 },
+      { "value": 25000000, "scale": 0 },
+      { "value": 50000000, "scale": 0 },
+      { "value": 100000000, "scale": 0 },
+      { "value": 200000000, "scale": 0 },
+      { "value": 250000000, "scale": 0 },
+      { "value": 500000000, "scale": 0 },
+      { "value": 1000000000, "scale": 0 },
+      { "value": 2000000000, "scale": 0 },
+      { "value": 2500000000, "scale": 0 },
+      { "value": 5000000000, "scale": 0 },
+      { "value": 10000000000, "scale": 0 },
+      { "value": 20000000000, "scale": 0 },
+      { "value": 25000000000, "scale": 0 },
+      { "value": 50000000000, "scale": 0 }
+    ]
+  },
+
+  "zero_value_strategy": {
+    "$comment": "Additive candidate strategy when normalized true_number == 0. `year` immediately abstains with ZERO_OUTSIDE_YEAR_DOMAIN. Every other kind carries a finite, strictly increasing, NONZERO ordered offset sequence per canonical surprise (index 0..3). Offsets are tried on the trap-preferred side in list order, then (when opposite-side fallback is permitted) on the opposite side; forced-side re-derivation never crosses sides. Offsets are exact integers/decimals with an explicit scale. All offsets are nonzero and finite by construction; the generator rejects any zero or non-finite offset.",
+    "year_abstains": true,
+    "year_abstain_reason": "ZERO_OUTSIDE_YEAR_DOMAIN",
+    "offsets": {
+      "count": {
+        "scale": 0,
+        "surprise": {
+          "0": [2, 3, 5],
+          "1": [3, 5, 8],
+          "2": [5, 10, 20],
+          "3": [10, 25, 50]
+        }
+      },
+      "percentage": {
+        "scale": 1,
+        "surprise": {
+          "0": [20, 30, 50],
+          "1": [30, 60, 100],
+          "2": [80, 150, 250],
+          "3": [200, 350, 500]
+        }
+      },
+      "percent_change": {
+        "scale": 1,
+        "surprise": {
+          "0": [10, 20, 50],
+          "1": [20, 50, 100],
+          "2": [50, 150, 300],
+          "3": [150, 400, 800]
+        }
+      },
+      "ratio": {
+        "scale": 2,
+        "surprise": {
+          "0": [5, 10, 20],
+          "1": [10, 25, 50],
+          "2": [25, 50, 100],
+          "3": [50, 100, 200]
+        }
+      },
+      "physical_measure": {
+        "scale": 1,
+        "surprise": {
+          "0": [10, 20, 50],
+          "1": [20, 50, 100],
+          "2": [50, 150, 300],
+          "3": [150, 400, 800]
+        }
+      },
+      "money": {
+        "scale": 0,
+        "surprise": {
+          "0": [5, 10, 20],
+          "1": [10, 25, 50],
+          "2": [50, 150, 300],
+          "3": [200, 500, 1000]
+        }
+      },
+      "duration": {
+        "scale": 2,
+        "surprise": {
+          "0": [10, 25, 50],
+          "1": [25, 50, 100],
+          "2": [50, 150, 300],
+          "3": [150, 400, 800]
+        }
+      },
+      "rating": {
+        "scale": 1,
+        "surprise": {
+          "0": [5, 10, 15],
+          "1": [10, 20, 30],
+          "2": [20, 35, 50],
+          "3": [35, 60, 90]
+        }
+      }
+    }
+  },
+
+  "display": {
+    "$comment": "Display/formatting rules used by the displayed-value collision gate and canonical output. Numbers >= grouping_threshold use thousands grouping. `decimal_places_by_kind` fixes how many decimals a kind renders so a candidate and truth that render identically after formatting are rejected as a display collision (Giveaway Gate rule 3). All values are exact integers.",
+    "grouping_threshold": 10000,
+    "thousands_separator": ",",
+    "decimal_point": ".",
+    "decimal_places_by_kind": {
+      "year": 0,
+      "count": 0,
+      "percentage": 1,
+      "percent_change": 1,
+      "ratio": 2,
+      "physical_measure": 1,
+      "money": 0,
+      "duration": 2,
+      "rating": 1
+    }
+  },
+
+  "validation": {
+    "$comment": "Machine-checkable invariants the generator (scripts/gen_derivation_tables.mjs) enforces before emitting any runtime file. These are declarative assertions over the sections above; the generator fails closed if any is violated.",
+    "monotonic_surprise_bands": {
+      "description": "For base_distance_bands and every kind_band_conversions interval list, both min and max are non-decreasing across adjacent canonical surprise values 0->1->2->3.",
+      "applies_to": ["base_distance_bands", "kind_band_conversions"]
+    },
+    "completeness": {
+      "description": "Every quantity_kind in closed_sets.quantity_kind has an entry in kind_strategies, bounds_defaults, hard_boundaries, dead_zones.kinds, snapping.kind_steps, and display.decimal_places_by_kind; canonical_surprise covers keys 0-3 and legacy keys 4-10; every non-year kind has zero_value_strategy offsets for surprise 0-3.",
+      "required_per_kind_sections": [
+        "kind_strategies",
+        "bounds_defaults",
+        "hard_boundaries",
+        "dead_zones.kinds",
+        "snapping.kind_steps",
+        "display.decimal_places_by_kind"
+      ]
+    },
+    "uniqueness": {
+      "description": "closed_sets have no duplicate members; landmarks.values are unique by (value, scale); candidate_order.slot_walk is a permutation of 0..slot_count-1; remedy_stages indices are unique and contiguous from 0.",
+      "applies_to": ["closed_sets", "landmarks", "candidate_order"]
+    },
+    "finite_sequences": {
+      "description": "candidate_order.remedy_stages, snapping.refinement_sequence, and every zero_value_strategy offset list are finite and non-empty; slot_count and proximity/window values are finite non-negative integers.",
+      "applies_to": ["candidate_order", "snapping", "zero_value_strategy"]
+    },
+    "nonzero_zero_strategy_offsets": {
+      "description": "Every offset in zero_value_strategy.offsets is a finite, nonzero, strictly increasing integer within its declared scale; no zero or non-finite offset is permitted.",
+      "applies_to": ["zero_value_strategy"]
+    },
+    "fixed_point_only": {
+      "description": "All shared numbers are exact integer/fixed-point encodings (permille factors, integer/decimal mantissas with explicit scale). No binary floating literal is stored; the generator rejects any non-integer numeric literal outside declared decimal-scale contexts."
+    }
+  }
+}
