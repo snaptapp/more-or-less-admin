@@ -136,7 +136,21 @@ function normalizeCoveredCommits(value) {
   }
   const commits = {};
   for (const [sourcePath, commit] of Object.entries(value)) {
-    commits[sourcePath] = normalizeCommit(commit, `coveredCommits.${sourcePath}`);
+    const entry = isPlainObject(commit) ? commit : { sha: commit };
+    const sha = normalizeCommit(
+      entry.sha ?? (isPlainObject(entry.commit) ? entry.commit.sha : undefined),
+      `coveredCommits.${sourcePath}`,
+    );
+    const committedAt = entry.committedAt ?? entry.date ??
+      (isPlainObject(entry.commit) && isPlainObject(entry.commit.committer)
+        ? entry.commit.committer.date
+        : undefined);
+    if (committedAt !== undefined && (typeof committedAt !== "string" || Number.isNaN(Date.parse(committedAt)))) {
+      throw new FreshnessConfigError(
+        `coveredCommits.${sourcePath}.committedAt must be an ISO date string.`,
+      );
+    }
+    commits[sourcePath] = { sha, ...(committedAt === undefined ? {} : { committedAt }) };
   }
   return commits;
 }
@@ -235,17 +249,21 @@ export function evaluateArtifactFreshness({ localManifest, adoption, upstream })
     UPSTREAM_MANIFEST_RELATIVE_PATH,
   ]);
   const changedCovered = normalizedUpstream.changedPaths.filter((changedPath) => covered.has(changedPath));
+  const coveredCommitEntries = Object.entries(normalizedUpstream.coveredCommits)
+    .filter(([sourcePath]) => covered.has(sourcePath));
+  const datedCoveredCommits = coveredCommitEntries
+    .filter(([, commit]) => commit.committedAt !== undefined)
+    .sort(([, left], [, right]) => left.committedAt.localeCompare(right.committedAt));
+  const latestCoveredEntry = datedCoveredCommits.at(-1);
+  const effectiveLatestCoveredCommit =
+    normalizedUpstream.latestCoveredCommit ?? latestCoveredEntry?.[1].sha;
   const newerCovered = [];
-  for (const [sourcePath, latestCommit] of Object.entries(normalizedUpstream.coveredCommits)) {
-    if (covered.has(sourcePath) && !commitMatches(latestCommit, sourceCommit)) {
-      newerCovered.push(`${sourcePath} (${latestCommit})`);
-    }
-  }
-  if (
-    normalizedUpstream.latestCoveredCommit !== undefined &&
-    !commitMatches(normalizedUpstream.latestCoveredCommit, sourceCommit)
-  ) {
-    newerCovered.push(`covered paths (${normalizedUpstream.latestCoveredCommit})`);
+  if (effectiveLatestCoveredCommit !== undefined && !commitMatches(effectiveLatestCoveredCommit, sourceCommit)) {
+    newerCovered.push(
+      latestCoveredEntry && !normalizedUpstream.latestCoveredCommit
+        ? `${latestCoveredEntry[0]} (${effectiveLatestCoveredCommit})`
+        : `covered paths (${effectiveLatestCoveredCommit})`,
+    );
   }
 
   if (normalizedUpstream.sourceCommit !== undefined && !commitMatches(normalizedUpstream.sourceCommit, sourceCommit)) {
@@ -261,6 +279,16 @@ export function evaluateArtifactFreshness({ localManifest, adoption, upstream })
     failures.push({
       code: EXIT_FRESH_MISSING_METADATA,
       message: "check-artifact-freshness: missing upstream metadata — no latest covered-path commit was supplied.",
+    });
+  } else if (
+    normalizedUpstream.latestCoveredCommit === undefined &&
+    coveredCommitEntries.length > 0 &&
+    datedCoveredCommits.length !== coveredCommitEntries.length
+  ) {
+    failures.push({
+      code: EXIT_FRESH_MISSING_METADATA,
+      message:
+        "check-artifact-freshness: missing upstream metadata — per-path commit timestamps are required to identify the newest covered path.",
     });
   }
 
@@ -366,9 +394,16 @@ function commitsUrl(apiBase, repository, ref, sourcePath) {
 function latestCommitFromBody(body) {
   const entry = Array.isArray(body) ? body[0] : body;
   if (!isPlainObject(entry)) return null;
-  if (typeof entry.sha === "string") return entry.sha;
-  if (isPlainObject(entry.commit) && typeof entry.commit.sha === "string") return entry.commit.sha;
-  return null;
+  const sha = typeof entry.sha === "string"
+    ? entry.sha
+    : isPlainObject(entry.commit) && typeof entry.commit.sha === "string"
+      ? entry.commit.sha
+      : null;
+  if (sha === null) return null;
+  const committedAt = isPlainObject(entry.commit) && isPlainObject(entry.commit.committer)
+    ? entry.commit.committer.date
+    : undefined;
+  return { sha, ...(committedAt === undefined ? {} : { committedAt }) };
 }
 
 /**
@@ -445,9 +480,14 @@ export async function fetchUpstreamMetadata({
       return [sourcePath, commit];
     }),
   );
+  const datedCommitEntries = commitEntries.filter(([, commit]) => commit.committedAt !== undefined);
+  const latestCoveredCommit = datedCommitEntries.length === 0
+    ? undefined
+    : [...datedCommitEntries].sort(([, left], [, right]) => left.committedAt.localeCompare(right.committedAt)).at(-1)[1].sha;
   return normalizeUpstreamMetadata({
     manifest,
     coveredCommits: Object.fromEntries(commitEntries),
+    latestCoveredCommit,
   });
 }
 

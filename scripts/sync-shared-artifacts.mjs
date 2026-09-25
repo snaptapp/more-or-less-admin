@@ -68,14 +68,14 @@ function defaultUpstreamRoot(root) {
   return path.resolve(root, "../more-or-less");
 }
 
-function sourceCommitFor(manifest, explicitSourceCommit) {
+function sourceCommitFor(manifest, explicitSourceCommit, existingSourceCommit) {
   if (explicitSourceCommit !== undefined && explicitSourceCommit !== null) {
     if (typeof explicitSourceCommit !== "string" || !/^[a-f0-9]{7,64}$/i.test(explicitSourceCommit)) {
       throw new Error("--source-commit must be a hexadecimal git commit id.");
     }
     return explicitSourceCommit;
   }
-  return manifest.sourceCommit;
+  return manifest.sourceCommit ?? existingSourceCommit;
 }
 
 function readAdoptionIfPresent({ root, readFile, exists }) {
@@ -211,7 +211,7 @@ function preflight({
       adopted: true,
       contractVersion: manifest.contractVersion,
     };
-    const commit = sourceCommitFor(manifest, sourceCommit);
+    const commit = sourceCommitFor(manifest, sourceCommit, existing?.sourceCommit);
     if (commit !== undefined) adoptionValue.sourceCommit = commit;
     if (stampAdoptedAt) {
       adoptionValue.adoptedAt = new Date(now()).toISOString();

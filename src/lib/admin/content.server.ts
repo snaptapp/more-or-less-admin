@@ -974,7 +974,6 @@ export async function updateFact(
         ...(input.sub_category ? { sub_category: input.sub_category } : {}),
         aliases: [],
         playlist_ids: [],
-        fact_count: 0,
         createdAt: updatedAt,
       });
     }
@@ -1516,7 +1515,6 @@ export async function createFact(input: ImportFactInput): Promise<FactRecord> {
         aliases: [],
         playlist_ids: [],
         // Coverage is maintained by the reconciler, not by admission.
-        fact_count: 0,
         createdAt: pendingFact.created_at,
       });
     }

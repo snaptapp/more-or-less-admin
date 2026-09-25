@@ -75,11 +75,15 @@ function makeLocalFixture(): { root: string; manifest: FixtureManifest } {
   return { root, manifest };
 }
 
-function coveredCommits(manifest: FixtureManifest, commit: string): Record<string, string> {
+function coveredCommits(
+  manifest: FixtureManifest,
+  commit: string,
+  committedAt = "2026-09-24T00:00:00Z",
+): Record<string, { sha: string; committedAt: string }> {
   return Object.fromEntries(
     [...manifest.coveredSourcePaths, "shared/artifact-manifest.gen.json"].map((sourcePath) => [
       sourcePath,
-      commit,
+      { sha: commit, committedAt },
     ]),
   );
 }
@@ -107,7 +111,7 @@ describe("read-only upstream freshness", () => {
       if (url.includes("/contents/")) {
         return response({ content: encodedManifest, encoding: "base64" });
       }
-      return response([{ sha: SOURCE_COMMIT }]);
+      return response([{ sha: SOURCE_COMMIT, commit: { committer: { date: "2026-09-24T00:00:00Z" } } }]);
     };
 
     const outcome = await freshness.runArtifactFreshnessCheck({ root, fetchImpl });
@@ -173,7 +177,10 @@ describe("read-only upstream freshness", () => {
   it("fails when a newer commit touches a covered path", async () => {
     const { root, manifest } = makeLocalFixture();
     const commits = coveredCommits(manifest, SOURCE_COMMIT);
-    commits["src/derivation.ts"] = NEWER_COMMIT;
+    commits["src/derivation.ts"] = {
+      sha: NEWER_COMMIT,
+      committedAt: "2026-09-25T00:00:00Z",
+    };
 
     const outcome = await freshness.runArtifactFreshnessCheck({
       root,
