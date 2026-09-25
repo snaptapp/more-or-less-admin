@@ -59,9 +59,10 @@ export interface PreparedAuditEntry {
 }
 
 /** Allocate a path-safe, non-empty audit identity for one logical operation. */
+/** Allocate a path-safe, non-empty audit identity for one logical operation. */
 export function createAuditIdentity(): AuditIdentity {
   return {
-    id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    id: `${Date.now()}_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
     createdAt: new Date().toISOString(),
   };
 }
