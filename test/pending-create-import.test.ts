@@ -116,7 +116,7 @@ afterEach(() => {
 });
 
 describe("pending fact create/import admission", () => {
-  it("persists only the builder payload and leaves subject coverage at zero", async () => {
+  it("persists only the builder payload and leaves subject coverage reconciler-owned", async () => {
     const value = input();
     const created = await createFact(value);
     const write = factWrite();
@@ -130,7 +130,7 @@ describe("pending fact create/import admission", () => {
 
     const subject = firestoreDouble().document(`fact_subjects/${expected.subject_key}`);
     expect(subject).not.toBeNull();
-    expect(subject?.data["fact_count"]).toBe(0);
+    expect(subject?.data["fact_count"]).toBeUndefined();
     expect(blockedNetworkAttempts()).toEqual([]);
   });
 
