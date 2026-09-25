@@ -6,10 +6,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  deriveWithPrecompute,
+  deriveBankRound,
   stableFactKey,
   toCurrentPrecomputedDerivation,
   toPrecomputedDerivation,
+  type BankPrecomputeFact,
   type FirestoreDerivationBlock,
 } from "../src/lib/admin/ddm-precompute";
 import {
@@ -53,6 +54,28 @@ function percentChangeInput(side?: CandidateSide, precomputed?: PrecomputedDeriv
     side,
     precomputed,
   );
+}
+
+function deriveViaProductionAdapter(
+  input: NonNullable<ReturnType<typeof percentChangeInput>["input"]>,
+  block: unknown,
+  side?: CandidateSide,
+) {
+  const bounds = input.factBankBounds ?? input.modelBounds;
+  const fact: BankPrecomputeFact = {
+    category: "Test",
+    sub_category: "",
+    specialty: "Adapter",
+    fact: "test",
+    number_token: input.incomingNumericToken,
+    unit: input.unit,
+    surprise_factor: input.surpriseFactor,
+    quantity_kind: input.quantityKind,
+    plausible_min: bounds?.minToken,
+    plausible_max: bounds?.maxToken,
+    derivation: block as BankPrecomputeFact["derivation"],
+  };
+  return deriveBankRound(fact, side);
 }
 
 function liveToken(side: CandidateSide): string {
@@ -205,12 +228,12 @@ describe("Firestore DDM precompute adapter", () => {
       quantityKind: KindPercentChange,
       surpriseFactor: 1,
     });
-    const result = deriveWithPrecompute(ingest.input!, stale);
+    const result = deriveViaProductionAdapter(ingest.input!, stale);
 
-    expect(result.success?.source).toBe("live");
-    expect(result.success?.quantityKind).toBe(KindPercentChange);
-    expect(formatFixedCanonical(result.success!.presentedNumber)).not.toBe("999");
-    expect(formatFixedCanonical(result.success!.plausibleMin)).not.toBe("0");
+    expect(result?.source).toBe("live");
+    expect(result?.quantityKind).toBe(KindPercentChange);
+    expect(result?.presented).not.toBe(999);
+    expect(result?.plausibleMin).not.toBe(0);
   });
 
   it("falls live when a valid block's candidate fails the re-gate", () => {
@@ -227,12 +250,12 @@ describe("Firestore DDM precompute adapter", () => {
       quantityKind: KindPercentChange,
       surpriseFactor: 1,
     });
-    const result = deriveWithPrecompute(ingest.input!, rejected);
+    const result = deriveViaProductionAdapter(ingest.input!, rejected);
 
-    expect(result.success?.source).toBe("live");
-    expect(result.success?.quantityKind).toBe(KindPercentChange);
-    expect(formatFixedCanonical(result.success!.presentedNumber)).not.toBe("340");
-    expect(formatFixedCanonical(result.success!.plausibleMin)).not.toBe("0");
+    expect(result?.source).toBe("live");
+    expect(result?.quantityKind).toBe(KindPercentChange);
+    expect(result?.presented).not.toBe(340);
+    expect(result?.plausibleMin).not.toBe(0);
   });
 
   it("drops a malformed block and an existing precompute before live derivation", () => {
@@ -256,14 +279,14 @@ describe("Firestore DDM precompute adapter", () => {
       quantityKind: KindPercentChange,
       surpriseFactor: 1,
     });
-    const result = deriveWithPrecompute(
+    const result = deriveViaProductionAdapter(
       { ...ingest.input!, precomputed: stalePrecomputed },
       malformed,
     );
 
-    expect(result.success?.source).toBe("live");
-    expect(result.success?.quantityKind).toBe(KindPercentChange);
-    expect(formatFixedCanonical(result.success!.presentedNumber)).not.toBe("999");
-    expect(formatFixedCanonical(result.success!.plausibleMin)).not.toBe("0");
+    expect(result?.source).toBe("live");
+    expect(result?.quantityKind).toBe(KindPercentChange);
+    expect(result?.presented).not.toBe(999);
+    expect(result?.plausibleMin).not.toBe(0);
   });
 });

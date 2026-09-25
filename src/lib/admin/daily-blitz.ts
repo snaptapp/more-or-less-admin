@@ -1,12 +1,6 @@
 /** Shared Daily Blitz authoring types and pure helpers (safe for client + server). */
-import { deriveWithPrecompute, toPrecomputedDerivation } from "./ddm-precompute";
-import {
-  DDMVersion,
-  schemaIngestRaw,
-  type DerivationResult,
-  type FixedPointValue,
-  type RawSchemaRound,
-} from "../../../shared/ddm/derivation";
+import { deriveBankRound, toPrecomputedDerivation, type BankPrecomputeFact } from "./ddm-precompute";
+import { DDMVersion } from "../../../shared/ddm/derivation";
 
 export const DAILY_BLITZ_ROUNDS = 15;
 export const DAILY_BLITZ_SECONDS = 60;
@@ -235,18 +229,11 @@ export function pickGatedDistractor(
   try {
     const trueNumberToken = ddmToken(trueNumber);
     if (trueNumberToken === null) return null;
-    const ingest = schemaIngestRaw(
-      { trueNumberToken, unit: "", surpriseFactor: surprise },
-      preferredSide,
-    ).input;
-    if (!ingest) return null;
-
-    const result = deriveWithPrecompute(ingest, block, { forcedSide: preferredSide });
-    const success = result.success;
-    if (!success) return null;
-    const presented = fixedToNumber(success.presentedNumber);
-    if (!Number.isFinite(presented) || presented === trueNumber) return null;
-    return { presented, side: success.correctDirection };
+    const fact = blankBankFact(trueNumberToken, "", surprise, block);
+    const result = deriveBankRound(fact, preferredSide);
+    if (!result) return null;
+    if (!Number.isFinite(result.presented) || result.presented === trueNumber) return null;
+    return { presented: result.presented, side: result.direction };
   } catch {
     return null;
   }
@@ -286,45 +273,56 @@ function ddmToken(value: unknown): string | null {
   return null;
 }
 
-function fixedToNumber(value: FixedPointValue): number {
-  // The DDM has already validated the exact fixed-point value. This is the
-  // single post-derivation conversion to the editor/wire number type.
-  const magnitude = value.scale === 0 ? value.mantissa : value.mantissa / 10 ** value.scale;
-  return value.negative ? -magnitude : magnitude;
-}
-
-/** Builds the allowlisted input without ever copying fields from a precompute block. */
-function buildDerivationInput(input: FactToBlitzInput, trueNumber: number, surprise: number) {
-  const trueNumberToken = ddmToken(trueNumber);
-  if (trueNumberToken === null) return null;
-
-  const raw: RawSchemaRound = {
-    trueNumberToken,
-    unit: input.unit || "",
-    surpriseFactor: surprise,
-  };
-  if (typeof input.quantity_kind === "string" && input.quantity_kind.trim() !== "") {
-    raw.quantityKind = input.quantity_kind;
-  }
-
+function bankFactForBlitz(
+  input: FactToBlitzInput,
+  trueNumberToken: string,
+  surprise: number,
+): BankPrecomputeFact {
   const min = ddmToken(input.plausible_min);
   const max = ddmToken(input.plausible_max);
-  if (min !== null && max !== null) {
-    raw.plausibleMinToken = min;
-    raw.plausibleMaxToken = max;
-  }
-
-  return schemaIngestRaw(raw, input.preferredSide).input;
+  return {
+    category: input.topic || "",
+    sub_category: "",
+    specialty: input.subject,
+    fact: input.fact || input.question || input.subject,
+    angle: input.angle,
+    number_token: trueNumberToken,
+    unit: input.unit || "",
+    surprise_factor: surprise,
+    quantity_kind: input.quantity_kind || undefined,
+    plausible_min: min ?? undefined,
+    plausible_max: max ?? undefined,
+    derivation: input.derivation ?? undefined,
+  };
 }
 
-/** Runs the current DDM with precompute re-gating and a block-free live retry. */
-function deriveBlitz(input: FactToBlitzInput, trueNumber: number, surprise: number): DerivationResult | null {
+function blankBankFact(
+  trueNumberToken: string,
+  unit: string,
+  surprise: number,
+  derivation?: FactDerivationBlock | null,
+): BankPrecomputeFact {
+  return {
+    category: "",
+    sub_category: "",
+    specialty: "",
+    fact: "",
+    number_token: trueNumberToken,
+    unit,
+    surprise_factor: surprise,
+    derivation: derivation ?? undefined,
+  };
+}
+
+/** Runs the current production DDM adapter with precompute re-gating. */
+function deriveBlitz(input: FactToBlitzInput, trueNumber: number, surprise: number) {
   try {
-    const derivationInput = buildDerivationInput(input, trueNumber, surprise);
-    if (derivationInput === undefined || derivationInput === null) return null;
-    return deriveWithPrecompute(derivationInput, input.derivation, {
-      forcedSide: input.preferredSide,
-    });
+    const trueNumberToken = ddmToken(trueNumber);
+    if (trueNumberToken === null) return null;
+    return deriveBankRound(
+      bankFactForBlitz(input, trueNumberToken, surprise),
+      input.preferredSide,
+    );
   } catch {
     return null;
   }
@@ -342,19 +340,16 @@ export function factToBlitzRound(input: FactToBlitzInput): { round: EditableRoun
       ? input.surprise_factor
       : 2;
   const derived = deriveBlitz(input, trueNum, surprise);
-  const success = derived?.success;
-  if (!success) return { error: DDM_DISTRACTOR_ERROR };
+  if (!derived) return { error: DDM_DISTRACTOR_ERROR };
 
-  const presented = fixedToNumber(success.presentedNumber);
-  const plausibleMin = fixedToNumber(success.plausibleMin);
-  const plausibleMax = fixedToNumber(success.plausibleMax);
+  const { presented, direction, quantityKind, trapDirection, plausibleMin, plausibleMax } = derived;
   if (
     !Number.isFinite(presented) ||
     !Number.isFinite(plausibleMin) ||
     !Number.isFinite(plausibleMax) ||
     presented === trueNum ||
     plausibleMin > plausibleMax ||
-    directionFromNumbers(trueNum, presented) !== success.correctDirection
+    directionFromNumbers(trueNum, presented) !== direction
   ) {
     return { error: DDM_DISTRACTOR_ERROR };
   }
@@ -371,12 +366,12 @@ export function factToBlitzRound(input: FactToBlitzInput): { round: EditableRoun
       presented_number: presented,
       true_number: trueNum,
       unit: input.unit || "",
-      correct_direction: success.correctDirection,
+      correct_direction: direction,
       explanation,
-      surprise_factor: success.surpriseFactor,
+      surprise_factor: surprise,
       difficulty: "casual",
-      quantity_kind: success.quantityKind,
-      trap_direction: success.trapDirection,
+      quantity_kind: quantityKind,
+      trap_direction: trapDirection,
       plausible_min: plausibleMin,
       plausible_max: plausibleMax,
       source: "fact_bank",

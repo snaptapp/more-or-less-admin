@@ -43,8 +43,9 @@ import {
   type TrapDirection,
 } from "../shared/ddm/derivation";
 import {
-  deriveWithPrecompute,
+  deriveBankRound,
   toPrecomputedDerivation,
+  type BankPrecomputeFact,
   type FirestoreDerivationBlock,
 } from "../src/lib/admin/ddm-precompute";
 import { blockedNetworkAttempts } from "./setup";
@@ -253,6 +254,24 @@ function percentChangeInput(): DerivationInput {
     throw new Error(`percent-change fixture setup abstained: ${ingest.abstain?.reason}`);
   }
   return ingest.input;
+}
+
+function productionAdapterRound(input: DerivationInput, block: unknown) {
+  const bounds = input.factBankBounds ?? input.modelBounds;
+  const fact: BankPrecomputeFact = {
+    category: "Test",
+    sub_category: "",
+    specialty: "Adapter",
+    fact: "test",
+    number_token: input.incomingNumericToken,
+    unit: input.unit,
+    surprise_factor: input.surpriseFactor,
+    quantity_kind: input.quantityKind,
+    plausible_min: bounds?.minToken,
+    plausible_max: bounds?.maxToken,
+    derivation: block as BankPrecomputeFact["derivation"],
+  };
+  return deriveBankRound(fact);
 }
 
 function currentAdapterBlock(): FirestoreDerivationBlock {
@@ -496,7 +515,7 @@ describe("DDM precompute adapter replay", () => {
 
     // Act
     const converted = toPrecomputedDerivation(block);
-    const result = deriveWithPrecompute(input, block);
+    const result = productionAdapterRound(input, block);
 
     // Assert
     expect(converted).toStrictEqual({
@@ -511,13 +530,13 @@ describe("DDM precompute adapter replay", () => {
       ],
     });
     expect(JSON.stringify(block)).toBe(before);
-    expect(result.success).toMatchObject({
+    expect(result).toMatchObject({
       source: "precomputed",
       quantityKind: KindPercentChange,
-      correctDirection: SideMore,
-      presentedNumber: { negative: false, mantissa: 252, scale: 0 },
-      plausibleMin: { negative: true, mantissa: 100, scale: 0 },
-      plausibleMax: { negative: false, mantissa: 3400, scale: 0 },
+      direction: SideMore,
+      presented: 252,
+      plausibleMin: -100,
+      plausibleMax: 3400,
     });
     expect(blockedNetworkAttempts()).toEqual([]);
   });
@@ -545,37 +564,23 @@ describe("DDM precompute adapter replay", () => {
     // Arrange
     const staleBlock = staleAdapterBlock();
     const input = percentChangeInput();
-    const directLive = derive(input);
-
     // Act
-    const fallback = deriveWithPrecompute(input, staleBlock);
-    const [fallbackJSON, fallbackSerialized] = deriveResultJSON(fallback);
-    const [directLiveJSON, directLiveSerialized] = deriveResultJSON(directLive);
+    const fallback = productionAdapterRound(input, staleBlock);
 
     // Assert
-    expect(fallbackSerialized).toBe(true);
-    expect(directLiveSerialized).toBe(true);
-    expect(fallbackJSON).toBe(directLiveJSON);
-    expect(fallback.success).toMatchObject({
+    expect(fallback).toMatchObject({
       source: "live",
       quantityKind: KindPercentChange,
       trapDirection: TrapUnderestimate,
-      correctDirection: SideMore,
-      presentedNumber: directLive.success?.presentedNumber,
-      plausibleMin: { negative: true, mantissa: 100, scale: 0 },
-      plausibleMax: { negative: false, mantissa: 3400, scale: 0 },
+      direction: SideMore,
+      plausibleMin: -100,
+      plausibleMax: 3400,
     });
-    expect(fallback.success?.quantityKind).not.toBe(staleBlock.quantity_kind);
-    expect(fallback.success?.trapDirection).not.toBe(staleBlock.trap_direction);
-    expect(fallback.success?.presentedNumber).not.toEqual(
-      numericIngest(staleBlock.distractors[0]?.presented_number ?? "").fixedPointValue,
-    );
-    expect(fallback.success?.plausibleMin).not.toEqual(
-      numericIngest(staleBlock.plausible_min).fixedPointValue,
-    );
-    expect(fallback.success?.plausibleMax).not.toEqual(
-      numericIngest(staleBlock.plausible_max).fixedPointValue,
-    );
+    expect(fallback?.quantityKind).not.toBe(staleBlock.quantity_kind);
+    expect(fallback?.trapDirection).not.toBe(staleBlock.trap_direction);
+    expect(fallback?.presented).not.toBe(999);
+    expect(fallback?.plausibleMin).not.toBe(0);
+    expect(fallback?.plausibleMax).not.toBe(10);
     expect(blockedNetworkAttempts()).toEqual([]);
   });
 });

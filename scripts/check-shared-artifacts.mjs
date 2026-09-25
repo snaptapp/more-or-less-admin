@@ -49,6 +49,8 @@ const COMMIT_PATTERN = /^[a-f0-9]{7,64}$/i;
 /** Generated DDM source files that are valid handoff artifacts. */
 const DDM_SOURCE_FILES = new Set([
   "src/derivation.ts",
+  "src/derivation_adapter.ts",
+  "src/factbank_precompute.ts",
   "src/derivation_resolve.ts",
   "src/derivation_statement.ts",
   "src/derivation_tables_gen.ts",
