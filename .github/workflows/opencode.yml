@@ -82,7 +82,7 @@ jobs:
             if curl -sf --max-time 20 -X POST \
               "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1/chat/completions" \
               -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \
-              -d '{"model":"@cf/zai-org/glm-5.3","messages":[{"role":"user","content":"ping"}],"max_tokens":1}' \
+              -d '{"model":"@cf/zai-org/glm-5.2","messages":[{"role":"user","content":"ping"}],"max_tokens":1}' \
               >/dev/null 2>&1; then
               {
                 echo "CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}"
@@ -120,7 +120,7 @@ jobs:
           # Review runs lead with the Cloudflare GLM/DeepSeek chain and
           # fall back to free Zen models; fix runs lead with the flash chain.
           models-review: >-
-            cf:@cf/zai-org/glm-5.3,
+            cf:@cf/zai-org/glm-5.2,
             cf:@cf/deepseek-ai/deepseek-v4-pro-0813,
             cf:@cf/openai/gpt-oss-120b,
             cf:@cf/moonshotai/kimi-k2.7-code,
@@ -129,7 +129,6 @@ jobs:
             zen:nemotron-3-ultra-free,
             openrouter:openrouter/free
           models-fix: >-
-            cf:@cf/zai-org/glm-5.3-flash,
             cf:@cf/deepseek-ai/deepseek-v4-flash-0731,
             cf:@cf/moonshotai/kimi-k2.7-code,
             cf:@cf/qwen/qwen3.8-27b,
