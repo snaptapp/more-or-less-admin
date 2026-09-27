@@ -359,6 +359,7 @@ export const actOnReport = createServerFn({ method: "POST" }).middleware([authMi
         factUpdates: z
           .object({
             question: z.string().optional(),
+            claim_template: z.string().optional(),
             true_number: z.number().optional(),
             unit: z.string().optional(),
             plausible_min: z.string().optional(),

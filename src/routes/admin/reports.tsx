@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, PageHead, statusTone } from "@/admin/AdminShell";
+import { LintFindings, type LintEvidence } from "@/admin/LintFindings";
 import { actOnReport, fetchFact, fetchReports, flushReports } from "@/lib/admin/content.functions";
 import { isDuplicateFlag, isNonDuplicateFlag } from "@/lib/admin/quality-flags";
 import { QUANTITY_KINDS } from "../../../shared/fact-lifecycle-contract.gen";
@@ -114,6 +115,7 @@ function ReportCard({ entry }: { entry: Entry }) {
   const [showEditor, setShowEditor] = useState(false);
   const [editForm, setEditForm] = useState({
     question: entry.fact?.question || entry.fact?.claim_template || "",
+    claim_template: entry.fact?.claim_template || "",
     true_number:
       entry.fact?.true_number !== undefined && entry.fact?.true_number !== null
         ? String(entry.fact.true_number)
@@ -125,7 +127,6 @@ function ReportCard({ entry }: { entry: Entry }) {
     plausible_max: entry.fact?.plausible_max || "",
     quantity_kind: entry.fact?.quantity_kind || "",
     context: entry.fact?.context || entry.report.explanation || "",
-    angle: entry.fact?.angle || "",
   });
 
   const mutation = useMutation({
@@ -160,8 +161,7 @@ function ReportCard({ entry }: { entry: Entry }) {
               quantity_kind?: string;
               context?: string;
               surprise_factor?: number;
-              angle?: string;
-              subject?: string;
+              claim_template?: string;
             };
             note?: string;
             correctedNumber?: number;
@@ -218,6 +218,20 @@ function ReportCard({ entry }: { entry: Entry }) {
 
   const chosenTopic = report.initialTopic || report.topic;
   const questionTopic = report.topic;
+  const isFactLintReport = report.reportSource === "fact_lint";
+  const lintFlags = [...new Set([...(report.qualityFlags ?? []), ...(entry.fact?.quality_flags ?? [])])];
+  const lintEvidence: LintEvidence = {
+    subject: entry.fact?.subject,
+    question: entry.fact?.question,
+    claim_template: entry.fact?.claim_template || (isFactLintReport ? report.claimStatement : undefined),
+    unit: entry.fact?.unit || report.unit,
+    true_number: entry.fact?.true_number ?? report.trueNumber,
+    quantity_kind: entry.fact?.quantity_kind,
+    plausible_min: entry.fact?.plausible_min,
+    plausible_max: entry.fact?.plausible_max,
+    derivation: entry.fact?.derivation,
+    surprise_factor: entry.fact?.surprise_factor,
+  };
   const guess = report.playerGuess?.toUpperCase();
   const outcome =
     guess === "SKIP"
@@ -257,9 +271,9 @@ function ReportCard({ entry }: { entry: Entry }) {
             <dd>{questionTopic}</dd>
           </>
         ) : null}
-        <dt>Exact question</dt>
+        <dt>{isFactLintReport ? "Fact question" : "Exact question"}</dt>
         <dd style={{ fontWeight: 600, color: "var(--ds-arena-color-text)" }}>
-          {displayOrMissing(report.claimStatement)}
+          {displayOrMissing(isFactLintReport ? entry.fact?.question : report.claimStatement)}
         </dd>
         <dt>Presented</dt>
         <dd>
@@ -279,17 +293,17 @@ function ReportCard({ entry }: { entry: Entry }) {
             </>
           ) : null}
         </dd>
-        <dt>Dispute reason</dt>
-        <dd>{REASON_LABELS[report.reason] ?? displayOrMissing(report.reason)}</dd>
-        {report.qualityFlags?.length ? (
+        {!isFactLintReport ? (
           <>
-            <dt>Quality flags</dt>
+            <dt>Dispute reason</dt>
+            <dd>{REASON_LABELS[report.reason] ?? displayOrMissing(report.reason)}</dd>
+          </>
+        ) : null}
+        {lintFlags.length ? (
+          <>
+            <dt>Fact Foundry findings</dt>
             <dd>
-              <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
-                {report.qualityFlags.map((flag) => (
-                  <Badge key={flag} tone="amber">{flag}</Badge>
-                ))}
-              </span>
+              <LintFindings flags={lintFlags} evidence={lintEvidence} />
             </dd>
           </>
         ) : null}
@@ -445,6 +459,15 @@ function ReportCard({ entry }: { entry: Entry }) {
                 onChange={(e) => setEditForm({ ...editForm, question: e.target.value })}
               />
             </label>
+            <label className="admin-field" style={{ gridColumn: "1 / -1" }}>
+              <span>Claim template (use {"{n}"} for the answer)</span>
+              <textarea
+                className="admin-textarea"
+                rows={2}
+                value={editForm.claim_template}
+                onChange={(e) => setEditForm({ ...editForm, claim_template: e.target.value })}
+              />
+            </label>
             <label className="admin-field">
               <span>True number</span>
               <input
@@ -496,11 +519,14 @@ function ReportCard({ entry }: { entry: Entry }) {
               />
             </label>
             <label className="admin-field">
-              <span>Angle</span>
+              <span>Angle (immutable identity)</span>
               <input
+                id="moderation-fact-identity-angle"
                 className="admin-input"
-                value={editForm.angle}
-                onChange={(e) => setEditForm({ ...editForm, angle: e.target.value })}
+                value={entry.fact.angle}
+                readOnly
+                aria-readonly="true"
+                aria-describedby="moderation-fact-identity-guidance"
               />
             </label>
             <label className="admin-field" style={{ gridColumn: "1 / -1" }}>
@@ -523,6 +549,28 @@ function ReportCard({ entry }: { entry: Entry }) {
             </label>
           </div>
 
+          <div
+            id="moderation-fact-identity-guidance"
+            role="note"
+            style={{
+              padding: "var(--ds-arena-space-3)",
+              border: "1px solid var(--ds-arena-color-border)",
+              borderInlineStart: "3px solid var(--ds-arena-color-amber)",
+              borderRadius: "var(--ds-arena-radius-sm)",
+              color: "var(--ds-arena-color-text-muted)",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            <strong style={{ color: "var(--ds-arena-color-text)" }}>
+              Subject and angle are immutable identity fields.
+            </strong>{" "}
+            If either needs correction, create a corrected replacement in the Fact Bank; that retires the original and sends the replacement to pending Foundry admission.{" "}
+            <a href={`/admin/facts?search=${encodeURIComponent(entry.fact.id)}`} target="_blank" rel="noreferrer">
+              Open Fact Bank ↗
+            </a>
+          </div>
+
           <div style={{ display: "flex", gap: "var(--ds-arena-space-2)", alignItems: "center", flexWrap: "wrap" }}>
             <Button
               variant="primary"
@@ -534,13 +582,13 @@ function ReportCard({ entry }: { entry: Entry }) {
                   factId: entry.fact!.id,
                   factUpdates: {
                     question: editForm.question.trim() || undefined,
+                    claim_template: editForm.claim_template.trim() || undefined,
                     true_number: editForm.true_number ? Number(editForm.true_number) : undefined,
                     unit: editForm.unit.trim() || undefined,
                     plausible_min: editForm.plausible_min.trim() || undefined,
                     plausible_max: editForm.plausible_max.trim() || undefined,
                     quantity_kind: editForm.quantity_kind || undefined,
                     context: editForm.context.trim() || undefined,
-                    angle: editForm.angle.trim() || undefined,
                   },
                   note: note.trim() || undefined,
                 });

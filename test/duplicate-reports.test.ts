@@ -706,6 +706,7 @@ describe("Duplicate reports handling", () => {
       quality_flags: ["missing_bounds_hint", "label_unit"],
       true_number: 25,
       unit: "GRAMMY AWARDS",
+      claim_template: "Stevie Wonder received {n} Grammy Awards.",
     });
 
     firestoreDouble().seed("trivia_reports/lint_edit_me", {
@@ -720,6 +721,7 @@ describe("Duplicate reports handling", () => {
       factId: "fact_edit_me",
       factUpdates: {
         unit: "awards",
+        claim_template: "Stevie Wonder received {n} Grammy Awards.",
         plausible_min: "0",
         plausible_max: "50",
       },
@@ -729,6 +731,7 @@ describe("Duplicate reports handling", () => {
     const fact = firestoreDouble().document("fact_bank/fact_edit_me")!;
     expect(fact.data["status"]).toBe(STATUS.active);
     expect(fact.data["unit"]).toBe("awards");
+    expect(fact.data["claim_template"]).toBe("Stevie Wonder received {n} Grammy Awards.");
     expect(fact.data["plausible_min"]).toBe("0");
     expect(fact.data["plausible_max"]).toBe("50");
     expect(fact.data["quality_flags"]).toBeUndefined();
@@ -823,5 +826,4 @@ describe("Duplicate reports handling", () => {
     expect(factA.data["status"]).toBe(STATUS.retired);
   });
 });
-
 
