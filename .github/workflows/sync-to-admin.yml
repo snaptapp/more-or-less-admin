@@ -1,0 +1,63 @@
+name: Sync to Admin & Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-to-admin
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync to more-or-less-admin
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout snuggle-script-pack
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.ADMIN_REPO_PAT }}
+
+      - name: Set up git config
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add more-or-less-admin remote
+        run: |
+          git remote add admin "https://x-access-token:${{ secrets.ADMIN_REPO_PAT }}@github.com/snaptapp/more-or-less-admin.git"
+          git fetch admin main
+
+      - name: Sync commits to more-or-less-admin
+        run: |
+          # If more-or-less-admin already contains our HEAD, nothing to push
+          if git merge-base --is-ancestor HEAD admin/main; then
+            echo "more-or-less-admin/main already contains HEAD. Nothing to push."
+            exit 0
+          fi
+
+          # If admin/main is an ancestor of HEAD, fast-forward push
+          if git merge-base --is-ancestor admin/main HEAD; then
+            echo "Fast-forwarding more-or-less-admin/main with HEAD..."
+            git push admin HEAD:main
+            echo "Successfully pushed to more-or-less-admin/main."
+            exit 0
+          fi
+
+          # Otherwise, branches have diverged; merge admin/main into local main
+          echo "Branches have diverged; merging admin/main..."
+          git merge admin/main -m "Merge branch 'main' of snaptapp/more-or-less-admin into snuggle-script-pack"
+
+          # Push the merge commit to both repositories
+          echo "Pushing merged state to more-or-less-admin/main..."
+          git push admin HEAD:main
+          echo "Pushing merged state back to snuggle-script-pack/main..."
+          git push origin HEAD:main
+          echo "Synchronization complete."
