@@ -273,7 +273,7 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
               Configure truth, surprise, and context to audit why the Distractor Derivation Model presents a specific number.
             </p>
 
-            <div className="admin-grid" style={{ gridTemplateColumns: "1.5fr 1fr 1fr 1fr" }}>
+            <div className="admin-grid admin-responsive-grid" style={{ gridTemplateColumns: "1.5fr 1fr 1fr 1fr" }}>
               <label className="admin-field">
                 <span>True Number</span>
                 <input
@@ -326,7 +326,7 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
               </label>
             </div>
 
-            <div className="admin-grid" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr", marginTop: 12 }}>
+            <div className="admin-grid admin-responsive-grid" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr", marginTop: 12 }}>
               <div className="admin-field">
                 <span>Surprise Factor (0 = Obvious, 3 = Intuition Trap)</span>
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
@@ -654,7 +654,7 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
             }}
             style={{ display: "grid", gap: 12 }}
           >
-            <div className="admin-grid" style={{ gridTemplateColumns: "2fr 1fr 2fr" }}>
+            <div className="admin-grid admin-responsive-grid" style={{ gridTemplateColumns: "2fr 1fr 2fr" }}>
               <label className="admin-field">
                 <span>Topic</span>
                 <input

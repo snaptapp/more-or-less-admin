@@ -916,7 +916,7 @@ function ConfigPage() {
                         </div>
                       </div>
 
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "12px", marginBottom: "12px" }}>
+                      <div className="admin-responsive-grid" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "12px", marginBottom: "12px" }}>
                         <div className="admin-field">
                           <label>Condition Name</label>
                           <input
@@ -1138,7 +1138,7 @@ function ConfigPage() {
               <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>
                 + Add Custom Parameter
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 2fr 2fr auto", gap: "8px", alignItems: "center" }}>
+              <div className="admin-responsive-grid" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 2fr 2fr auto", gap: "8px", alignItems: "center" }}>
                 <input
                   className="admin-input"
                   type="text"

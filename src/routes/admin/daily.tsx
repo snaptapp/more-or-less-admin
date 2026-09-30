@@ -265,7 +265,7 @@ function BlitzEditor({
           </div>
         </div>
 
-        <div className="admin-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+        <div className="admin-grid admin-responsive-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
           <label className="admin-field">
             <span>Topic / category</span>
             <input
@@ -449,7 +449,7 @@ function BlitzEditor({
                                 ))}
                               </select>
                             </label>
-                            <div className="admin-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                            <div className="admin-grid admin-responsive-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
                               <label className="admin-field">
                                 <span>Topic</span>
                                 <input
@@ -468,7 +468,7 @@ function BlitzEditor({
                                 />
                               </label>
                             </div>
-                            <div className="admin-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
+                            <div className="admin-grid admin-responsive-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
                               <label className="admin-field">
                                 <span>Presented</span>
                                 <input
