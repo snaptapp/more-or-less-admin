@@ -182,6 +182,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
       if (event.key === "Escape") {
         setMenuOpen(false);
         toggleRef.current?.focus();
+      } else if (event.key === "Tab") {
+        const focusable = menuRef.current?.querySelectorAll<HTMLElement>("a, button:not(:disabled)");
+        if (!focusable?.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
       }
     };
     document.addEventListener("keydown", onKeyDown);
@@ -222,8 +229,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </Button>
         {menuOpen ? (
           <>
-          <button type="button" className="admin-mobile-scrim" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />
-          <div id="admin-mobile-menu" className="admin-mobile-menu" ref={menuRef}>
+          <Button variant="ghost" className="admin-mobile-scrim" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />
+          <div id="admin-mobile-menu" className="admin-mobile-menu" ref={menuRef} role="dialog" aria-modal="true" aria-label="Admin navigation">
             <nav className="admin-nav" aria-label="Admin pages">
               {NAV.map((item) => (
                 <Link
