@@ -102,7 +102,7 @@ vi.mock("@/lib/admin/ops.functions", () => ({
 vi.mock("@/lib/admin/taxonomy", () => ({
   CONTENT_VIEWS: ["facts"],
   GENRES: ["General", "Animals & Nature"],
-  familiesForGenre: () => [],
+  matchScopesForGenre: () => [],
   isContentView: () => true,
 }));
 

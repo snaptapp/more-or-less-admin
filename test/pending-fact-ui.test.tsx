@@ -89,7 +89,7 @@ vi.mock("@/lib/admin/ops.functions", () => ({
 vi.mock("@/lib/admin/taxonomy", () => ({
   CONTENT_VIEWS: ["facts"],
   GENRES: ["General", "Animals & Nature", "History & World"],
-  familiesForGenre: () => [],
+  matchScopesForGenre: () => [],
   isContentView: () => true,
 }));
 
@@ -176,7 +176,7 @@ describe("pending fact admission UI", () => {
     expect(html).toContain("Quantity kind");
     expect(html).toContain("Plausible min");
     expect(html).toContain("Plausible max");
-    expect(html).toContain("Family");
+    expect(html).toContain("Match Scope");
     expect(html).toContain("Save as pending");
     expect(html).toContain(PENDING_ADMISSION_COPY);
     expect(html).toContain("admin-grid");
