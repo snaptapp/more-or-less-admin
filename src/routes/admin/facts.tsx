@@ -24,7 +24,7 @@ import {
   saveFact,
 } from "@/lib/admin/content.functions";
 import { fetchPlaylists, fetchSubjects } from "@/lib/admin/ops.functions";
-import { CONTENT_VIEWS, GENRES, familiesForGenre, isContentView, type ContentView } from "@/lib/admin/taxonomy";
+import { CONTENT_VIEWS, GENRES, matchScopesForGenre, isContentView, type ContentView } from "@/lib/admin/taxonomy";
 import {
   FACT_STATUSES,
   QUANTITY_KINDS,
@@ -570,10 +570,10 @@ export function CorrectedReplacementForm({
               ) : null}
             </select>
           </label>
-          <label className="admin-field" htmlFor="corrected-replacement-family">
-            <span>Replacement family</span>
+          <label className="admin-field" htmlFor="corrected-replacement-match-scope">
+            <span>Replacement match scope</span>
             <input
-              id="corrected-replacement-family"
+              id="corrected-replacement-match-scope"
               className="admin-input"
               disabled={disabled}
               value={form.sub_category}
@@ -989,7 +989,7 @@ export function FactEditor({
           </label>
           <label className="admin-field">
             <span>
-              Genre <InfoTip text="Genre for this trivia question. Family and playlists live on the topic." />
+              Genre <InfoTip text="Genre for this trivia question. Match scope and playlists live on the topic." />
             </span>
             <select
               className="admin-select"
@@ -1421,7 +1421,7 @@ export function NewFactForm({ onDone }: { onDone: () => void }) {
           </label>
           <label className="admin-field">
             <span>
-              Genre <InfoTip text="Genre for this trivia question. Family and playlists live on the topic." />
+              Genre <InfoTip text="Genre for this trivia question. Match scope and playlists live on the topic." />
             </span>
             <select
               className="admin-select"
@@ -1437,7 +1437,7 @@ export function NewFactForm({ onDone }: { onDone: () => void }) {
           </label>
           <label className="admin-field">
             <span>
-              Family <InfoTip text="Optional sub-category for the topic taxonomy. Leave blank when the topic is not classified yet." />
+              Match Scope <InfoTip text="Optional resolver scope for free-text topic matching (e.g. Football, Marine Life). Not part of the editorial hierarchy. Leave blank to resolve via genre." />
             </span>
             <input
               className="admin-input"
@@ -1700,7 +1700,7 @@ function ContentPage() {
     return map;
   }, [subjects]);
 
-  const familyOptions = familiesForGenre(
+  const matchScopeOptions = matchScopesForGenre(
     filters.category,
     (subjectsQuery.data?.subjects ?? [])
       .filter((s) => !filters.category || s.category === filters.category)
@@ -1840,7 +1840,7 @@ function ContentPage() {
       <div className="daily-blitz-main">
         <PageHead
           title="Content"
-          description="Facts attach to topics. Topics sit in a genre and family. Playlists are optional theme mixes."
+          description="Facts attach to topics. Topics sit in a genre; match scope is resolver metadata. Playlists are optional theme mixes."
           actions={
             view === "facts" ? (
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -1926,7 +1926,7 @@ function ContentPage() {
                 </select>
               </label>
               <label className="admin-field" style={{ flex: "0 1 180px" }}>
-                <span>Family</span>
+                <span>Match Scope</span>
                 <select
                   className="admin-select"
                   value={filters.family}
@@ -1935,10 +1935,10 @@ function ContentPage() {
                     setFilters({ ...filters, family: e.target.value });
                   }}
                 >
-                  <option value="">All families</option>
-                  {familyOptions.map((family) => (
-                    <option key={family} value={family}>
-                      {family}
+                  <option value="">All match scopes</option>
+                  {matchScopeOptions.map((scope) => (
+                    <option key={scope} value={scope}>
+                      {scope}
                     </option>
                   ))}
                 </select>
@@ -2137,7 +2137,7 @@ function ContentPage() {
                                 .filter(Boolean);
                               return (
                                 <span className="admin-topic-meta">
-                                  {[topic.category, topic.sub_category].filter(Boolean).join(" › ") || "Needs family"}
+                                  {[topic.category, topic.sub_category].filter(Boolean).join(" › ") || "No match scope"}
                                   {playlistNames.length ? ` · ${playlistNames.join(", ")}` : ""}
                                 </span>
                               );
@@ -2315,7 +2315,12 @@ export function ImportCsvModal({ onDone }: { onDone: () => void }) {
     const colIdx = {
       subject: headers.findIndex((header) => header.includes("subject")),
       category: headers.findIndex((header) => header.includes("category") || header.includes("genre")),
-      sub_category: headers.findIndex((header) => header.includes("sub_category") || header.includes("family")),
+      sub_category: headers.findIndex(
+        (header) =>
+          header.includes("sub_category") ||
+          header.includes("match_scope") ||
+          header.includes("family"),
+      ),
       angle: headers.findIndex((header) => header.includes("angle")),
       true_number: headers.findIndex((header) => header.includes("number") || header.includes("value") || header.includes("true")),
       unit: headers.findIndex((header) => header.includes("unit")),
