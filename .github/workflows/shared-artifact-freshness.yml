@@ -36,5 +36,5 @@ jobs:
 
       - name: Check upstream artifact freshness
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.SHARED_ARTIFACT_PAT || github.token }}
         run: npm run check:artifact-freshness
