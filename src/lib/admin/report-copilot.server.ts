@@ -35,6 +35,15 @@ export interface CopilotPolicy {
   reasons: string[];
   modelConfidence: "low" | "medium" | "high";
   score: number; // 0-100 for the meter
+  /** Every input to the score, in order. Sum of points = score (clamped 0-100). */
+  factors: CopilotFactor[];
+}
+
+export interface CopilotFactor {
+  label: string;
+  points: number;
+  kind: "base" | "boost" | "penalty" | "cap";
+  detail: string;
 }
 
 export interface CopilotReview {
@@ -251,11 +260,39 @@ export function applySourcePolicy(
     reasons.push(`${sources.filter((s) => s.conflicting).length} source(s) conflict with the recommendation or each other.`);
   }
   if (modelConfidence === "low" && !reasons.length) reasons.push("Copilot reported low confidence.");
-  const supporting = sources.filter((s) => !s.conflicting && s.stance === "supports").length;
-  const base = { low: 25, medium: 60, high: 90 }[confidence];
-  const score = Math.max(0, Math.min(100, base + Math.min(supporting, 3) * 3 - (conflict ? 10 : 0)));
+  const supporting = sources.filter((s) => !s.conflicting && s.stance === "supports");
+  const conflicting = sources.filter((s) => s.conflicting);
+  const withExcerpts = sources.filter((s) => s.excerpts.length > 0).length;
+  const factors: CopilotFactor[] = [];
+  const modelBase = { low: 25, medium: 60, high: 90 }[modelConfidence];
+  factors.push({ label: "Copilot self-rating", points: modelBase, kind: "base", detail: `Model reported ${modelConfidence} confidence.` });
+  const finalBase = { low: 25, medium: 60, high: 90 }[confidence];
+  if (finalBase !== modelBase) {
+    factors.push({
+      label: "Source-quality cap",
+      points: finalBase - modelBase,
+      kind: "cap",
+      detail: sources.length === 0 ? "No sources: capped at low." : conflict ? "Conflicting sources: capped at low." : "Single source: capped at medium.",
+    });
+  }
+  if (supporting.length) {
+    factors.push({
+      label: "Supporting sources",
+      points: Math.min(supporting.length, 3) * 3,
+      kind: "boost",
+      detail: `${supporting.length} source(s) agree with the recommended number (+3 each, max 3).`,
+    });
+  }
+  if (conflict) {
+    factors.push({ label: "Conflict penalty", points: -10, kind: "penalty", detail: `${conflicting.length} conflicting: ${conflicting.map((c) => c.title).slice(0, 3).join("; ")}` });
+  }
+  if (sources.length && withExcerpts === 0) {
+    factors.push({ label: "No quoted evidence", points: -5, kind: "penalty", detail: "Sources returned links but no excerpts to check." });
+    reasons.push("No source provided a quoted excerpt.");
+  }
+  const score = Math.max(0, Math.min(100, factors.reduce((sum, f) => sum + f.points, 0)));
   return {
     confidence,
-    policy: { needsReview: confidence === "low" || reasons.length > 0, reasons, modelConfidence, score },
+    policy: { needsReview: confidence === "low" || reasons.length > 0, reasons, modelConfidence, score, factors },
   };
 }
