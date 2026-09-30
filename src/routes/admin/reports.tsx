@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, PageHead, statusTone } from "@/admin/AdminShell";
 import { LintFindings, type LintEvidence } from "@/admin/LintFindings";
@@ -174,10 +174,10 @@ function CopilotPanel({
           {changes.length ? (
             <dl className="admin-kv">
               {changes.map(([label, value]) => (
-                <>
-                  <dt key={`${label}-t`}>Suggested {label.toLowerCase()}</dt>
-                  <dd key={`${label}-d`}>{String(value)}</dd>
-                </>
+                <Fragment key={label}>
+                  <dt>Suggested {label.toLowerCase()}</dt>
+                  <dd>{String(value)}</dd>
+                </Fragment>
               ))}
             </dl>
           ) : null}
