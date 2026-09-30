@@ -1,5 +1,5 @@
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Badge, Button, Card, CardTitle } from "@/index";
 import {
   FACT_STATUSES,
@@ -167,6 +167,29 @@ function SignIn() {
 export function AdminShell({ children }: { children: ReactNode }) {
   const { user, ready, signOutAdmin } = useAdminAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setMenuOpen(false), [pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    menuRef.current?.querySelector<HTMLAnchorElement>("a")?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        toggleRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
 
   if (!ready) {
     return (
@@ -186,6 +209,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <span>More or <strong>Less</strong></span>
         </Link>
         <Button
+          ref={toggleRef}
           variant="ghost"
           size="sm"
           className="admin-menu-toggle"
@@ -197,7 +221,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <span aria-hidden="true">{menuOpen ? "✕" : "☰"}</span>
         </Button>
         {menuOpen ? (
-          <div id="admin-mobile-menu" className="admin-mobile-menu">
+          <>
+          <button type="button" className="admin-mobile-scrim" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />
+          <div id="admin-mobile-menu" className="admin-mobile-menu" ref={menuRef}>
             <nav className="admin-nav" aria-label="Admin pages">
               {NAV.map((item) => (
                 <Link
@@ -205,6 +231,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
                   to={item.to}
                   activeOptions={{ exact: "exact" in item ? item.exact : false }}
                   activeProps={{ className: "is-active" }}
+                  aria-current={pathname === item.to || (!("exact" in item && item.exact) && pathname.startsWith(`${item.to}/`)) ? "page" : undefined}
                   onClick={() => setMenuOpen(false)}
                 >
                   {item.label}
@@ -218,6 +245,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
               </Button>
             </div>
           </div>
+          </>
         ) : null}
       </header>
       <aside className="admin-sidebar">
