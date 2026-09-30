@@ -63,7 +63,7 @@ vi.mock("@/lib/admin/ops.functions", () => ({ fetchPlaylists: {}, fetchSubjects:
 vi.mock("@/lib/admin/taxonomy", () => ({
   CONTENT_VIEWS: ["facts"],
   GENRES: ["General"],
-  familiesForGenre: () => [],
+  matchScopesForGenre: () => [],
   isContentView: () => true,
 }));
 vi.mock("@/lib/admin/contract", () => ({

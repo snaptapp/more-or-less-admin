@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Fragment, useMemo, useState } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, InlineEditorRow, statusTone } from "@/admin/AdminShell";
-import { GENRES, familiesForGenre, validateTaxonomy, normalizeTaxonomyKey } from "@/lib/admin/taxonomy";
+import { GENRES, matchScopesForGenre, validateTaxonomy, normalizeTaxonomyKey } from "@/lib/admin/taxonomy";
 import {
   createPlaylistAction,
   createTopic,
@@ -21,18 +21,16 @@ import {
 type Subject = Awaited<ReturnType<typeof fetchSubjects>>["subjects"][number];
 type Playlist = Awaited<ReturnType<typeof fetchPlaylists>>[number];
 
-function observedFamilies(subjects: Subject[], genre: string): string[] {
+function observedMatchScopes(subjects: Subject[], genre: string): string[] {
   return subjects.filter((s) => s.category === genre).map((s) => s.sub_category);
 }
 
 function TopicEditor({
   subject,
-  playlists,
   subjects,
   onDone,
 }: {
   subject: Subject;
-  playlists: Playlist[];
   subjects: Subject[];
   onDone: () => void;
 }) {
@@ -43,11 +41,10 @@ function TopicEditor({
     sub_category: subject.sub_category,
     aliases: subject.aliases.join(", "),
     crawl_notes: subject.crawl_notes,
-    playlist_ids: subject.playlist_ids,
   });
 
   const validationError = validateTaxonomy(form.category, form.sub_category, subject.subject);
-  const familyOptions = familiesForGenre(form.category, observedFamilies(subjects, form.category)).filter(
+  const matchScopeOptions = matchScopesForGenre(form.category, observedMatchScopes(subjects, form.category)).filter(
     (f) => normalizeTaxonomyKey(f) !== normalizeTaxonomyKey(subject.subject),
   );
 
@@ -60,7 +57,7 @@ function TopicEditor({
           sub_category: form.sub_category,
           aliases: form.aliases.split(",").map((v) => v.trim()).filter(Boolean),
           crawl_notes: form.crawl_notes,
-          playlist_ids: form.playlist_ids,
+          // Playlists are managed from the Playlists surface; omit so membership is preserved.
         },
       }),
     onSuccess: async () => {
@@ -69,15 +66,6 @@ function TopicEditor({
       onDone();
     },
   });
-
-  function togglePlaylist(id: string) {
-    setForm((current) => ({
-      ...current,
-      playlist_ids: current.playlist_ids.includes(id)
-        ? current.playlist_ids.filter((item) => item !== id)
-        : [...current.playlist_ids, id],
-    }));
-  }
 
   return (
     <Card>
@@ -105,26 +93,26 @@ function TopicEditor({
           </select>
         </label>
         <label className="admin-field">
-          <span>Family</span>
+          <span>Match Scope</span>
           <select
             className="admin-select"
             value={form.sub_category}
             onChange={(e) => setForm({ ...form, sub_category: e.target.value })}
           >
-            <option value="">Needs family</option>
-            {familyOptions.map((family) => (
-              <option key={family} value={family}>
-                {family}
+            <option value="">None (resolve via genre)</option>
+            {matchScopeOptions.map((scope) => (
+              <option key={scope} value={scope}>
+                {scope}
               </option>
             ))}
           </select>
         </label>
       </div>
       <label className="admin-field" style={{ marginTop: "var(--ds-arena-space-3)" }}>
-        <span>New family name</span>
+        <span>New match scope</span>
         <input
           className="admin-input"
-          placeholder="Type to add a family under this genre"
+          placeholder="Type to add a resolver scope (e.g. Football, Marine Life)"
           onBlur={(e) => {
             const value = e.target.value.trim();
             if (value) {
@@ -142,27 +130,6 @@ function TopicEditor({
           onChange={(e) => setForm({ ...form, aliases: e.target.value })}
         />
       </label>
-      <div className="admin-field" style={{ marginTop: "var(--ds-arena-space-3)" }}>
-        <span>Playlists (optional, many)</span>
-        {playlists.length === 0 ? (
-          <p className="admin-empty" style={{ margin: 0 }}>
-            No playlists yet. Create one in the Playlists tab.
-          </p>
-        ) : (
-          <div className="admin-chip-list">
-            {playlists.map((playlist) => (
-              <label key={playlist.id} className="admin-check-chip">
-                <input
-                  type="checkbox"
-                  checked={form.playlist_ids.includes(playlist.id)}
-                  onChange={() => togglePlaylist(playlist.id)}
-                />
-                {playlist.name}
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
       <label className="admin-field" style={{ marginTop: "var(--ds-arena-space-3)" }}>
         <span>Crawl notes</span>
         <textarea
@@ -203,10 +170,9 @@ function NewTopicForm({
     category: "Animals & Nature",
     sub_category: "",
     aliases: "",
-    playlist_ids: [] as string[],
   });
   const validationError = validateTaxonomy(form.category, form.sub_category, form.subject);
-  const familyOptions = familiesForGenre(form.category, observedFamilies(subjects, form.category)).filter(
+  const matchScopeOptions = matchScopesForGenre(form.category, observedMatchScopes(subjects, form.category)).filter(
     (f) => !form.subject || normalizeTaxonomyKey(f) !== normalizeTaxonomyKey(form.subject),
   );
 
@@ -218,7 +184,6 @@ function NewTopicForm({
           category: form.category,
           sub_category: form.sub_category || undefined,
           aliases: form.aliases.split(",").map((v) => v.trim()).filter(Boolean),
-          playlist_ids: form.playlist_ids,
         },
       }),
     onSuccess: async () => {
@@ -256,16 +221,16 @@ function NewTopicForm({
           </select>
         </label>
         <label className="admin-field">
-          <span>Family</span>
+          <span>Match Scope</span>
           <select
             className="admin-select"
             value={form.sub_category}
             onChange={(e) => setForm({ ...form, sub_category: e.target.value })}
           >
-            <option value="">Needs family</option>
-            {familyOptions.map((family) => (
-              <option key={family} value={family}>
-                {family}
+            <option value="">None (resolve via genre)</option>
+            {matchScopeOptions.map((scope) => (
+              <option key={scope} value={scope}>
+                {scope}
               </option>
             ))}
           </select>
@@ -292,7 +257,7 @@ function NewTopicForm({
 export function TopicsPanel() {
   const list = useServerFn(fetchSubjects);
   const listPlaylistsFn = useServerFn(fetchPlaylists);
-  const [filters, setFilters] = useState({ search: "", category: "", family: "", playlistId: "" });
+  const [filters, setFilters] = useState({ search: "", category: "", family: "" });
   const [selected, setSelected] = useState<Subject | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -304,7 +269,6 @@ export function TopicsPanel() {
           search: filters.search || undefined,
           category: filters.category || undefined,
           family: filters.family || undefined,
-          playlistId: filters.playlistId || undefined,
         },
       }),
     retry: false,
@@ -316,7 +280,7 @@ export function TopicsPanel() {
     retry: false,
   });
 
-  const familyOptions = familiesForGenre(
+  const matchScopeOptions = matchScopesForGenre(
     filters.category,
     (query.data?.subjects ?? []).map((s) => s.sub_category),
   );
@@ -361,31 +325,16 @@ export function TopicsPanel() {
           </select>
         </label>
         <label className="admin-field">
-          <span>Family</span>
+          <span>Match Scope</span>
           <select
             className="admin-select"
             value={filters.family}
             onChange={(e) => setFilters({ ...filters, family: e.target.value })}
           >
             <option value="">All</option>
-            {familyOptions.map((family) => (
-              <option key={family} value={family}>
-                {family}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="admin-field">
-          <span>Playlist</span>
-          <select
-            className="admin-select"
-            value={filters.playlistId}
-            onChange={(e) => setFilters({ ...filters, playlistId: e.target.value })}
-          >
-            <option value="">All</option>
-            {playlists.map((playlist) => (
-              <option key={playlist.id} value={playlist.id}>
-                {playlist.name}
+            {matchScopeOptions.map((scope) => (
+              <option key={scope} value={scope}>
+                {scope}
               </option>
             ))}
           </select>
@@ -413,9 +362,7 @@ export function TopicsPanel() {
           <thead>
             <tr>
               <th>Genre</th>
-              <th>Family</th>
               <th>Topic</th>
-              <th>Playlists</th>
               <th>Aliases</th>
               <th>Facts</th>
               <th>Last crawled</th>
@@ -432,11 +379,13 @@ export function TopicsPanel() {
                 <Fragment key={subject.id}>
                   <tr className={isEditing ? "is-editing" : undefined}>
                     <td>{subject.category || "—"}</td>
-                    <td>{subject.sub_category || "Needs family"}</td>
                     <td>
                       <strong>{subject.subject}</strong>
+                      <div style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 12, marginTop: 2 }}>
+                        {subject.sub_category ? `Match scope: ${subject.sub_category}` : "No match scope"}
+                        {playlistNames.length ? ` · ${playlistNames.join(", ")}` : ""}
+                      </div>
                     </td>
-                    <td>{playlistNames.join(", ") || "—"}</td>
                     <td>{subject.aliases.join(", ") || "—"}</td>
                     <td>{subject.fact_count}</td>
                     <td>{subject.last_crawled_at ?? "—"}</td>
@@ -451,10 +400,9 @@ export function TopicsPanel() {
                     </td>
                   </tr>
                   {isEditing ? (
-                    <InlineEditorRow colSpan={8}>
+                    <InlineEditorRow colSpan={6}>
                       <TopicEditor
                         subject={subject}
-                        playlists={playlists}
                         subjects={query.data.subjects}
                         onDone={() => setSelected(null)}
                       />
