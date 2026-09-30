@@ -1080,3 +1080,106 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   font-size: 12px;
   color: var(--ds-arena-color-text-muted);
 }
+
+/* Compact navigation keeps the workspace available without consuming the phone viewport. */
+.admin-mobile-header { display: none; }
+
+@media (max-width: 900px) {
+  .admin-shell {
+    display: block;
+    min-width: 0;
+  }
+
+  .admin-sidebar { display: none; }
+
+  .admin-mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--ds-arena-space-3);
+    min-height: 64px;
+    padding: var(--ds-arena-space-2) var(--ds-arena-space-4);
+    background: var(--ds-arena-color-surface-raised);
+    border-bottom: 1px solid var(--ds-arena-color-border);
+  }
+
+  .admin-shell .admin-mobile-brand {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: var(--ds-arena-space-2);
+    color: var(--ds-arena-color-text);
+    font-family: var(--ds-arena-font-display);
+    font-size: 20px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .admin-mobile-brand img { width: 36px; height: 36px; flex: none; }
+  .admin-mobile-brand strong { color: var(--ds-arena-color-lime); font-weight: inherit; }
+  .admin-menu-toggle { width: 44px; min-width: 44px; padding: 0; font-size: 22px; }
+
+  .admin-mobile-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: calc(100dvh - 64px);
+    overflow-y: auto;
+    padding: var(--ds-arena-space-3) var(--ds-arena-space-4) var(--ds-arena-space-5);
+    background: var(--ds-arena-color-surface-raised);
+    border-bottom: 1px solid var(--ds-arena-color-border);
+    box-shadow: var(--ds-arena-shadow-card);
+  }
+
+  .admin-mobile-menu .admin-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-arena-space-1); }
+  .admin-mobile-menu .admin-nav a { min-width: 0; overflow-wrap: anywhere; }
+  .admin-mobile-menu .admin-sidebar-footer { margin-top: var(--ds-arena-space-4); padding-top: var(--ds-arena-space-3); border-top: 1px solid var(--ds-arena-color-border); }
+  .admin-mobile-menu .admin-sidebar-footer .ds-button { align-self: flex-start; }
+  .admin-main { min-width: 0; }
+}
+
+@media (max-width: 600px) {
+  .admin-main { padding: var(--ds-arena-space-4); gap: var(--ds-arena-space-4); }
+  .admin-main > *, .daily-blitz-main > *, .admin-main .ds-card, .admin-main form, .admin-page-head > div { min-width: 0; max-width: 100%; }
+  .admin-main .ds-card { overflow-wrap: anywhere; }
+
+  .admin-page-head { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .admin-page-head h1 { font-size: 24px; overflow-wrap: anywhere; }
+  .admin-page-head p { line-height: 1.5; }
+  .admin-page-head .admin-toolbar { width: 100%; }
+  .admin-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; }
+  .admin-toolbar > *, .admin-row-actions > * { min-width: 0; max-width: 100% !important; }
+  .admin-toolbar > .ds-button, .admin-toolbar > a, .admin-toolbar > a .ds-button { width: 100%; }
+  .admin-toolbar .admin-field, .admin-main .admin-field { min-width: 0 !important; max-width: 100% !important; }
+  .admin-input, .admin-select, .admin-textarea { min-width: 0; }
+  .admin-grid { grid-template-columns: minmax(0, 1fr); }
+  .admin-main .admin-grid[style*="grid-template-columns"],
+  .admin-main [style*="grid-template-columns"]:not(.admin-table):not(.admin-kv) { grid-template-columns: minmax(0, 1fr) !important; }
+  .admin-kv { grid-template-columns: minmax(0, 1fr); gap: var(--ds-arena-space-1); }
+  .admin-kv dd { margin-bottom: var(--ds-arena-space-2); }
+  .admin-chart-grid, .admin-two-col, .daily-blitz-layout { grid-template-columns: minmax(0, 1fr); }
+  .admin-chart { min-width: 0; }
+  .admin-bar-row { grid-template-columns: minmax(0, 1fr) minmax(30px, 2fr) auto; }
+  .admin-bar-row--filterable { grid-template-columns: minmax(0, 1fr) minmax(24px, 1fr) auto; }
+  .admin-bar-row--filterable .ds-button { grid-column: 1 / -1; }
+  .admin-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+  .admin-tabs a { flex: none; white-space: nowrap; }
+
+  /* Tables retain their comparison columns; the page itself never scrolls sideways. */
+  .admin-table-wrap { max-width: 100%; min-width: 0; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+  .admin-table-wrap::after { content: "SWIPE TO SEE MORE →"; display: block; position: sticky; left: 0; width: fit-content; padding: var(--ds-arena-space-2) var(--ds-arena-space-3); color: var(--ds-arena-color-text-muted); font: 11px var(--ds-arena-font-mono); }
+  .admin-table td, .admin-table th { padding: var(--ds-arena-space-2) var(--ds-arena-space-3); }
+  .admin-inline-editor-row td, .admin-table tbody tr.admin-inline-editor-row:hover td { padding: var(--ds-arena-space-2); }
+  .admin-inline-editor-cell .ds-card { padding: var(--ds-arena-space-2); }
+
+  .daily-blitz-chat-card { min-height: 360px; max-height: none; }
+  .daily-blitz-chat-log { min-height: 200px; max-height: 340px; }
+  .admin-infotip-content { min-width: 0; width: min(240px, calc(100vw - 48px)); }
+  .admin-main [style*="min-width: 220px"], .admin-main [style*="minWidth"] { min-width: 0 !important; }
+  .admin-main [style*="max-width"] { max-width: 100% !important; }
+  .admin-main code, .admin-main pre, .admin-main a { overflow-wrap: anywhere; }
+}
