@@ -7,7 +7,14 @@ import { fetchRemoteConfigTopics, saveRemoteConfigTopics } from "@/lib/admin/con
 import type { CustomParamEntry } from "@/lib/firebase/remote_config.server";
 
 export const Route = createFileRoute("/admin/config")({
-  head: () => ({ meta: [{ title: "Remote Config & A/B — More or Less Admin" }] }),
+  head: () => ({ meta: [
+    { title: "Remote Config & A/B — More or Less Admin" },
+    { name: "description", content: "Manage game settings and audience experiments." },
+    { property: "og:title", content: "Remote Config & A/B — More or Less Admin" },
+    { property: "og:description", content: "Manage game settings and audience experiments." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+  ] }),
   component: ConfigPage,
 });
 
@@ -916,7 +923,7 @@ function ConfigPage() {
                         </div>
                       </div>
 
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "12px", marginBottom: "12px" }}>
+                      <div className="admin-responsive-grid" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "12px", marginBottom: "12px" }}>
                         <div className="admin-field">
                           <label>Condition Name</label>
                           <input
@@ -1138,7 +1145,7 @@ function ConfigPage() {
               <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>
                 + Add Custom Parameter
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 2fr 2fr auto", gap: "8px", alignItems: "center" }}>
+              <div className="admin-responsive-grid" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 2fr 2fr auto", gap: "8px", alignItems: "center" }}>
                 <input
                   className="admin-input"
                   type="text"

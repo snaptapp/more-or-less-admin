@@ -11,6 +11,10 @@ export const Route = createFileRoute("/admin/analytics")({
     meta: [
       { title: "Game Analytics — More or Less Admin" },
       { name: "description", content: "Breakdown of recent game_history by mode and category." },
+      { property: "og:title", content: "Game Analytics — More or Less Admin" },
+      { property: "og:description", content: "Breakdown of recent game history by mode and category." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AnalyticsPage,
@@ -331,7 +335,7 @@ function AnalyticsPage() {
             <ErrorNote error={questions.error} />
             {questions.data?.length === 0 ? <p className="admin-empty">No actionable signed telemetry yet.</p> : null}
             {questions.data?.map((row) => (
-              <div key={row.questionId} className="admin-bar-row" style={{ gridTemplateColumns: "minmax(0, 2fr) repeat(4, auto)" }}>
+              <div key={row.questionId} className="admin-bar-row admin-question-row" style={{ gridTemplateColumns: "minmax(0, 2fr) repeat(4, auto)" }}>
                 <span title={row.claim}>{row.kind === "fact" ? "Fact" : "Generated"}: {row.claim || row.questionId}</span>
                 <span>{row.answered} answered</span>
                 <span>{Math.round(row.accuracy * 100)}% correct</span>

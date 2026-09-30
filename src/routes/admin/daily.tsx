@@ -42,6 +42,10 @@ export const Route = createFileRoute("/admin/daily")({
         name: "description",
         content: "Front-fill 15-round Daily Blitz packs. 15 questions, 60 seconds.",
       },
+      { property: "og:title", content: "Daily Blitz | More or Less Admin" },
+      { property: "og:description", content: "Front-fill 15-round Daily Blitz packs. 15 questions, 60 seconds." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: DailyPage,
@@ -265,7 +269,7 @@ function BlitzEditor({
           </div>
         </div>
 
-        <div className="admin-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+        <div className="admin-grid admin-responsive-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
           <label className="admin-field">
             <span>Topic / category</span>
             <input
@@ -449,7 +453,7 @@ function BlitzEditor({
                                 ))}
                               </select>
                             </label>
-                            <div className="admin-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                            <div className="admin-grid admin-responsive-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
                               <label className="admin-field">
                                 <span>Topic</span>
                                 <input
@@ -468,7 +472,7 @@ function BlitzEditor({
                                 />
                               </label>
                             </div>
-                            <div className="admin-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
+                            <div className="admin-grid admin-responsive-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
                               <label className="admin-field">
                                 <span>Presented</span>
                                 <input

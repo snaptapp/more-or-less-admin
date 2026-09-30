@@ -12,6 +12,10 @@ export const Route = createFileRoute("/admin/")({
     meta: [
       { title: "Admin Overview — More or Less" },
       { name: "description", content: "Ops dashboard: fact bank, moderation, crawl, and game health at a glance." },
+      { property: "og:title", content: "Admin Overview — More or Less" },
+      { property: "og:description", content: "Ops dashboard: fact bank, moderation, crawl, and game health at a glance." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: OverviewPage,

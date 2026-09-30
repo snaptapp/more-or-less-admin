@@ -36,7 +36,14 @@ export const Route = createFileRoute("/admin/audit")({
       topic: typeof search.topic === "string" ? search.topic : undefined,
     };
   },
-  head: () => ({ meta: [{ title: "Audit Log & Derivation Inspector — More or Less Admin" }] }),
+  head: () => ({ meta: [
+    { title: "Audit Log & Derivation Inspector — More or Less Admin" },
+    { name: "description", content: "Review admin actions and fact derivation evidence." },
+    { property: "og:title", content: "Audit Log & Derivation Inspector — More or Less Admin" },
+    { property: "og:description", content: "Review admin actions and fact derivation evidence." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+  ] }),
   component: AuditLogPage,
 });
 
