@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, PageHead, statusTone } from "@/admin/AdminShell";
 import { LintFindings, type LintEvidence } from "@/admin/LintFindings";
 import { actOnReport, fetchFact, fetchReports, flushReports } from "@/lib/admin/content.functions";
+import { fetchReportAudit, runReportCopilot } from "@/lib/admin/report-copilot.functions";
 import { isDuplicateFlag, isNonDuplicateFlag } from "@/lib/admin/quality-flags";
 import { QUANTITY_KINDS } from "../../../shared/fact-lifecycle-contract.gen";
 
@@ -105,7 +106,230 @@ function SourceList({ sources }: { sources: string[] }) {
   );
 }
 
+type CopilotResult = Awaited<ReturnType<typeof runReportCopilot>>;
+
+const COPILOT_VERDICTS: Record<CopilotResult["verdict"], { label: string; tone: "lime" | "red" | "amber" | "purple" | "neutral" }> = {
+  uphold_fact: { label: "Uphold fact", tone: "lime" },
+  fix_number: { label: "Fix number", tone: "amber" },
+  edit_fact: { label: "Edit fact", tone: "purple" },
+  retire_fact: { label: "Retire fact", tone: "red" },
+  unclear: { label: "Unclear", tone: "neutral" },
+};
+
+function CopilotPanel({
+  reportId,
+  hasFact,
+  onPrefill,
+  onResult,
+}: {
+  reportId: string;
+  hasFact: boolean;
+  onPrefill: (review: CopilotResult) => void;
+  onResult: (review: CopilotResult) => void;
+}) {
+  const run = useServerFn(runReportCopilot);
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () => run({ data: { reportId } }),
+    onSuccess: (r) => {
+      onResult(r);
+      queryClient.invalidateQueries({ queryKey: ["report-audit", reportId] });
+    },
+  });
+  const review = mutation.data;
+  const s = review?.suggested;
+  const changes = s
+    ? ([
+        ["True number", s.true_number],
+        ["Unit", s.unit],
+        ["Question", s.question],
+        ["Claim template", s.claim_template],
+        ["Context", s.context],
+      ] as const).filter(([, v]) => v !== undefined && v !== "")
+    : [];
+
+  return (
+    <section
+      aria-label="Copilot review"
+      style={{
+        marginTop: "var(--ds-arena-space-3)",
+        padding: "var(--ds-arena-space-3)",
+        border: "1px solid var(--ds-arena-color-border)",
+        borderInlineStart: "3px solid var(--ds-arena-color-purple)",
+        borderRadius: "var(--ds-arena-radius-sm)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--ds-arena-space-2)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+          <CardLabel>Copilot review</CardLabel>
+          {review ? (
+            <>
+              <Badge tone={COPILOT_VERDICTS[review.verdict].tone}>{COPILOT_VERDICTS[review.verdict].label}</Badge>
+              {review.policy.needsReview ? <Badge tone="red">Needs closer review</Badge> : null}
+            </>
+          ) : null}
+        </span>
+        <Button variant="ghost" size="sm" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+          {mutation.isPending ? "Checking sources…" : review ? "Re-run" : "Run copilot"}
+        </Button>
+      </div>
+      <ErrorNote error={mutation.error} />
+      {review ? (
+        <>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.85em" }}>
+            <span>{`Confidence: ${review.confidence}${review.policy.modelConfidence !== review.confidence ? ` (copilot said ${review.policy.modelConfidence})` : ""}`}</span>
+            <meter min={0} max={100} low={40} high={75} optimum={100} value={review.policy.score} style={{ flex: "1 1 120px" }}>
+              {review.policy.score}
+            </meter>
+          </label>
+          <details>
+            <summary style={{ cursor: "pointer", fontSize: "0.85em" }}>Why this score ({review.policy.score}/100)</summary>
+            <table className="admin-table" style={{ marginTop: 6, fontSize: "0.85em" }}>
+              <thead>
+                <tr><th>Factor</th><th>Points</th><th>Evidence</th></tr>
+              </thead>
+              <tbody>
+                {review.policy.factors.map((f) => (
+                  <tr key={f.label}>
+                    <td>{f.label}</td>
+                    <td>
+                      <Badge tone={f.kind === "base" ? "neutral" : f.points >= 0 ? "lime" : "red"}>
+                        {f.kind === "base" ? String(f.points) : `${f.points >= 0 ? "+" : ""}${f.points}`}
+                      </Badge>
+                    </td>
+                    <td>{f.detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+          {review.policy.reasons.length ? (
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: "0.85em", color: "var(--ds-arena-color-amber)" }}>
+              {review.policy.reasons.map((r) => <li key={r}>{r}</li>)}
+            </ul>
+          ) : null}
+          <p style={{ margin: 0, color: "var(--ds-arena-color-text)" }}>{review.rationale}</p>
+          {changes.length ? (
+            <dl className="admin-kv">
+              {changes.map(([label, value]) => (
+                <Fragment key={label}>
+                  <dt>Suggested {label.toLowerCase()}</dt>
+                  <dd>{String(value)}</dd>
+                </Fragment>
+              ))}
+            </dl>
+          ) : null}
+          <div>
+            <strong style={{ fontSize: "0.85em" }}>Sources</strong>
+            {review.sources.length ? (
+              <ul style={{ margin: "4px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+                {review.sources.map((src) => (
+                  <li key={src.url} style={{ fontSize: "0.9em" }}>
+                    <a href={src.url} target="_blank" rel="noreferrer">{src.title}</a>
+                    {src.value !== undefined ? <> <Badge>{String(src.value)}</Badge></> : null}
+                    {src.conflicting ? <> <Badge tone="red">Conflicts</Badge></> : src.stance === "supports" ? <> <Badge tone="lime">Supports</Badge></> : null}
+                    {src.excerpts.map((ex, i) => (
+                      <blockquote
+                        key={i}
+                        style={{
+                          margin: "4px 0 0",
+                          paddingInlineStart: 8,
+                          borderInlineStart: src.conflicting ? "2px solid var(--ds-arena-color-red)" : "2px solid var(--ds-arena-color-border)",
+                          color: "var(--ds-arena-color-text-muted)",
+                        }}
+                      >
+                        “{ex}”
+                      </blockquote>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ margin: 0, color: "var(--ds-arena-color-text-muted)" }}>No sources returned — treat verdict as unverified.</p>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <Button variant="daily" size="sm" onClick={() => onPrefill(review)}>
+              Prefill Apply &amp; Resolve
+            </Button>
+            <span style={{ fontSize: "0.8em", color: "var(--ds-arena-color-text-muted)" }}>
+              {review.policy.needsReview
+                ? "Low confidence: verify each source before saving. "
+                : ""}
+              {hasFact
+                ? "Fills the editor only. Review every field, then save."
+                : "Fills the corrected number and note. Nothing is saved until you act."}
+            </span>
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+
+function ReportAuditTrail({ reportId }: { reportId: string }) {
+  const [open, setOpen] = useState(false);
+  const fetchAudit = useServerFn(fetchReportAudit);
+  const query = useQuery({
+    queryKey: ["report-audit", reportId],
+    queryFn: () => fetchAudit({ data: { reportId } }),
+    enabled: open,
+  });
+  return (
+    <details
+      style={{ marginTop: "var(--ds-arena-space-3)" }}
+      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary style={{ cursor: "pointer" }}>
+        <CardLabel>Audit trail</CardLabel>
+      </summary>
+      {query.isLoading ? <p>Loading…</p> : null}
+      <ErrorNote error={query.error} />
+      {query.data && query.data.length === 0 ? <p style={{ color: "var(--ds-arena-color-text-muted)" }}>No recorded actions yet.</p> : null}
+      <ol style={{ margin: "6px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 8 }}>
+        {query.data?.map((log) => {
+          const after = (log.after ?? {}) as Record<string, unknown>;
+          const isCopilot = log.action === "report.copilot_review";
+          const sources = isCopilot && Array.isArray(after["sources"]) ? (after["sources"] as Array<Record<string, unknown>>) : [];
+          const warnings = isCopilot && Array.isArray(after["warnings"]) ? (after["warnings"] as string[]) : [];
+          return (
+            <li key={log.id} style={{ fontSize: "0.85em" }}>
+              <Badge tone={isCopilot ? "purple" : "lime"}>{isCopilot ? "Copilot" : "Resolution"}</Badge>{" "}
+              <strong>{log.action.replace("report.", "")}</strong> · {log.adminEmail ?? log.adminUid} · {log.createdAt ?? ""}
+              <div style={{ color: "var(--ds-arena-color-text-muted)" }}>{log.details}</div>
+              {warnings.length ? (
+                <div style={{ color: "var(--ds-arena-color-amber)" }}>Warnings: {warnings.join(" ")}</div>
+              ) : null}
+              {sources.length ? (
+                <ul style={{ margin: "2px 0 0", paddingLeft: 16 }}>
+                  {sources.map((src) => (
+                    <li key={String(src["url"])}>
+                      <a href={String(src["url"])} target="_blank" rel="noreferrer">{String(src["title"] ?? src["url"])}</a>
+                      {src["conflicting"] ? <> <Badge tone="red">Conflicts</Badge></> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </details>
+  );
+}
+
 function ReportCard({ entry }: { entry: Entry }) {
+  const [copilotSnap, setCopilotSnap] = useState<{
+    verdict: string;
+    confidence: string;
+    score: number;
+    needsReview: boolean;
+    prefilled: boolean;
+  } | null>(null);
   const act = useServerFn(actOnReport);
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
@@ -188,6 +412,7 @@ function ReportCard({ entry }: { entry: Entry }) {
           keepFactId: isObj ? params.keepFactId : undefined,
           retireFactId: isObj ? params.retireFactId : undefined,
           retireFactIds: isObj ? params.retireFactIds : undefined,
+          copilot: copilotSnap ?? undefined,
         },
       });
     },
@@ -366,6 +591,41 @@ function ReportCard({ entry }: { entry: Entry }) {
           </>
         ) : null}
       </dl>
+
+      {pending ? (
+        <CopilotPanel
+          reportId={report.id}
+          hasFact={Boolean(entry.fact)}
+          onResult={(review) =>
+            setCopilotSnap({
+              verdict: review.verdict,
+              confidence: review.confidence,
+              score: review.policy.score,
+              needsReview: review.policy.needsReview,
+              prefilled: false,
+            })
+          }
+          onPrefill={(review) => {
+            setCopilotSnap((prev) => (prev ? { ...prev, prefilled: true } : prev));
+            const s = review.suggested;
+            if (s.true_number !== undefined) setCorrected(String(s.true_number));
+            const autoNote = s.note || `Copilot: ${COPILOT_VERDICTS[review.verdict].label}. Human-reviewed.`;
+            setNote(autoNote);
+            if (entry.fact) {
+              setEditForm((prev) => ({
+                ...prev,
+                true_number: s.true_number !== undefined ? String(s.true_number) : prev.true_number,
+                unit: s.unit ?? prev.unit,
+                question: s.question ?? prev.question,
+                claim_template: s.claim_template ?? prev.claim_template,
+                context: s.context ?? prev.context,
+              }));
+              setShowEditor(true);
+            }
+          }}
+        />
+      ) : null}
+      <ReportAuditTrail reportId={report.id} />
 
       {pending && duplicateFactsList.length === 0 && entry.fact?.quality_flags?.some(isNonDuplicateFlag) ? (
         <div
