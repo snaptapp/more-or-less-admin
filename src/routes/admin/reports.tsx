@@ -6,6 +6,7 @@ import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, PageHead, statusTone } from "@/admin/AdminShell";
 import { LintFindings, type LintEvidence } from "@/admin/LintFindings";
 import { actOnReport, fetchFact, fetchReports, flushReports } from "@/lib/admin/content.functions";
+import { runReportCopilot } from "@/lib/admin/report-copilot.functions";
 import { isDuplicateFlag, isNonDuplicateFlag } from "@/lib/admin/quality-flags";
 import { QUANTITY_KINDS } from "../../../shared/fact-lifecycle-contract.gen";
 
@@ -104,6 +105,125 @@ function SourceList({ sources }: { sources: string[] }) {
     </ul>
   );
 }
+
+type CopilotResult = Awaited<ReturnType<typeof runReportCopilot>>;
+
+const COPILOT_VERDICTS: Record<CopilotResult["verdict"], { label: string; tone: "lime" | "red" | "amber" | "purple" | "neutral" }> = {
+  uphold_fact: { label: "Uphold fact", tone: "lime" },
+  fix_number: { label: "Fix number", tone: "amber" },
+  edit_fact: { label: "Edit fact", tone: "purple" },
+  retire_fact: { label: "Retire fact", tone: "red" },
+  unclear: { label: "Unclear", tone: "neutral" },
+};
+
+function CopilotPanel({
+  reportId,
+  hasFact,
+  onPrefill,
+}: {
+  reportId: string;
+  hasFact: boolean;
+  onPrefill: (review: CopilotResult) => void;
+}) {
+  const run = useServerFn(runReportCopilot);
+  const mutation = useMutation({ mutationFn: () => run({ data: { reportId } }) });
+  const review = mutation.data;
+  const s = review?.suggested;
+  const changes = s
+    ? ([
+        ["True number", s.true_number],
+        ["Unit", s.unit],
+        ["Question", s.question],
+        ["Claim template", s.claim_template],
+        ["Context", s.context],
+      ] as const).filter(([, v]) => v !== undefined && v !== "")
+    : [];
+
+  return (
+    <section
+      aria-label="Copilot review"
+      style={{
+        marginTop: "var(--ds-arena-space-3)",
+        padding: "var(--ds-arena-space-3)",
+        border: "1px solid var(--ds-arena-color-border)",
+        borderInlineStart: "3px solid var(--ds-arena-color-purple)",
+        borderRadius: "var(--ds-arena-radius-sm)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--ds-arena-space-2)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+          <CardLabel>Copilot review</CardLabel>
+          {review ? (
+            <>
+              <Badge tone={COPILOT_VERDICTS[review.verdict].tone}>{COPILOT_VERDICTS[review.verdict].label}</Badge>
+              <Badge>{`${review.confidence} confidence`}</Badge>
+            </>
+          ) : null}
+        </span>
+        <Button variant="ghost" size="sm" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+          {mutation.isPending ? "Checking sources…" : review ? "Re-run" : "Run copilot"}
+        </Button>
+      </div>
+      <ErrorNote error={mutation.error} />
+      {review ? (
+        <>
+          <p style={{ margin: 0, color: "var(--ds-arena-color-text)" }}>{review.rationale}</p>
+          {changes.length ? (
+            <dl className="admin-kv">
+              {changes.map(([label, value]) => (
+                <>
+                  <dt key={`${label}-t`}>Suggested {label.toLowerCase()}</dt>
+                  <dd key={`${label}-d`}>{String(value)}</dd>
+                </>
+              ))}
+            </dl>
+          ) : null}
+          <div>
+            <strong style={{ fontSize: "0.85em" }}>Sources</strong>
+            {review.sources.length ? (
+              <ul style={{ margin: "4px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+                {review.sources.map((src) => (
+                  <li key={src.url} style={{ fontSize: "0.9em" }}>
+                    <a href={src.url} target="_blank" rel="noreferrer">{src.title}</a>
+                    {src.excerpts.map((ex, i) => (
+                      <blockquote
+                        key={i}
+                        style={{
+                          margin: "4px 0 0",
+                          paddingInlineStart: 8,
+                          borderInlineStart: "2px solid var(--ds-arena-color-border)",
+                          color: "var(--ds-arena-color-text-muted)",
+                        }}
+                      >
+                        “{ex}”
+                      </blockquote>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ margin: 0, color: "var(--ds-arena-color-text-muted)" }}>No sources returned — treat verdict as unverified.</p>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <Button variant="daily" size="sm" onClick={() => onPrefill(review)}>
+              Prefill Apply &amp; Resolve
+            </Button>
+            <span style={{ fontSize: "0.8em", color: "var(--ds-arena-color-text-muted)" }}>
+              {hasFact
+                ? "Fills the editor only. Review every field, then save."
+                : "Fills the corrected number and note. Nothing is saved until you act."}
+            </span>
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
 
 function ReportCard({ entry }: { entry: Entry }) {
   const act = useServerFn(actOnReport);
@@ -366,6 +486,30 @@ function ReportCard({ entry }: { entry: Entry }) {
           </>
         ) : null}
       </dl>
+
+      {pending ? (
+        <CopilotPanel
+          reportId={report.id}
+          hasFact={Boolean(entry.fact)}
+          onPrefill={(review) => {
+            const s = review.suggested;
+            if (s.true_number !== undefined) setCorrected(String(s.true_number));
+            const autoNote = s.note || `Copilot: ${COPILOT_VERDICTS[review.verdict].label}. Human-reviewed.`;
+            setNote(autoNote);
+            if (entry.fact) {
+              setEditForm((prev) => ({
+                ...prev,
+                true_number: s.true_number !== undefined ? String(s.true_number) : prev.true_number,
+                unit: s.unit ?? prev.unit,
+                question: s.question ?? prev.question,
+                claim_template: s.claim_template ?? prev.claim_template,
+                context: s.context ?? prev.context,
+              }));
+              setShowEditor(true);
+            }
+          }}
+        />
+      ) : null}
 
       {pending && duplicateFactsList.length === 0 && entry.fact?.quality_flags?.some(isNonDuplicateFlag) ? (
         <div
