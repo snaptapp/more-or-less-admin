@@ -1157,8 +1157,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-toolbar .admin-field, .admin-main .admin-field { min-width: 0 !important; max-width: 100% !important; }
   .admin-input, .admin-select, .admin-textarea { min-width: 0; }
   .admin-grid { grid-template-columns: minmax(0, 1fr); }
-  .admin-main .admin-grid[style*="grid-template-columns"],
-  .admin-main [style*="grid-template-columns"]:not(.admin-table):not(.admin-kv) { grid-template-columns: minmax(0, 1fr) !important; }
+  .admin-main .admin-responsive-grid { grid-template-columns: minmax(0, 1fr) !important; }
   .admin-kv { grid-template-columns: minmax(0, 1fr); gap: var(--ds-arena-space-1); }
   .admin-kv dd { margin-bottom: var(--ds-arena-space-2); }
   .admin-chart-grid, .admin-two-col, .daily-blitz-layout { grid-template-columns: minmax(0, 1fr); }
@@ -1166,6 +1165,9 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-bar-row { grid-template-columns: minmax(0, 1fr) minmax(30px, 2fr) auto; }
   .admin-bar-row--filterable { grid-template-columns: minmax(0, 1fr) minmax(24px, 1fr) auto; }
   .admin-bar-row--filterable .ds-button { grid-column: 1 / -1; }
+  .admin-question-row { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: var(--ds-arena-space-2); padding: var(--ds-arena-space-3) 0; border-bottom: 1px solid var(--ds-arena-color-border); }
+  .admin-question-row > :first-child, .admin-question-row > .ds-button { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
+  .admin-question-row > span:not(:first-child) { font-size: 12px; color: var(--ds-arena-color-text-muted); }
   .admin-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
   .admin-tabs a { flex: none; white-space: nowrap; }
 
@@ -1179,7 +1181,6 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .daily-blitz-chat-card { min-height: 360px; max-height: none; }
   .daily-blitz-chat-log { min-height: 200px; max-height: 340px; }
   .admin-infotip-content { min-width: 0; width: min(240px, calc(100vw - 48px)); }
-  .admin-main [style*="min-width: 220px"], .admin-main [style*="minWidth"] { min-width: 0 !important; }
-  .admin-main [style*="max-width"] { max-width: 100% !important; }
+  .admin-main [style*="min-width: 220px"] { min-width: 0 !important; }
   .admin-main code, .admin-main pre, .admin-main a { overflow-wrap: anywhere; }
 }
