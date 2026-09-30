@@ -1,0 +1,63 @@
+name: Sync to Snuggle Script Pack
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-to-snuggle
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync to snuggle-script-pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout more-or-less-admin
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SNUGGLE_REPO_PAT || secrets.ADMIN_REPO_PAT }}
+
+      - name: Set up git config
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add snuggle-script-pack remote
+        run: |
+          git remote add snuggle "https://x-access-token:${{ secrets.SNUGGLE_REPO_PAT || secrets.ADMIN_REPO_PAT }}@github.com/snaptapp/snuggle-script-pack.git"
+          git fetch snuggle main
+
+      - name: Sync commits to snuggle-script-pack
+        run: |
+          # If snuggle-script-pack already contains our HEAD, nothing to push
+          if git merge-base --is-ancestor HEAD snuggle/main; then
+            echo "snuggle-script-pack/main already contains HEAD. Nothing to push."
+            exit 0
+          fi
+
+          # If snuggle/main is an ancestor of HEAD, fast-forward push
+          if git merge-base --is-ancestor snuggle/main HEAD; then
+            echo "Fast-forwarding snuggle-script-pack/main with HEAD..."
+            git push snuggle HEAD:main
+            echo "Successfully pushed to snuggle-script-pack/main."
+            exit 0
+          fi
+
+          # Otherwise, branches have diverged; merge snuggle/main into local main
+          echo "Branches have diverged; merging snuggle/main..."
+          git merge snuggle/main -m "Merge branch 'main' of snaptapp/snuggle-script-pack into more-or-less-admin"
+
+          # Push the merge commit to both repositories
+          echo "Pushing merged state to snuggle-script-pack/main..."
+          git push snuggle HEAD:main
+          echo "Pushing merged state back to more-or-less-admin/main..."
+          git push origin HEAD:main
+          echo "Synchronization complete."
