@@ -9,8 +9,8 @@
 - [x] MFA (TOTP) on the admin sign-in gate
 - [x] Per-round accuracy analytics (signed round telemetry → `/admin/analytics`; PLAN.md slice 1)
 - [x] Server-side dispute bounty settlement + callable-only reporting (PLAN.md slice 2, minus escalation)
+- [x] Responsive admin navigation and mobile layouts for admin views (dense tables scroll within their panels)
 
 ## In progress
-- [ ] Give every admin view a proper mobile layout
 - [ ] Reporter overturn-rate escalation (`escalateHuman`) — PLAN.md item 7
 - [ ] Aggregate ombudsman-vs-human agreement-% dashboard — PLAN.md item 8 remainder
