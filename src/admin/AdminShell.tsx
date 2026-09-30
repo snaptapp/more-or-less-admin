@@ -7,6 +7,7 @@ import {
   type FactStatus,
 } from "../../shared/fact-lifecycle-contract.gen";
 import { useAdminAuth } from "./auth";
+import { drawerKeyAction } from "./drawerKeyboard";
 import "./admin.css";
 
 type StatusTone = "lime" | "red" | "amber" | "purple" | "neutral";
@@ -173,22 +174,38 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   useEffect(() => setMenuOpen(false), [pathname]);
 
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen) {
+      // Return focus to the toggle whenever the drawer closes (Escape, scrim,
+      // link navigation, or sign out).
+      if (wasOpen.current) toggleRef.current?.focus();
+      wasOpen.current = false;
+      return;
+    }
+    wasOpen.current = true;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    menuRef.current?.querySelector<HTMLAnchorElement>("a")?.focus();
+    const menu = menuRef.current;
+    const active = menu?.querySelector<HTMLAnchorElement>('a[aria-current="page"]');
+    (active ?? menu?.querySelector<HTMLAnchorElement>("a"))?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      const all = Array.from(menuRef.current?.querySelectorAll<HTMLElement>("a, button:not(:disabled)") ?? []);
+      // Arrow/Home/End move between nav links only; Tab cycles every control.
+      const isArrow = ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key);
+      const list = isArrow ? all.filter((el) => el.tagName === "A") : all;
+      const action = drawerKeyAction(
+        event.key,
+        event.shiftKey,
+        list.length,
+        list.indexOf(document.activeElement as HTMLElement),
+      );
+      if (action.type === "close") {
+        event.preventDefault();
         setMenuOpen(false);
-        toggleRef.current?.focus();
-      } else if (event.key === "Tab") {
-        const focusable = menuRef.current?.querySelectorAll<HTMLElement>("a, button:not(:disabled)");
-        if (!focusable?.length) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      } else if (action.type === "focus") {
+        event.preventDefault();
+        list[action.index]?.focus();
       }
     };
     document.addEventListener("keydown", onKeyDown);
