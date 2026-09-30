@@ -1158,6 +1158,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-input, .admin-select, .admin-textarea { min-width: 0; }
   .admin-grid { grid-template-columns: minmax(0, 1fr); }
   .admin-main .admin-responsive-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .admin-main [style*="minmax(280px"] { grid-template-columns: minmax(0, 1fr) !important; }
   .admin-kv { grid-template-columns: minmax(0, 1fr); gap: var(--ds-arena-space-1); }
   .admin-kv dd { margin-bottom: var(--ds-arena-space-2); }
   .admin-chart-grid, .admin-two-col, .daily-blitz-layout { grid-template-columns: minmax(0, 1fr); }
@@ -1174,6 +1175,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   /* Tables retain their comparison columns; the page itself never scrolls sideways. */
   .admin-table-wrap { max-width: 100%; min-width: 0; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
   .admin-table-wrap::after { content: "SWIPE TO SEE MORE →"; display: block; position: sticky; left: 0; width: fit-content; padding: var(--ds-arena-space-2) var(--ds-arena-space-3); color: var(--ds-arena-color-text-muted); font: 11px var(--ds-arena-font-mono); }
+  .admin-main .ds-card:has(> .admin-table-wrap) { padding: var(--ds-arena-space-2); }
   .admin-table td, .admin-table th { padding: var(--ds-arena-space-2) var(--ds-arena-space-3); }
   .admin-inline-editor-row td, .admin-table tbody tr.admin-inline-editor-row:hover td { padding: var(--ds-arena-space-2); }
   .admin-inline-editor-cell .ds-card { padding: var(--ds-arena-space-2); }
