@@ -38,7 +38,7 @@ export const runReportCopilot = createServerFn({ method: "POST" })
     await logAdminAction(context.user, {
       action: "report.copilot_review",
       targetType: "report",
-      targetId: report.id,
+      targetId: data.reportId,
       details: `Copilot verdict: ${review.verdict} (${review.confidence}, score ${review.policy.score})${review.policy.needsReview ? " - needs closer review" : ""}`,
       after: {
         verdict: review.verdict,
