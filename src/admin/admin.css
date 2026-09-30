@@ -1236,7 +1236,6 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-card-table .admin-inline-editor-row { margin: calc(-1 * var(--ds-arena-space-3)) 0 var(--ds-arena-space-4); border: 1px solid var(--ds-arena-color-border); }
   .admin-card-table .admin-inline-editor-row td { display: block; width: 100%; }
   .admin-card-table--facts .admin-topic-meta { font-weight: 400; }
-  .admin-card-table--facts ~ p, .admin-card-table--audit ~ p { min-width: 0; }
   .admin-mobile-fact-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-arena-space-3); }
   .admin-mobile-fact-controls > .ds-button { min-height: 44px; }
   .admin-card-table--topics td:nth-child(2), .admin-card-table--timeline td:nth-child(2) { font-weight: 600; }
@@ -1245,7 +1244,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
 
   .admin-card-table--facts td:nth-child(2)::before, .admin-card-table--import td:nth-child(3)::before { content: "Angle" !important; }
   .admin-card-table--facts td:nth-child(3)::before, .admin-card-table--import td:nth-child(4)::before { content: "Value" !important; }
-  .admin-card-table--facts td:nth-child(4)::before, .admin-card-table--derivation td:nth-child(2)::before { content: "Surprise" !important; }
+  .admin-card-table--facts td:nth-child(4)::before { content: "Surprise" !important; }
   .admin-card-table--facts td:nth-child(5)::before { content: "Rating" !important; }
   .admin-card-table--facts td:nth-child(6)::before { content: "Status" !important; }
   .admin-card-table--facts td:nth-child(7)::before { content: "Served" !important; }
@@ -1281,6 +1280,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-card-table--scores td:nth-child(2)::before { content: "Player" !important; }
   .admin-card-table--scores td:nth-child(3)::before { content: "Score" !important; }
   .admin-card-table--derivation td:nth-child(3)::before { content: "MORE candidate" !important; }
+  .admin-card-table--derivation td:nth-child(2)::before { content: "Intuition tier" !important; }
   .admin-card-table--derivation td:nth-child(4)::before { content: "LESS candidate" !important; }
   .admin-card-table--derivation td:nth-child(5)::before { content: "Delta" !important; }
   .admin-card-table--derivation td:nth-child(6)::before { content: "Ratio" !important; }
