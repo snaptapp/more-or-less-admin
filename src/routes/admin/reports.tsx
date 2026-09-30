@@ -17,6 +17,10 @@ export const Route = createFileRoute("/admin/reports")({
     meta: [
       { title: "Moderation Inbox — More or Less Admin" },
       { name: "description", content: "Review player disputes and correct or retire facts." },
+      { property: "og:title", content: "Moderation Inbox — More or Less Admin" },
+      { property: "og:description", content: "Review player disputes and correct or retire facts." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: ReportsPage,

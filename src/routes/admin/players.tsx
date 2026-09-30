@@ -11,6 +11,10 @@ export const Route = createFileRoute("/admin/players")({
     meta: [
       { title: "Players — More or Less Admin" },
       { name: "description", content: "Look up players, inspect lifetime stats and premium status." },
+      { property: "og:title", content: "Players — More or Less Admin" },
+      { property: "og:description", content: "Look up players, inspect lifetime stats and premium status." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: PlayersPage,

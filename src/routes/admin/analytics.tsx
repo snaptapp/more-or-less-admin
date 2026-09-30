@@ -11,6 +11,10 @@ export const Route = createFileRoute("/admin/analytics")({
     meta: [
       { title: "Game Analytics — More or Less Admin" },
       { name: "description", content: "Breakdown of recent game_history by mode and category." },
+      { property: "og:title", content: "Game Analytics — More or Less Admin" },
+      { property: "og:description", content: "Breakdown of recent game history by mode and category." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AnalyticsPage,

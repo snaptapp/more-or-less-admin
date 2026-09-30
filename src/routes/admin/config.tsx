@@ -7,7 +7,14 @@ import { fetchRemoteConfigTopics, saveRemoteConfigTopics } from "@/lib/admin/con
 import type { CustomParamEntry } from "@/lib/firebase/remote_config.server";
 
 export const Route = createFileRoute("/admin/config")({
-  head: () => ({ meta: [{ title: "Remote Config & A/B — More or Less Admin" }] }),
+  head: () => ({ meta: [
+    { title: "Remote Config & A/B — More or Less Admin" },
+    { name: "description", content: "Manage game settings and audience experiments." },
+    { property: "og:title", content: "Remote Config & A/B — More or Less Admin" },
+    { property: "og:description", content: "Manage game settings and audience experiments." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+  ] }),
   component: ConfigPage,
 });
 

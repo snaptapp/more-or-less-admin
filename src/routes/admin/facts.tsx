@@ -74,6 +74,10 @@ export const Route = createFileRoute("/admin/facts")({
     meta: [
       { title: "Content — More or Less Admin" },
       { name: "description", content: "Facts, topics, playlists, and crawl intake." },
+      { property: "og:title", content: "Content — More or Less Admin" },
+      { property: "og:description", content: "Facts, topics, playlists, and crawl intake." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: ContentPage,

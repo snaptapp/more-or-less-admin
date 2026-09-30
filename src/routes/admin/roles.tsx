@@ -7,7 +7,14 @@ import { useAdminAuth } from "@/admin/auth";
 import { listAdminUsers, setAdminRole } from "@/lib/admin/roles.functions";
 
 export const Route = createFileRoute("/admin/roles")({
-  head: () => ({ meta: [{ title: "Roles & Access — More or Less Admin" }] }),
+  head: () => ({ meta: [
+    { title: "Roles & Access — More or Less Admin" },
+    { name: "description", content: "Manage administrator access for More or Less." },
+    { property: "og:title", content: "Roles & Access — More or Less Admin" },
+    { property: "og:description", content: "Manage administrator access for More or Less." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+  ] }),
   component: RolesPage,
 });
 
