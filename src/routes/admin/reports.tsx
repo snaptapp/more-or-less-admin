@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Fragment, useState } from "react";
-import { Badge, Button, Card, CardLabel, CardTitle, ProgressBar } from "@/index";
+import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, PageHead, statusTone } from "@/admin/AdminShell";
 import { LintFindings, type LintEvidence } from "@/admin/LintFindings";
 import { actOnReport, fetchFact, fetchReports, flushReports } from "@/lib/admin/content.functions";
@@ -170,11 +170,12 @@ function CopilotPanel({
       <ErrorNote error={mutation.error} />
       {review ? (
         <>
-          <ProgressBar
-            value={review.policy.score}
-            tone={review.confidence === "high" ? "lime" : review.confidence === "medium" ? "purple" : "red"}
-            label={`Confidence: ${review.confidence}${review.policy.modelConfidence !== review.confidence ? ` (copilot said ${review.policy.modelConfidence})` : ""}`}
-          />
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.85em" }}>
+            <span>{`Confidence: ${review.confidence}${review.policy.modelConfidence !== review.confidence ? ` (copilot said ${review.policy.modelConfidence})` : ""}`}</span>
+            <meter min={0} max={100} low={40} high={75} optimum={100} value={review.policy.score} style={{ flex: "1 1 120px" }}>
+              {review.policy.score}
+            </meter>
+          </label>
           {review.policy.reasons.length ? (
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: "0.85em", color: "var(--ds-arena-color-amber)" }}>
               {review.policy.reasons.map((r) => <li key={r}>{r}</li>)}
