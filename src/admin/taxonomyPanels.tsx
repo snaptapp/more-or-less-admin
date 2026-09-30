@@ -358,7 +358,7 @@ export function TopicsPanel() {
       ) : null}
 
       <div className="admin-table-wrap">
-        <table className="admin-table">
+        <table className="admin-table admin-card-table admin-card-table--topics">
           <thead>
             <tr>
               <th>Genre</th>
@@ -578,7 +578,7 @@ export function PlaylistsPanel() {
       <ErrorNote error={query.error ?? createMutation.error ?? subjectsQuery.error} />
 
       <div className="admin-table-wrap">
-        <table className="admin-table">
+        <table className="admin-table admin-card-table admin-card-table--playlists">
           <thead>
             <tr>
               <th>Playlist</th>
@@ -807,7 +807,7 @@ export function CrawlQueue() {
         }
       />
       <div className="admin-table-wrap" style={{ marginTop: "var(--ds-arena-space-3)" }}>
-        <table className="admin-table">
+        <table className="admin-table admin-card-table admin-card-table--queue">
           <thead>
             <tr>
               <th>Topic</th>

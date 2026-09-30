@@ -119,7 +119,7 @@ function PlayersPage() {
       </div>
       <ErrorNote error={query.error} />
       <div className="admin-table-wrap">
-        <table className="admin-table">
+        <table className="admin-table admin-card-table admin-card-table--players">
           <thead>
             <tr>
               <th>Display name</th>

@@ -191,7 +191,7 @@ function CopilotPanel({
           </label>
           <details>
             <summary style={{ cursor: "pointer", fontSize: "0.85em" }}>Why this score ({review.policy.score}/100)</summary>
-            <table className="admin-table" style={{ marginTop: 6, fontSize: "0.85em" }}>
+            <table className="admin-table admin-card-table admin-card-table--confidence" style={{ marginTop: 6, fontSize: "0.85em" }}>
               <thead>
                 <tr><th>Factor</th><th>Points</th><th>Evidence</th></tr>
               </thead>

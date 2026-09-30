@@ -2012,7 +2012,7 @@ function ContentPage() {
             {creating ? <NewFactForm onDone={() => setCreating(false)} /> : null}
 
             <div className="admin-table-wrap">
-              <table className="admin-table">
+              <table className="admin-table admin-card-table admin-card-table--facts">
                 <thead>
                   <tr>
                     <th className="admin-th-sortable" onClick={() => toggleSort("subject")}>
@@ -2548,7 +2548,7 @@ export function ImportCsvModal({ onDone }: { onDone: () => void }) {
               </div>
 
               <div className="admin-table-wrap" style={{ maxHeight: "240px", overflowY: "auto" }}>
-                <table className="admin-table">
+                <table className="admin-table admin-card-table admin-card-table--import">
                   <thead>
                     <tr>
                       <th>Status</th>

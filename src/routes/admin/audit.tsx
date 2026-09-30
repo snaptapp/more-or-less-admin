@@ -153,7 +153,7 @@ function AuditLogPage() {
 
           <Card>
             <div className="admin-table-wrap">
-              <table className="admin-table">
+              <table className="admin-table admin-card-table admin-card-table--audit">
                 <thead>
                   <tr>
                     <th>Timestamp</th>

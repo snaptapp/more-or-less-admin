@@ -562,7 +562,7 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
                 </div>
 
                 <div className="admin-table-wrap" style={{ marginTop: 16 }}>
-                  <table className="admin-table">
+                  <table className="admin-table admin-card-table admin-card-table--derivation">
                     <thead>
                       <tr>
                         <th>Surprise</th>
