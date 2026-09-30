@@ -159,7 +159,7 @@ function CopilotPanel({
           {review ? (
             <>
               <Badge tone={COPILOT_VERDICTS[review.verdict].tone}>{COPILOT_VERDICTS[review.verdict].label}</Badge>
-              <Badge>{`${review.confidence} confidence`}</Badge>
+              {review.policy.needsReview ? <Badge tone="red">Needs closer review</Badge> : null}
             </>
           ) : null}
         </span>
@@ -170,6 +170,17 @@ function CopilotPanel({
       <ErrorNote error={mutation.error} />
       {review ? (
         <>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.85em" }}>
+            <span>{`Confidence: ${review.confidence}${review.policy.modelConfidence !== review.confidence ? ` (copilot said ${review.policy.modelConfidence})` : ""}`}</span>
+            <meter min={0} max={100} low={40} high={75} optimum={100} value={review.policy.score} style={{ flex: "1 1 120px" }}>
+              {review.policy.score}
+            </meter>
+          </label>
+          {review.policy.reasons.length ? (
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: "0.85em", color: "var(--ds-arena-color-amber)" }}>
+              {review.policy.reasons.map((r) => <li key={r}>{r}</li>)}
+            </ul>
+          ) : null}
           <p style={{ margin: 0, color: "var(--ds-arena-color-text)" }}>{review.rationale}</p>
           {changes.length ? (
             <dl className="admin-kv">
@@ -188,13 +199,15 @@ function CopilotPanel({
                 {review.sources.map((src) => (
                   <li key={src.url} style={{ fontSize: "0.9em" }}>
                     <a href={src.url} target="_blank" rel="noreferrer">{src.title}</a>
+                    {src.value !== undefined ? <> <Badge>{String(src.value)}</Badge></> : null}
+                    {src.conflicting ? <> <Badge tone="red">Conflicts</Badge></> : src.stance === "supports" ? <> <Badge tone="lime">Supports</Badge></> : null}
                     {src.excerpts.map((ex, i) => (
                       <blockquote
                         key={i}
                         style={{
                           margin: "4px 0 0",
                           paddingInlineStart: 8,
-                          borderInlineStart: "2px solid var(--ds-arena-color-border)",
+                          borderInlineStart: src.conflicting ? "2px solid var(--ds-arena-color-red)" : "2px solid var(--ds-arena-color-border)",
                           color: "var(--ds-arena-color-text-muted)",
                         }}
                       >
@@ -213,6 +226,9 @@ function CopilotPanel({
               Prefill Apply &amp; Resolve
             </Button>
             <span style={{ fontSize: "0.8em", color: "var(--ds-arena-color-text-muted)" }}>
+              {review.policy.needsReview
+                ? "Low confidence: verify each source before saving. "
+                : ""}
               {hasFact
                 ? "Fills the editor only. Review every field, then save."
                 : "Fills the corrected number and note. Nothing is saved until you act."}

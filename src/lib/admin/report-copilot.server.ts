@@ -14,6 +14,27 @@ export interface CopilotSource {
   url: string;
   title: string;
   excerpts: string[];
+  /** Number the source states, when the model extracted one. */
+  value?: number;
+  stance: "supports" | "contradicts" | "unclear";
+  /** True when this source's value disagrees with the recommended number or other sources. */
+  conflicting: boolean;
+}
+
+/**
+ * Source-quality policy applied before any recommendation is shown:
+ * - No sources: verdict forced to "unclear", confidence "low". Prefill is advisory only.
+ * - Only 1 source: confidence capped at "medium".
+ * - Sources disagree (>5% spread between stated values, or a source contradicts the
+ *   recommended number): confidence capped at "low", each disagreeing source flagged.
+ * - Model says "low": kept low; recommendation still shown but marked for closer review.
+ * Any cap or flag sets needsReview so admins can prioritize.
+ */
+export interface CopilotPolicy {
+  needsReview: boolean;
+  reasons: string[];
+  modelConfidence: "low" | "medium" | "high";
+  score: number; // 0-100 for the meter
 }
 
 export interface CopilotReview {
@@ -29,6 +50,7 @@ export interface CopilotReview {
     note?: string;
   };
   sources: CopilotSource[];
+  policy: CopilotPolicy;
   model: string;
 }
 
@@ -63,7 +85,7 @@ function vertexUrl(): string {
 
 const SYSTEM = `You are the moderation copilot for "More or Less", a numeric trivia game.
 A player disputed a fact. Use Google Search to verify the true number. Respond with ONLY a JSON object:
-{"verdict":"uphold_fact|fix_number|edit_fact|retire_fact|unclear","confidence":"low|medium|high","rationale":"2-4 sentences","suggested":{"true_number":number?,"unit":string?,"question":string?,"claim_template":string? (must contain {n}),"context":string?,"note":string (short resolution note)},"sources":[{"url":string,"title":string,"excerpt":"verbatim quote supporting the number"}]}
+{"verdict":"uphold_fact|fix_number|edit_fact|retire_fact|unclear","confidence":"low|medium|high","rationale":"2-4 sentences","suggested":{"true_number":number?,"unit":string?,"question":string?,"claim_template":string? (must contain {n}),"context":string?,"note":string (short resolution note)},"sources":[{"url":string,"title":string,"excerpt":"verbatim quote","value":number|null (the number this source states, in the fact's unit),"stance":"supports|contradicts|unclear" (relative to your recommended true number)}]}\nNever invent excerpts; if sources disagree, say so in the rationale.
 Rules: uphold_fact when the stored number is right. fix_number when only the number is wrong. edit_fact when unit/wording is ambiguous or wrong. retire_fact when the fact is unverifiable or inherently ambiguous. Only include suggested fields you would change. true_number must be a single finite number, never a range.`;
 
 function clean(value: unknown, max = 800): string | undefined {
@@ -144,7 +166,7 @@ export async function reviewReportWithCopilot(input: CopilotInput): Promise<Copi
   const chunks = cand?.groundingMetadata?.groundingChunks ?? [];
   chunks.forEach((c) => {
     const url = c.web?.uri;
-    if (url && !byUrl.has(url)) byUrl.set(url, { url, title: c.web?.title || url, excerpts: [] });
+    if (url && !byUrl.has(url)) byUrl.set(url, { url, title: c.web?.title || url, excerpts: [], stance: "unclear", conflicting: false });
   });
   for (const support of cand?.groundingMetadata?.groundingSupports ?? []) {
     const seg = clean(support.segment?.text, 400);
@@ -166,17 +188,74 @@ export async function reviewReportWithCopilot(input: CopilotInput): Promise<Copi
       if (existing) {
         if (excerpt && !existing.excerpts.includes(excerpt)) existing.excerpts.unshift(excerpt);
       } else {
-        byUrl.set(url, { url, title, excerpts: excerpt ? [excerpt] : [] });
+        byUrl.set(url, { url, title, excerpts: excerpt ? [excerpt] : [], stance: "unclear", conflicting: false });
+      }
+      const target = byUrl.get(url) ?? existing;
+      if (target) {
+        const v = typeof row?.value === "number" ? row.value : Number(row?.value);
+        if (row?.value !== null && row?.value !== undefined && Number.isFinite(v)) target.value = v;
+        const st = String(row?.stance);
+        if (st === "supports" || st === "contradicts") target.stance = st;
       }
     }
   }
 
+  const sources = [...byUrl.values()].slice(0, 8);
+  const policy = applySourcePolicy(sources, suggested.true_number ?? input.fact?.true_number ?? input.trueNumber, confidence);
+  let finalVerdict = verdict;
+  if (sources.length === 0) finalVerdict = "unclear";
+
   return {
-    verdict,
-    confidence,
+    verdict: finalVerdict,
+    confidence: policy.confidence,
     rationale: clean(parsed.rationale, 1200) || "No rationale provided.",
     suggested,
-    sources: [...byUrl.values()].slice(0, 8),
+    sources,
+    policy: policy.policy,
     model: MODEL_ID,
+  };
+}
+
+const RANK = { low: 0, medium: 1, high: 2 } as const;
+const cap = (c: keyof typeof RANK, max: keyof typeof RANK) => (RANK[c] > RANK[max] ? max : c);
+
+function differs(a: number, b: number): boolean {
+  const scale = Math.max(Math.abs(a), Math.abs(b), 1e-9);
+  return Math.abs(a - b) / scale > 0.05;
+}
+
+export function applySourcePolicy(
+  sources: CopilotSource[],
+  target: number | null | undefined,
+  modelConfidence: "low" | "medium" | "high",
+): { confidence: "low" | "medium" | "high"; policy: CopilotPolicy } {
+  const reasons: string[] = [];
+  let confidence = modelConfidence;
+  if (sources.length === 0) {
+    confidence = "low";
+    reasons.push("No sources returned; verdict set to unclear.");
+  } else if (sources.length === 1) {
+    confidence = cap(confidence, "medium");
+    reasons.push("Only one source found.");
+  }
+  const valued = sources.filter((s) => s.value !== undefined);
+  let conflict = false;
+  for (const s of sources) {
+    const vsTarget = s.value !== undefined && target != null && Number.isFinite(target) && differs(s.value, target);
+    const vsOthers = s.value !== undefined && valued.some((o) => o !== s && differs(o.value!, s.value!));
+    s.conflicting = s.stance === "contradicts" || vsTarget || vsOthers;
+    if (s.conflicting) conflict = true;
+  }
+  if (conflict) {
+    confidence = "low";
+    reasons.push(`${sources.filter((s) => s.conflicting).length} source(s) conflict with the recommendation or each other.`);
+  }
+  if (modelConfidence === "low" && !reasons.length) reasons.push("Copilot reported low confidence.");
+  const supporting = sources.filter((s) => !s.conflicting && s.stance === "supports").length;
+  const base = { low: 25, medium: 60, high: 90 }[confidence];
+  const score = Math.max(0, Math.min(100, base + Math.min(supporting, 3) * 3 - (conflict ? 10 : 0)));
+  return {
+    confidence,
+    policy: { needsReview: confidence === "low" || reasons.length > 0, reasons, modelConfidence, score },
   };
 }
