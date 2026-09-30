@@ -1247,9 +1247,9 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-card-table--facts td:nth-child(3)::before, .admin-card-table--import td:nth-child(4)::before { content: "Value" !important; }
   .admin-card-table--facts td:nth-child(4)::before, .admin-card-table--derivation td:nth-child(2)::before { content: "Surprise" !important; }
   .admin-card-table--facts td:nth-child(5)::before { content: "Rating" !important; }
-  .admin-card-table--facts td:nth-child(6)::before, .admin-card-table--topics td:nth-child(5)::before { content: "Status" !important; }
+  .admin-card-table--facts td:nth-child(6)::before { content: "Status" !important; }
   .admin-card-table--facts td:nth-child(7)::before { content: "Served" !important; }
-  .admin-card-table--players td:nth-child(2)::before, .admin-card-table--roles td:nth-child(2)::before { content: "Email" !important; }
+  .admin-card-table--players td:nth-child(2)::before { content: "Email" !important; }
   .admin-card-table--players td:nth-child(3)::before { content: "Premium" !important; }
   .admin-card-table--players td:nth-child(4)::before, .admin-card-table--roles td:nth-child(4)::before { content: "Joined" !important; }
   .admin-card-table--roles td:nth-child(2)::before { content: "Status" !important; }
@@ -1261,6 +1261,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-card-table--audit td:nth-child(4)::before { content: "Target" !important; }
   .admin-card-table--audit td:nth-child(5)::before { content: "Details" !important; }
   .admin-card-table--topics td:nth-child(2)::before { content: "Topic" !important; }
+  .admin-card-table--topics td:first-child::before { content: "Genre" !important; display: block !important; }
   .admin-card-table--topics td:nth-child(3)::before, .admin-card-table--playlists td:nth-child(3)::before { content: "Aliases" !important; }
   .admin-card-table--topics td:nth-child(4)::before { content: "Facts" !important; }
   .admin-card-table--topics td:nth-child(5)::before { content: "Last crawled" !important; }
