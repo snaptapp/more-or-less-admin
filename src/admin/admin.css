@@ -1083,6 +1083,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
 
 /* Compact navigation keeps the workspace available without consuming the phone viewport. */
 .admin-mobile-header { display: none; }
+.admin-mobile-fact-controls { display: none; }
 
 @media (max-width: 900px) {
   .admin-shell {
@@ -1145,6 +1146,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
     opacity: 0.94;
     cursor: pointer;
   }
+  .admin-mobile-scrim.ds-button { min-height: 0; width: 100%; height: calc(100dvh - 64px); box-shadow: none; border-radius: 0; }
 
   .admin-mobile-menu .admin-nav { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ds-arena-space-1); }
   .admin-mobile-menu .admin-nav a { min-width: 0; overflow-wrap: anywhere; }
@@ -1235,10 +1237,65 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-card-table .admin-inline-editor-row td { display: block; width: 100%; }
   .admin-card-table--facts .admin-topic-meta { font-weight: 400; }
   .admin-card-table--facts ~ p, .admin-card-table--audit ~ p { min-width: 0; }
+  .admin-mobile-fact-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-arena-space-3); }
+  .admin-mobile-fact-controls > .ds-button { min-height: 44px; }
+  .admin-card-table--topics td:nth-child(2), .admin-card-table--timeline td:nth-child(2) { font-weight: 600; }
+  .admin-card-table--import td:nth-child(5) { white-space: normal !important; overflow-wrap: anywhere; }
+  .admin-card-table--roles td:first-child span { overflow-wrap: anywhere; }
+
+  .admin-card-table--facts td:nth-child(2)::before, .admin-card-table--import td:nth-child(3)::before { content: "Angle" !important; }
+  .admin-card-table--facts td:nth-child(3)::before, .admin-card-table--import td:nth-child(4)::before { content: "Value" !important; }
+  .admin-card-table--facts td:nth-child(4)::before, .admin-card-table--derivation td:nth-child(2)::before { content: "Surprise" !important; }
+  .admin-card-table--facts td:nth-child(5)::before { content: "Rating" !important; }
+  .admin-card-table--facts td:nth-child(6)::before, .admin-card-table--topics td:nth-child(5)::before { content: "Status" !important; }
+  .admin-card-table--facts td:nth-child(7)::before { content: "Served" !important; }
+  .admin-card-table--players td:nth-child(2)::before, .admin-card-table--roles td:nth-child(2)::before { content: "Email" !important; }
+  .admin-card-table--players td:nth-child(3)::before { content: "Premium" !important; }
+  .admin-card-table--players td:nth-child(4)::before, .admin-card-table--roles td:nth-child(4)::before { content: "Joined" !important; }
+  .admin-card-table--roles td:nth-child(2)::before { content: "Status" !important; }
+  .admin-card-table--roles td:nth-child(3)::before { content: "MFA" !important; }
+  .admin-card-table--roles td:nth-child(5)::before { content: "Last sign-in" !important; }
+  .admin-card-table--roles td:nth-child(6)::before { content: "Role" !important; }
+  .admin-card-table--audit td:nth-child(2)::before { content: "Admin" !important; }
+  .admin-card-table--audit td:nth-child(3)::before { content: "Action" !important; }
+  .admin-card-table--audit td:nth-child(4)::before { content: "Target" !important; }
+  .admin-card-table--audit td:nth-child(5)::before { content: "Details" !important; }
+  .admin-card-table--topics td:nth-child(2)::before { content: "Topic" !important; }
+  .admin-card-table--topics td:nth-child(3)::before, .admin-card-table--playlists td:nth-child(3)::before { content: "Aliases" !important; }
+  .admin-card-table--topics td:nth-child(4)::before { content: "Facts" !important; }
+  .admin-card-table--topics td:nth-child(5)::before { content: "Last crawled" !important; }
+  .admin-card-table--playlists td:nth-child(2)::before { content: "Topics" !important; }
+  .admin-card-table--queue td:nth-child(2)::before, .admin-card-table--timeline td:nth-child(3)::before { content: "Status" !important; }
+  .admin-card-table--queue td:nth-child(3)::before { content: "Priority" !important; }
+  .admin-card-table--queue td:nth-child(4)::before { content: "Requested by" !important; }
+  .admin-card-table--queue td:nth-child(5)::before { content: "Enqueued" !important; }
+  .admin-card-table--rounds td:nth-child(2)::before { content: "Claim" !important; }
+  .admin-card-table--rounds td:nth-child(3)::before { content: "Presented" !important; }
+  .admin-card-table--rounds td:nth-child(4)::before { content: "True" !important; }
+  .admin-card-table--rounds td:nth-child(5)::before { content: "Direction" !important; }
+  .admin-card-table--rounds td:nth-child(6)::before { content: "Actions" !important; }
+  .admin-card-table--timeline td:nth-child(2)::before { content: "Theme" !important; }
+  .admin-card-table--timeline td:nth-child(4)::before { content: "Rounds" !important; }
+  .admin-card-table--timeline td:nth-child(5)::before { content: "Created" !important; }
+  .admin-card-table--scores td:nth-child(2)::before { content: "Player" !important; }
+  .admin-card-table--scores td:nth-child(3)::before { content: "Score" !important; }
+  .admin-card-table--derivation td:nth-child(3)::before { content: "MORE candidate" !important; }
+  .admin-card-table--derivation td:nth-child(4)::before { content: "LESS candidate" !important; }
+  .admin-card-table--derivation td:nth-child(5)::before { content: "Delta" !important; }
+  .admin-card-table--derivation td:nth-child(6)::before { content: "Ratio" !important; }
+  .admin-card-table--confidence td:nth-child(2)::before { content: "Points" !important; }
+  .admin-card-table--confidence td:nth-child(3)::before { content: "Evidence" !important; }
+  .admin-card-table--import td:nth-child(2)::before { content: "Subject" !important; }
+  .admin-card-table--import td:nth-child(5)::before { content: "Claim" !important; }
+  .admin-card-table--import td:nth-child(6)::before { content: "Issues" !important; }
 
   .daily-blitz-chat-card { min-height: 360px; max-height: none; }
   .daily-blitz-chat-log { min-height: 200px; max-height: 340px; }
   .admin-infotip-content { min-width: 0; width: min(240px, calc(100vw - 48px)); }
   .admin-main [style*="min-width: 220px"] { min-width: 0 !important; }
   .admin-main code, .admin-main pre, .admin-main a { overflow-wrap: anywhere; }
+}
+
+@media (max-width: 380px) {
+  .admin-mobile-fact-controls { grid-template-columns: minmax(0, 1fr); }
 }

@@ -10,6 +10,7 @@
 - [x] Per-round accuracy analytics (signed round telemetry → `/admin/analytics`; PLAN.md slice 1)
 - [x] Server-side dispute bounty settlement + callable-only reporting (PLAN.md slice 2, minus escalation)
 - [x] Responsive admin navigation and mobile layouts for admin views (dense tables scroll within their panels)
+- [x] Collapsible mobile navigation drawer with active states and close-on-navigation; compact mobile record cards retain row actions
 
 ## In progress
 - [ ] Reporter overturn-rate escalation (`escalateHuman`) — PLAN.md item 7
