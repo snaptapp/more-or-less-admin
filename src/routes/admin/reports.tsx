@@ -6,7 +6,7 @@ import { Badge, Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, PageHead, statusTone } from "@/admin/AdminShell";
 import { LintFindings, type LintEvidence } from "@/admin/LintFindings";
 import { actOnReport, fetchFact, fetchReports, flushReports } from "@/lib/admin/content.functions";
-import { runReportCopilot } from "@/lib/admin/report-copilot.functions";
+import { fetchReportAudit, runReportCopilot } from "@/lib/admin/report-copilot.functions";
 import { isDuplicateFlag, isNonDuplicateFlag } from "@/lib/admin/quality-flags";
 import { QUANTITY_KINDS } from "../../../shared/fact-lifecycle-contract.gen";
 
@@ -120,13 +120,22 @@ function CopilotPanel({
   reportId,
   hasFact,
   onPrefill,
+  onResult,
 }: {
   reportId: string;
   hasFact: boolean;
   onPrefill: (review: CopilotResult) => void;
+  onResult: (review: CopilotResult) => void;
 }) {
   const run = useServerFn(runReportCopilot);
-  const mutation = useMutation({ mutationFn: () => run({ data: { reportId } }) });
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () => run({ data: { reportId } }),
+    onSuccess: (r) => {
+      onResult(r);
+      queryClient.invalidateQueries({ queryKey: ["report-audit", reportId] });
+    },
+  });
   const review = mutation.data;
   const s = review?.suggested;
   const changes = s
@@ -176,6 +185,27 @@ function CopilotPanel({
               {review.policy.score}
             </meter>
           </label>
+          <details>
+            <summary style={{ cursor: "pointer", fontSize: "0.85em" }}>Why this score ({review.policy.score}/100)</summary>
+            <table className="admin-table" style={{ marginTop: 6, fontSize: "0.85em" }}>
+              <thead>
+                <tr><th>Factor</th><th>Points</th><th>Evidence</th></tr>
+              </thead>
+              <tbody>
+                {review.policy.factors.map((f) => (
+                  <tr key={f.label}>
+                    <td>{f.label}</td>
+                    <td>
+                      <Badge tone={f.kind === "base" ? "neutral" : f.points >= 0 ? "lime" : "red"}>
+                        {f.kind === "base" ? String(f.points) : `${f.points >= 0 ? "+" : ""}${f.points}`}
+                      </Badge>
+                    </td>
+                    <td>{f.detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
           {review.policy.reasons.length ? (
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: "0.85em", color: "var(--ds-arena-color-amber)" }}>
               {review.policy.reasons.map((r) => <li key={r}>{r}</li>)}
@@ -241,7 +271,65 @@ function CopilotPanel({
 }
 
 
+function ReportAuditTrail({ reportId }: { reportId: string }) {
+  const [open, setOpen] = useState(false);
+  const fetchAudit = useServerFn(fetchReportAudit);
+  const query = useQuery({
+    queryKey: ["report-audit", reportId],
+    queryFn: () => fetchAudit({ data: { reportId } }),
+    enabled: open,
+  });
+  return (
+    <details
+      style={{ marginTop: "var(--ds-arena-space-3)" }}
+      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary style={{ cursor: "pointer" }}>
+        <CardLabel>Audit trail</CardLabel>
+      </summary>
+      {query.isLoading ? <p>Loading…</p> : null}
+      <ErrorNote error={query.error} />
+      {query.data && query.data.length === 0 ? <p style={{ color: "var(--ds-arena-color-text-muted)" }}>No recorded actions yet.</p> : null}
+      <ol style={{ margin: "6px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 8 }}>
+        {query.data?.map((log) => {
+          const after = (log.after ?? {}) as Record<string, unknown>;
+          const isCopilot = log.action === "report.copilot_review";
+          const sources = isCopilot && Array.isArray(after["sources"]) ? (after["sources"] as Array<Record<string, unknown>>) : [];
+          const warnings = isCopilot && Array.isArray(after["warnings"]) ? (after["warnings"] as string[]) : [];
+          return (
+            <li key={log.id} style={{ fontSize: "0.85em" }}>
+              <Badge tone={isCopilot ? "purple" : "lime"}>{isCopilot ? "Copilot" : "Resolution"}</Badge>{" "}
+              <strong>{log.action.replace("report.", "")}</strong> · {log.adminEmail ?? log.adminUid} · {log.createdAt ?? ""}
+              <div style={{ color: "var(--ds-arena-color-text-muted)" }}>{log.details}</div>
+              {warnings.length ? (
+                <div style={{ color: "var(--ds-arena-color-amber)" }}>Warnings: {warnings.join(" ")}</div>
+              ) : null}
+              {sources.length ? (
+                <ul style={{ margin: "2px 0 0", paddingLeft: 16 }}>
+                  {sources.map((src) => (
+                    <li key={String(src["url"])}>
+                      <a href={String(src["url"])} target="_blank" rel="noreferrer">{String(src["title"] ?? src["url"])}</a>
+                      {src["conflicting"] ? <> <Badge tone="red">Conflicts</Badge></> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </details>
+  );
+}
+
 function ReportCard({ entry }: { entry: Entry }) {
+  const [copilotSnap, setCopilotSnap] = useState<{
+    verdict: string;
+    confidence: string;
+    score: number;
+    needsReview: boolean;
+    prefilled: boolean;
+  } | null>(null);
   const act = useServerFn(actOnReport);
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
@@ -324,6 +412,7 @@ function ReportCard({ entry }: { entry: Entry }) {
           keepFactId: isObj ? params.keepFactId : undefined,
           retireFactId: isObj ? params.retireFactId : undefined,
           retireFactIds: isObj ? params.retireFactIds : undefined,
+          copilot: copilotSnap ?? undefined,
         },
       });
     },
@@ -507,7 +596,17 @@ function ReportCard({ entry }: { entry: Entry }) {
         <CopilotPanel
           reportId={report.id}
           hasFact={Boolean(entry.fact)}
+          onResult={(review) =>
+            setCopilotSnap({
+              verdict: review.verdict,
+              confidence: review.confidence,
+              score: review.policy.score,
+              needsReview: review.policy.needsReview,
+              prefilled: false,
+            })
+          }
           onPrefill={(review) => {
+            setCopilotSnap((prev) => (prev ? { ...prev, prefilled: true } : prev));
             const s = review.suggested;
             if (s.true_number !== undefined) setCorrected(String(s.true_number));
             const autoNote = s.note || `Copilot: ${COPILOT_VERDICTS[review.verdict].label}. Human-reviewed.`;
@@ -526,6 +625,7 @@ function ReportCard({ entry }: { entry: Entry }) {
           }}
         />
       ) : null}
+      <ReportAuditTrail reportId={report.id} />
 
       {pending && duplicateFactsList.length === 0 && entry.fact?.quality_flags?.some(isNonDuplicateFlag) ? (
         <div

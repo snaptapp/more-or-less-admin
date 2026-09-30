@@ -379,13 +379,23 @@ export const actOnReport = createServerFn({ method: "POST" }).middleware([authMi
         keepFactId: z.string().optional(),
         retireFactId: z.string().optional(),
         retireFactIds: z.array(z.string()).optional(),
+        copilot: z
+          .object({
+            verdict: z.string(),
+            confidence: z.string(),
+            score: z.number(),
+            needsReview: z.boolean(),
+            prefilled: z.boolean(),
+          })
+          .optional(),
       })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
     const caller = context.user;
     const { PENDING_ADMISSION_COPY, resolveReport } = await import("./content.server");
-    const result = await resolveReport(data);
+    const { copilot, ...resolveInput } = data;
+    const result = await resolveReport(resolveInput);
     const { logAdminAction } = await import("@/lib/firebase/audit.server");
     const details =
       data.action === "add_to_bank"
@@ -395,8 +405,12 @@ export const actOnReport = createServerFn({ method: "POST" }).middleware([authMi
       action: `report.${data.action}`,
       targetType: "report",
       targetId: data.reportId,
-      details: `${details}${data.note ? ` - ${data.note}` : ""}`,
-      after: data as Record<string, unknown>,
+      details: `${details}${data.note ? ` - ${data.note}` : ""}${
+        copilot
+          ? ` | copilot ${copilot.verdict} (${copilot.confidence}, ${copilot.score})${copilot.prefilled ? ", prefilled" : ""}`
+          : " | no copilot review"
+      }`,
+      after: { ...resolveInput, copilot: copilot ?? null } as Record<string, unknown>,
     });
     return result;
   });

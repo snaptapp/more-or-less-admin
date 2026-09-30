@@ -460,6 +460,13 @@ interface DynamicTargetIdEntry {
  */
 const DYNAMIC_TARGET_IDS: Readonly<Record<string, Readonly<Record<string, DynamicTargetIdEntry>>>> =
 {
+  "src/lib/admin/report-copilot.functions.ts": {
+    "data.reportId": {
+      coverage: "schema-min-1",
+      schemaField: "reportId",
+      reason: "The runReportCopilot validator declares `reportId: z.string().min(1)`.",
+    },
+  },
   "src/lib/admin/content.functions.ts": {
     "data.reportId": {
       coverage: "schema-min-1",
