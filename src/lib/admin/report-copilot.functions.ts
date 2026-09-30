@@ -53,7 +53,7 @@ export const runReportCopilot = createServerFn({ method: "POST" })
         sources: review.sources,
         factId: fact?.id ?? null,
         model: review.model,
-      } as unknown as Record<string, unknown>,
+      } satisfies Record<string, unknown>,
     });
     return review;
   });
