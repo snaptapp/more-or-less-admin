@@ -166,6 +166,7 @@ function SignIn() {
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const { user, ready, signOutAdmin } = useAdminAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (!ready) {
     return (
@@ -179,6 +180,46 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="admin-shell">
+      <header className="admin-mobile-header">
+        <Link to="/admin" className="admin-mobile-brand" onClick={() => setMenuOpen(false)}>
+          <img src="/more-or-less-icon.png" alt="" />
+          <span>More or <strong>Less</strong></span>
+        </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="admin-menu-toggle"
+          aria-label={menuOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={menuOpen}
+          aria-controls="admin-mobile-menu"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span aria-hidden="true">{menuOpen ? "✕" : "☰"}</span>
+        </Button>
+        {menuOpen ? (
+          <div id="admin-mobile-menu" className="admin-mobile-menu">
+            <nav className="admin-nav" aria-label="Admin pages">
+              {NAV.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  activeOptions={{ exact: "exact" in item ? item.exact : false }}
+                  activeProps={{ className: "is-active" }}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+            <div className="admin-sidebar-footer">
+              <span>{user.email}</span>
+              <Button variant="ghost" size="sm" onClick={() => { setMenuOpen(false); void signOutAdmin(); }}>
+                Sign out
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </header>
       <aside className="admin-sidebar">
         <div className="admin-brand" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <img
@@ -190,7 +231,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             More or <span>Less</span>
           </div>
         </div>
-        <nav className="admin-nav">
+        <nav className="admin-nav" aria-label="Admin pages">
           {NAV.map((item) => (
             <Link
               key={item.to}
