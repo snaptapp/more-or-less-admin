@@ -2011,8 +2011,48 @@ function ContentPage() {
             {importing ? <ImportCsvModal onDone={() => setImporting(false)} /> : null}
             {creating ? <NewFactForm onDone={() => setCreating(false)} /> : null}
 
+            <div className="admin-mobile-fact-controls">
+              <label className="admin-field">
+                <span>Topic</span>
+                <input className="admin-input" value={filters.subject} onChange={(event) => { setPage(1); setFilters({ ...filters, subject: event.target.value }); }} placeholder="Filter topic…" />
+              </label>
+              <label className="admin-field">
+                <span>Angle</span>
+                <input className="admin-input" value={filters.angle} onChange={(event) => { setPage(1); setFilters({ ...filters, angle: event.target.value }); }} placeholder="Filter angle…" />
+              </label>
+              <label className="admin-field">
+                <span>Status</span>
+                <select className="admin-select" value={filters.status} onChange={(event) => { setPage(1); setFilters({ ...filters, status: event.target.value }); }}>
+                  <option value="">All</option>
+                  {FACT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                </select>
+              </label>
+              <label className="admin-field">
+                <span>Rating</span>
+                <select className="admin-select" value={filters.contentRating} onChange={(event) => { setPage(1); setFilters({ ...filters, contentRating: event.target.value }); }}>
+                  <option value="">All</option><option value="standard">standard</option><option value="after_dark">after_dark</option>
+                </select>
+              </label>
+              <label className="admin-field">
+                <span>Surprise</span>
+                <select className="admin-select" value={filters.surpriseFactor} onChange={(event) => { setPage(1); setFilters({ ...filters, surpriseFactor: event.target.value }); }}>
+                  <option value="">All</option><option value="0">0 · Obvious</option><option value="1">1 · Mild</option><option value="2">2 · Very</option><option value="3">3 · Mind-blowing</option>
+                </select>
+              </label>
+              <label className="admin-field">
+                <span>Sort by</span>
+                <select className="admin-select" value={sort.field} onChange={(event) => toggleSort(event.target.value as typeof sort.field)}>
+                  <option value="subject">Topic</option><option value="angle">Angle</option><option value="true_number">Value</option><option value="surprise_factor">Surprise</option><option value="served_count">Served</option>
+                </select>
+              </label>
+              <Button size="sm" variant="ghost" onClick={() => { setPage(1); setSort({ ...sort, order: sort.order === "asc" ? "desc" : "asc" }); }}>
+                {sort.order === "asc" ? "Ascending ↑" : "Descending ↓"}
+              </Button>
+              {hasActiveFilters ? <Button size="sm" variant="ghost" onClick={resetFilters}>Reset filters</Button> : null}
+            </div>
+
             <div className="admin-table-wrap">
-              <table className="admin-table">
+              <table className="admin-table admin-card-table admin-card-table--facts">
                 <thead>
                   <tr>
                     <th className="admin-th-sortable" onClick={() => toggleSort("subject")}>
@@ -2548,7 +2588,7 @@ export function ImportCsvModal({ onDone }: { onDone: () => void }) {
               </div>
 
               <div className="admin-table-wrap" style={{ maxHeight: "240px", overflowY: "auto" }}>
-                <table className="admin-table">
+                <table className="admin-table admin-card-table admin-card-table--import">
                   <thead>
                     <tr>
                       <th>Status</th>

@@ -101,7 +101,7 @@ function RolesPage() {
 
       <Card>
         <div className="admin-table-wrap">
-          <table className="admin-table">
+          <table className="admin-table admin-card-table admin-card-table--roles">
             <thead>
               <tr>
                 <th>User</th>

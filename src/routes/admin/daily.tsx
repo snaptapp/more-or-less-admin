@@ -333,7 +333,7 @@ function BlitzEditor({
         </div>
 
         <div className="admin-table-wrap">
-          <table className="admin-table daily-blitz-round-table">
+          <table className="admin-table admin-card-table admin-card-table--rounds daily-blitz-round-table">
             <thead>
               <tr>
                 <th>#</th>
@@ -769,7 +769,7 @@ function DailyPage() {
           </div>
 
           <div className="admin-table-wrap" style={{ marginTop: "var(--ds-arena-space-3)" }}>
-            <table className="admin-table">
+            <table className="admin-table admin-card-table admin-card-table--timeline">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -966,7 +966,7 @@ function DailyPage() {
               Ordered by score. Correct count dominates leftover seconds.
             </p>
             <div className="admin-table-wrap" style={{ marginTop: "var(--ds-arena-space-3)" }}>
-              <table className="admin-table">
+              <table className="admin-table admin-card-table admin-card-table--scores">
                 <thead>
                   <tr>
                     <th>#</th>

@@ -11,7 +11,7 @@
 5. **Fact writes:** Indexes live in `more-or-less`. Admin creates/imports/report-adds as `pending` only; Foundry alone promotes to `active`. Follow contract-authorized moderation transitions; subject/angle are immutable. Reconciler alone writes `fact_count`. Admin never writes deployed `fact_bank.json`; players receive changes through export → hydration PR → Worker deployment.
 6. **DDM-4:** Consume exact vendored kernel/tables/adapters/fixtures, never reimplement or hand-edit them; fail closed on local digest or read-only upstream freshness failure.
 7. **Reconciliation:** Report only, never mutate Firestore or write `fact_count` from reconciliation.
-8. **Mobile admin:** Use the shared small-screen header and single-column forms; keep dense tables scrollable within panels to avoid page-wide overflow.
+8. **Mobile admin:** Use the shared small-screen navigation drawer and single-column forms; dense records use labelled mobile cards while desktop retains tables, preserving edit and action controls.
 
 ## Essential Commands
 

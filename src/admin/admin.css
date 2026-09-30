@@ -1083,6 +1083,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
 
 /* Compact navigation keeps the workspace available without consuming the phone viewport. */
 .admin-mobile-header { display: none; }
+.admin-mobile-fact-controls { display: none; }
 
 @media (max-width: 900px) {
   .admin-shell {
@@ -1123,20 +1124,33 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-menu-toggle { width: 44px; min-width: 44px; padding: 0; font-size: 22px; }
 
   .admin-mobile-menu {
-    position: absolute;
-    top: 100%;
+    position: fixed;
+    top: 64px;
     left: 0;
-    right: 0;
-    max-height: calc(100dvh - 64px);
+    width: min(340px, 88vw);
+    height: calc(100dvh - 64px);
     overflow-y: auto;
     padding: var(--ds-arena-space-3) var(--ds-arena-space-4) var(--ds-arena-space-5);
     background: var(--ds-arena-color-surface-raised);
     border-bottom: 1px solid var(--ds-arena-color-border);
     box-shadow: var(--ds-arena-shadow-card);
+    z-index: 52;
   }
 
-  .admin-mobile-menu .admin-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-arena-space-1); }
+  .admin-mobile-scrim {
+    position: fixed;
+    inset: 64px 0 0;
+    z-index: 51;
+    border: 0;
+    background: var(--ds-arena-color-surface-sunken);
+    opacity: 0.94;
+    cursor: pointer;
+  }
+  .admin-mobile-scrim.ds-button { min-height: 0; width: 100%; height: calc(100dvh - 64px); box-shadow: none; border-radius: 0; }
+
+  .admin-mobile-menu .admin-nav { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ds-arena-space-1); }
   .admin-mobile-menu .admin-nav a { min-width: 0; overflow-wrap: anywhere; }
+  .admin-mobile-menu .admin-nav a.is-active { color: var(--ds-arena-color-lime); background: var(--ds-arena-color-surface-hover); font-weight: 700; }
   .admin-mobile-menu .admin-sidebar-footer { margin-top: var(--ds-arena-space-4); padding-top: var(--ds-arena-space-3); border-top: 1px solid var(--ds-arena-color-border); }
   .admin-mobile-menu .admin-sidebar-footer .ds-button { align-self: flex-start; }
   .admin-main { min-width: 0; }
@@ -1172,17 +1186,117 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
   .admin-tabs a { flex: none; white-space: nowrap; }
 
-  /* Tables retain their comparison columns; the page itself never scrolls sideways. */
+  /* Dense records become stacked, labelled rows while edit panels and actions remain in place. */
   .admin-table-wrap { max-width: 100%; min-width: 0; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
-  .admin-table-wrap::after { content: "SWIPE TO SEE MORE →"; display: block; position: sticky; left: 0; width: fit-content; padding: var(--ds-arena-space-2) var(--ds-arena-space-3); color: var(--ds-arena-color-text-muted); font: 11px var(--ds-arena-font-mono); }
+  .admin-table-wrap:has(> .admin-card-table) { overflow-x: visible; border: 0; }
   .admin-main .ds-card:has(> .admin-table-wrap) { padding: var(--ds-arena-space-2); }
   .admin-table td, .admin-table th { padding: var(--ds-arena-space-2) var(--ds-arena-space-3); }
   .admin-inline-editor-row td, .admin-table tbody tr.admin-inline-editor-row:hover td { padding: var(--ds-arena-space-2); }
   .admin-inline-editor-cell .ds-card { padding: var(--ds-arena-space-2); }
+
+  .admin-card-table, .admin-card-table tbody, .admin-card-table tbody tr { display: block; width: 100%; min-width: 0; }
+  .admin-card-table thead { display: none; }
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) {
+    margin-bottom: var(--ds-arena-space-3);
+    padding: var(--ds-arena-space-3);
+    border: 1px solid var(--ds-arena-color-border);
+    border-radius: var(--ds-arena-radius-md);
+    background: var(--ds-arena-color-surface-raised);
+  }
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td:not([colspan]) {
+    display: grid;
+    grid-template-columns: minmax(88px, 33%) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--ds-arena-space-2);
+    padding: var(--ds-arena-space-2) 0;
+    border-bottom: 1px solid var(--ds-arena-color-border-subtle);
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: normal !important;
+    max-width: none !important;
+  }
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td:not([colspan])::before {
+    content: "";
+    color: var(--ds-arena-color-text-muted);
+    font: 11px var(--ds-arena-font-mono);
+    text-transform: uppercase;
+    line-height: 1.6;
+  }
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td:first-child:not([colspan]) {
+    display: block;
+    color: var(--ds-arena-color-text);
+    font-weight: 600;
+  }
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td:first-child:not([colspan])::before { display: none; }
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td:last-child:not([colspan]) { border-bottom: 0; text-align: left !important; }
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td:last-child:not([colspan]):has(.ds-button) { display: block; padding-top: var(--ds-arena-space-3); }
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td:last-child:not([colspan]):has(.ds-button)::before { display: none; }
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td:last-child:not([colspan]) .ds-button { min-height: 44px; }
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td[colspan] { display: block; text-align: center; }
+  .admin-card-table .admin-inline-editor-row { margin: calc(-1 * var(--ds-arena-space-3)) 0 var(--ds-arena-space-4); border: 1px solid var(--ds-arena-color-border); }
+  .admin-card-table .admin-inline-editor-row td { display: block; width: 100%; }
+  .admin-card-table--facts .admin-topic-meta { font-weight: 400; }
+  .admin-mobile-fact-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-arena-space-3); }
+  .admin-mobile-fact-controls > .ds-button { min-height: 44px; }
+  .admin-card-table--topics td:nth-child(2), .admin-card-table--timeline td:nth-child(2) { font-weight: 600; }
+  .admin-card-table--import td:nth-child(5) { white-space: normal !important; overflow-wrap: anywhere; }
+  .admin-card-table--roles td:first-child span { overflow-wrap: anywhere; }
+
+  .admin-card-table--facts td:nth-child(2)::before, .admin-card-table--import td:nth-child(3)::before { content: "Angle" !important; }
+  .admin-card-table--facts td:nth-child(3)::before, .admin-card-table--import td:nth-child(4)::before { content: "Value" !important; }
+  .admin-card-table--facts td:nth-child(4)::before { content: "Surprise" !important; }
+  .admin-card-table--facts td:nth-child(5)::before { content: "Rating" !important; }
+  .admin-card-table--facts td:nth-child(6)::before { content: "Status" !important; }
+  .admin-card-table--facts td:nth-child(7)::before { content: "Served" !important; }
+  .admin-card-table--players td:nth-child(2)::before { content: "Email" !important; }
+  .admin-card-table--players td:nth-child(3)::before { content: "Premium" !important; }
+  .admin-card-table--players td:nth-child(4)::before, .admin-card-table--roles td:nth-child(4)::before { content: "Joined" !important; }
+  .admin-card-table--roles td:nth-child(2)::before { content: "Status" !important; }
+  .admin-card-table--roles td:nth-child(3)::before { content: "MFA" !important; }
+  .admin-card-table--roles td:nth-child(5)::before { content: "Last sign-in" !important; }
+  .admin-card-table--roles td:nth-child(6)::before { content: "Role" !important; }
+  .admin-card-table--audit td:nth-child(2)::before { content: "Admin" !important; }
+  .admin-card-table--audit td:nth-child(3)::before { content: "Action" !important; }
+  .admin-card-table--audit td:nth-child(4)::before { content: "Target" !important; }
+  .admin-card-table--audit td:nth-child(5)::before { content: "Details" !important; }
+  .admin-card-table--topics td:nth-child(2)::before { content: "Topic" !important; }
+  .admin-card-table--topics td:first-child::before { content: "Genre" !important; display: block !important; }
+  .admin-card-table--topics td:nth-child(3)::before, .admin-card-table--playlists td:nth-child(3)::before { content: "Aliases" !important; }
+  .admin-card-table--topics td:nth-child(4)::before { content: "Facts" !important; }
+  .admin-card-table--topics td:nth-child(5)::before { content: "Last crawled" !important; }
+  .admin-card-table--playlists td:nth-child(2)::before { content: "Topics" !important; }
+  .admin-card-table--queue td:nth-child(2)::before, .admin-card-table--timeline td:nth-child(3)::before { content: "Status" !important; }
+  .admin-card-table--queue td:nth-child(3)::before { content: "Priority" !important; }
+  .admin-card-table--queue td:nth-child(4)::before { content: "Requested by" !important; }
+  .admin-card-table--queue td:nth-child(5)::before { content: "Enqueued" !important; }
+  .admin-card-table--rounds td:nth-child(2)::before { content: "Claim" !important; }
+  .admin-card-table--rounds td:nth-child(3)::before { content: "Presented" !important; }
+  .admin-card-table--rounds td:nth-child(4)::before { content: "True" !important; }
+  .admin-card-table--rounds td:nth-child(5)::before { content: "Direction" !important; }
+  .admin-card-table--rounds td:nth-child(6)::before { content: "Actions" !important; }
+  .admin-card-table--timeline td:nth-child(2)::before { content: "Theme" !important; }
+  .admin-card-table--timeline td:nth-child(4)::before { content: "Rounds" !important; }
+  .admin-card-table--timeline td:nth-child(5)::before { content: "Created" !important; }
+  .admin-card-table--scores td:nth-child(2)::before { content: "Player" !important; }
+  .admin-card-table--scores td:nth-child(3)::before { content: "Score" !important; }
+  .admin-card-table--derivation td:nth-child(3)::before { content: "MORE candidate" !important; }
+  .admin-card-table--derivation td:nth-child(2)::before { content: "Intuition tier" !important; }
+  .admin-card-table--derivation td:nth-child(4)::before { content: "LESS candidate" !important; }
+  .admin-card-table--derivation td:nth-child(5)::before { content: "Delta" !important; }
+  .admin-card-table--derivation td:nth-child(6)::before { content: "Ratio" !important; }
+  .admin-card-table--confidence td:nth-child(2)::before { content: "Points" !important; }
+  .admin-card-table--confidence td:nth-child(3)::before { content: "Evidence" !important; }
+  .admin-card-table--import td:nth-child(2)::before { content: "Subject" !important; }
+  .admin-card-table--import td:nth-child(5)::before { content: "Claim" !important; }
+  .admin-card-table--import td:nth-child(6)::before { content: "Issues" !important; }
 
   .daily-blitz-chat-card { min-height: 360px; max-height: none; }
   .daily-blitz-chat-log { min-height: 200px; max-height: 340px; }
   .admin-infotip-content { min-width: 0; width: min(240px, calc(100vw - 48px)); }
   .admin-main [style*="min-width: 220px"] { min-width: 0 !important; }
   .admin-main code, .admin-main pre, .admin-main a { overflow-wrap: anywhere; }
+}
+
+@media (max-width: 380px) {
+  .admin-mobile-fact-controls { grid-template-columns: minmax(0, 1fr); }
 }
