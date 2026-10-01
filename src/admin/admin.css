@@ -87,6 +87,15 @@
   min-width: 0;
 }
 
+.admin-config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-arena-space-5);
+  min-width: 0;
+}
+
+.admin-error { overflow-wrap: anywhere; }
+
 .admin-page-head {
   display: flex;
   align-items: flex-end;
