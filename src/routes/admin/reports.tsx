@@ -874,6 +874,7 @@ function ReportCard({ entry }: { entry: Entry }) {
 
       {duplicateFactsList.length > 0 && entry.fact ? (
         <div
+          className="admin-duplicate-review"
           style={{
             marginTop: "var(--ds-arena-space-3)",
             padding: "var(--ds-arena-space-3)",
@@ -883,6 +884,7 @@ function ReportCard({ entry }: { entry: Entry }) {
           }}
         >
           <div
+            className="admin-duplicate-review__head"
             style={{
               display: "flex",
               justifyContent: "space-between",
@@ -892,7 +894,7 @@ function ReportCard({ entry }: { entry: Entry }) {
               gap: 8,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div className="admin-duplicate-review__heading" style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Badge tone="amber">
                 {entry.fact?.quality_flags?.some(isNonDuplicateFlag)
                   ? "Stage 1 of 2: Duplicate Collision"
@@ -902,7 +904,7 @@ function ReportCard({ entry }: { entry: Entry }) {
                 {duplicateFactsList.length + 1} Conflicting Facts
               </h4>
             </div>
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div className="admin-duplicate-review__instruction" style={{ display: "flex", gap: 12, alignItems: "center" }}>
               <span style={{ fontSize: "0.8em", color: "var(--ds-arena-color-text-muted)" }}>
                 {entry.fact?.quality_flags?.some(isNonDuplicateFlag)
                   ? "Step 1 of 2: Pick which fact to keep active. Secondary quality flags on the kept fact will be reviewed in Step 2."
@@ -931,6 +933,7 @@ function ReportCard({ entry }: { entry: Entry }) {
           </div>
 
           <div
+            className="admin-duplicate-review__facts"
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
@@ -939,6 +942,7 @@ function ReportCard({ entry }: { entry: Entry }) {
           >
             {/* Primary fact card */}
             <div
+              className="admin-duplicate-review__fact"
               style={{
                 background: "var(--ds-arena-color-surface-elevated, rgba(255, 255, 255, 0.03))",
                 padding: "var(--ds-arena-space-3)",
@@ -949,13 +953,13 @@ function ReportCard({ entry }: { entry: Entry }) {
                 gap: "var(--ds-arena-space-2)",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="admin-duplicate-review__fact-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontWeight: 700, fontSize: "0.85em", color: "#10b981" }}>
                   Reported Fact (A)
                 </span>
                 <Badge tone={statusTone(entry.fact.status)}>{entry.fact.status}</Badge>
               </div>
-              <div style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
+              <div className="admin-duplicate-review__id" style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
                 ID: <code>{entry.fact.id}</code>
               </div>
               {entry.fact.quality_flags?.length ? (
@@ -1032,6 +1036,7 @@ function ReportCard({ entry }: { entry: Entry }) {
             {/* Duplicate facts */}
             {duplicateFactsList.map((dupFact, idx) => (
               <div
+                className="admin-duplicate-review__fact"
                 key={dupFact.id}
                 style={{
                   background: "var(--ds-arena-color-surface-elevated, rgba(255, 255, 255, 0.03))",
@@ -1043,13 +1048,13 @@ function ReportCard({ entry }: { entry: Entry }) {
                   gap: "var(--ds-arena-space-2)",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div className="admin-duplicate-review__fact-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontWeight: 700, fontSize: "0.85em", color: "#f6c344" }}>
                     Duplicate Fact ({String.fromCharCode(66 + idx)})
                   </span>
                   <Badge tone={statusTone(dupFact.status)}>{dupFact.status}</Badge>
                 </div>
-                <div style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
+                <div className="admin-duplicate-review__id" style={{ fontSize: "0.85em", color: "var(--ds-arena-color-text-muted)" }}>
                   ID: <code>{dupFact.id}</code>
                 </div>
                 {dupFact.quality_flags?.length ? (
