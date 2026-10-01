@@ -87,6 +87,16 @@
   min-width: 0;
 }
 
+.admin-config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-arena-space-5);
+  min-width: 0;
+}
+
+.admin-error { overflow-wrap: anywhere; }
+.admin-config .ds-button { white-space: nowrap; flex-shrink: 0; }
+
 .admin-page-head {
   display: flex;
   align-items: flex-end;
@@ -1295,6 +1305,51 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-infotip-content { min-width: 0; width: min(240px, calc(100vw - 48px)); }
   .admin-main [style*="min-width: 220px"] { min-width: 0 !important; }
   .admin-main code, .admin-main pre, .admin-main a { overflow-wrap: anywhere; }
+
+  /* Inline flex rows (input + button, title + action) wrap instead of crushing buttons letter by letter. */
+  .admin-main div[style*="display: flex"]:not([style*="column"]) { flex-wrap: wrap; }
+  .admin-main div[style*="display: flex"]:not([style*="column"]) > .admin-input,
+  .admin-main div[style*="display: flex"]:not([style*="column"]) > .admin-select { flex: 1 1 160px; min-width: 0; }
+  .admin-main div[style*="display: flex"][style*="space-between"]:not([style*="column"]) > div:not([class]) { min-width: 0; flex: 1 1 200px; }
+  .admin-main .ds-button { flex-shrink: 0; overflow-wrap: normal; word-break: normal; }
+
+  /* Labelled card cells: everything after the label sits in the value column. */
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td:not([colspan]) > * { grid-column: 2; min-width: 0; }
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td:first-child:not([colspan]) > *,
+  .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td:last-child:not([colspan]):has(.ds-button) > * { grid-column: auto; }
+
+  /* Stat tiles sit two-up instead of one giant tile per screen. */
+  .admin-grid:not(.admin-responsive-grid):not([style*="grid-template-columns"]) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-arena-space-3); }
+  .admin-grid:not(.admin-responsive-grid):not([style*="grid-template-columns"]) > .ds-card:has(.admin-stat) { padding: var(--ds-arena-space-3); }
+  .admin-grid .admin-stat { font-size: 32px; overflow-wrap: anywhere; }
+  .admin-grid:has(> .admin-field), .admin-grid:has(> label) { grid-template-columns: minmax(0, 1fr); }
+
+  /* Row actions stack as full-width tap targets. */
+  .admin-main .admin-row-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ds-arena-space-2); width: 100%; }
+  .admin-main .admin-row-actions > .ds-button, .admin-main .admin-row-actions > a, .admin-main .admin-row-actions > a > .ds-button { width: 100%; }
+  .admin-card-table .admin-row-actions { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+
+  /* Button tab bars and segmented pickers. */
+  .admin-button-tabs { display: grid !important; grid-template-columns: minmax(0, 1fr); width: 100%; }
+  .admin-button-tabs > .ds-button { width: 100%; justify-content: flex-start; }
+  .admin-segmented { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-segmented > button { width: 100%; min-height: 44px; overflow-wrap: normal; }
+
+  /* Analytics delete-category buttons stay compact beside their bar. */
+  .admin-bar-row--filterable { grid-template-columns: minmax(0, 1fr) minmax(24px, 1fr) auto auto; align-items: center; }
+  .admin-bar-row--filterable .ds-button { grid-column: auto; min-height: 36px; padding-inline: var(--ds-arena-space-2); }
+
+  /* Daily schedule cards: compact 3-up meta row under the date and theme. */
+  .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--ds-arena-space-2); padding: var(--ds-arena-space-2) var(--ds-arena-space-3); margin-bottom: var(--ds-arena-space-2); }
+  .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:not([colspan]) { display: block; border-bottom: 0; padding: var(--ds-arena-space-1) 0; }
+  .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:not([colspan])::before { display: block; }
+  .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:nth-child(1),
+  .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:nth-child(2),
+  .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:last-child { grid-column: 1 / -1; }
+  .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:not([colspan]) > * { grid-column: auto; }
+  .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:nth-child(2)::before { display: none; }
+  .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:last-child:has(.ds-button) { padding-top: var(--ds-arena-space-2); }
+  .admin-card-table--timeline .ds-badge { white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 }
 
 @media (max-width: 380px) {

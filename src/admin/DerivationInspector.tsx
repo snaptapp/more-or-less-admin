@@ -222,7 +222,7 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
     <div style={{ display: "grid", gap: "var(--ds-arena-space-5)" }}>
       {/* Sub-navigation bar */}
       <div className="admin-toolbar" style={{ justifyContent: "space-between" }}>
-        <div style={{ display: "flex", gap: "var(--ds-arena-space-2)" }}>
+        <div className="admin-button-tabs" style={{ display: "flex", gap: "var(--ds-arena-space-2)" }}>
           <Button
             type="button"
             size="sm"
@@ -329,7 +329,7 @@ export function DerivationInspector({ initialValues }: DerivationInspectorProps)
             <div className="admin-grid admin-responsive-grid" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr", marginTop: 12 }}>
               <div className="admin-field">
                 <span>Surprise Factor (0 = Obvious, 3 = Intuition Trap)</span>
-                <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                <div className="admin-segmented" style={{ display: "flex", gap: 6, marginTop: 4 }}>
                   {[0, 1, 2, 3].map((s) => (
                     <button
                       key={s}
