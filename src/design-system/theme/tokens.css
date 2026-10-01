@@ -187,13 +187,12 @@
   color: var(--ds-arena-color-text);
 }
 .ds-button--ghost {
-  background: var(--ds-arena-color-surface-interactive);
-  color: var(--ds-arena-color-text);
-  border-color: var(--ds-arena-color-border-strong);
+  background: var(--ds-arena-color-lime);
+  color: var(--ds-arena-color-primary-foreground);
+  box-shadow: var(--ds-arena-shadow-press-lime);
 }
 .ds-button--ghost:not(:disabled):hover {
-  background: var(--ds-arena-color-surface-hover);
-  border-color: var(--ds-arena-color-border-hover);
+  background: var(--ds-arena-color-amber);
 }
 
 .ds-button:not(:disabled):active {
