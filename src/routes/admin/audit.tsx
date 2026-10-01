@@ -99,7 +99,7 @@ function AuditLogPage() {
       />
 
       {/* Main Tab Navigation */}
-      <div style={{ display: "flex", gap: "var(--ds-arena-space-2)", borderBottom: "1px solid var(--ds-arena-color-border)", paddingBottom: 12 }}>
+      <div className="admin-button-tabs" style={{ display: "flex", gap: "var(--ds-arena-space-2)", borderBottom: "1px solid var(--ds-arena-color-border)", paddingBottom: 12 }}>
         <Button
           type="button"
           size="sm"
