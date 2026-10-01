@@ -687,6 +687,41 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   word-break: break-word;
 }
 
+/* Keep unbroken fact IDs and citation URLs inside the duplicate comparison. */
+.admin-duplicate-review,
+.admin-duplicate-review__head,
+.admin-duplicate-review__heading,
+.admin-duplicate-review__instruction,
+.admin-duplicate-review__fact,
+.admin-duplicate-review__fact-head {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-duplicate-review__fact {
+  overflow-wrap: anywhere;
+}
+
+.admin-duplicate-review__fact a,
+.admin-duplicate-review__id,
+.admin-duplicate-review__instruction {
+  overflow-wrap: anywhere;
+}
+
+.admin-duplicate-review__fact-head > :first-child,
+.admin-duplicate-review__heading > * {
+  min-width: 0;
+}
+
+.admin-duplicate-review__fact-head .ds-badge,
+.admin-duplicate-review__heading .ds-badge {
+  flex-shrink: 0;
+}
+
+.admin-duplicate-review__fact .ds-button {
+  width: 100%;
+}
+
 .admin-lint-findings {
   display: flex;
   flex-direction: column;
@@ -1186,6 +1221,11 @@ th .admin-infotip:focus-visible .admin-infotip-content,
 }
 
 @media (max-width: 600px) {
+  .admin-duplicate-review__facts { grid-template-columns: minmax(0, 1fr) !important; }
+  .admin-duplicate-review__heading,
+  .admin-duplicate-review__instruction,
+  .admin-duplicate-review__fact-head { flex-wrap: wrap; }
+  .admin-duplicate-review__instruction > * { min-width: 0; }
   .admin-main { padding: var(--ds-arena-space-4); gap: var(--ds-arena-space-4); }
   .admin-main > *, .daily-blitz-main > *, .admin-main .ds-card, .admin-main form, .admin-page-head > div { min-width: 0; max-width: 100%; }
   .admin-main .ds-card { overflow-wrap: anywhere; }

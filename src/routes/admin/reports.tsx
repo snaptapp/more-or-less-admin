@@ -633,7 +633,6 @@ function ReportCard({ entry }: { entry: Entry }) {
 
       {pending && duplicateFactsList.length === 0 && entry.fact?.quality_flags?.some(isNonDuplicateFlag) ? (
         <div
-          className="admin-duplicate-review"
           style={{
             marginTop: "var(--ds-arena-space-3)",
             padding: "var(--ds-arena-space-2) var(--ds-arena-space-3)",
@@ -875,6 +874,7 @@ function ReportCard({ entry }: { entry: Entry }) {
 
       {duplicateFactsList.length > 0 && entry.fact ? (
         <div
+          className="admin-duplicate-review"
           style={{
             marginTop: "var(--ds-arena-space-3)",
             padding: "var(--ds-arena-space-3)",
