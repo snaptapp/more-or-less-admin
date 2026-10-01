@@ -10,4 +10,11 @@ body {
   font-family: var(--ds-arena-font-body);
   background: var(--ds-arena-color-bg);
   color: var(--ds-arena-color-text);
+  min-width: 0;
+}
+
+img,
+video,
+canvas {
+  max-width: 100%;
 }
