@@ -1339,7 +1339,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-bar-row--filterable .ds-button { grid-column: auto; min-height: 36px; padding-inline: var(--ds-arena-space-2); }
 
   /* Daily schedule cards: compact 3-up meta row under the date and theme. */
-  .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--ds-arena-space-2); padding: var(--ds-arena-space-2) var(--ds-arena-space-3); margin-bottom: var(--ds-arena-space-2); }
+  .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--ds-arena-space-2); padding: var(--ds-arena-space-2) var(--ds-arena-space-3); margin-bottom: var(--ds-arena-space-2); }
   .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:not([colspan]) { display: block; border-bottom: 0; padding: var(--ds-arena-space-1) 0; }
   .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:not([colspan])::before { display: block; }
   .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:nth-child(1),
@@ -1348,6 +1348,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:not([colspan]) > * { grid-column: auto; }
   .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:nth-child(2)::before { display: none; }
   .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:last-child:has(.ds-button) { padding-top: var(--ds-arena-space-2); }
+  .admin-card-table--timeline .ds-badge { white-space: nowrap; }
 }
 
 @media (max-width: 380px) {
