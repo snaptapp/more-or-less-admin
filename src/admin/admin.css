@@ -95,7 +95,23 @@
 }
 
 .admin-error { overflow-wrap: anywhere; }
-.admin-config .ds-button { white-space: nowrap; flex-shrink: 0; }
+.admin-shell .ds-button,
+.admin-signin .ds-button {
+  font-family: var(--ds-arena-font-body);
+  font-size: var(--ds-arena-text-sm);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.25;
+  min-height: var(--ds-arena-control-min-height);
+  padding: var(--ds-arena-space-2) var(--ds-arena-space-4);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.admin-shell .ds-button--lg,
+.admin-signin .ds-button--lg { font-size: var(--ds-arena-text-md); }
+
+.admin-shell .admin-menu-toggle { padding: 0; }
 
 .admin-page-head {
   display: flex;
@@ -145,6 +161,7 @@
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .admin-field label,
@@ -247,6 +264,8 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   padding: 10px 12px;
   min-height: 44px;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .admin-textarea {
@@ -1309,9 +1328,11 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   /* Inline flex rows (input + button, title + action) wrap instead of crushing buttons letter by letter. */
   .admin-main div[style*="display: flex"]:not([style*="column"]) { flex-wrap: wrap; }
   .admin-main div[style*="display: flex"]:not([style*="column"]) > .admin-input,
-  .admin-main div[style*="display: flex"]:not([style*="column"]) > .admin-select { flex: 1 1 160px; min-width: 0; }
+  .admin-main div[style*="display: flex"]:not([style*="column"]) > .admin-select { flex: 1 1 100%; min-width: 0; }
+  .admin-main .admin-responsive-grid > * { min-width: 0; max-width: 100%; }
+  .admin-main .admin-config div[style*="display: flex"]:has(> .admin-input) > .ds-button { flex: 1 1 100%; }
   .admin-main div[style*="display: flex"][style*="space-between"]:not([style*="column"]) > div:not([class]) { min-width: 0; flex: 1 1 200px; }
-  .admin-main .ds-button { flex-shrink: 0; overflow-wrap: normal; word-break: normal; }
+  .admin-main .ds-button { flex-shrink: 0; word-break: normal; }
 
   /* Labelled card cells: everything after the label sits in the value column. */
   .admin-card-table tbody > tr:not(.admin-inline-editor-row) > td:not([colspan]) > * { grid-column: 2; min-width: 0; }
