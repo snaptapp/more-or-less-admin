@@ -13,5 +13,6 @@
 - [x] Collapsible mobile navigation drawer with active states and close-on-navigation; compact mobile record cards retain row actions
 
 ## In progress
+- [ ] Responsive non-admin routes and shared design-system components across phone, tablet, and desktop widths
 - [ ] Reporter overturn-rate escalation (`escalateHuman`) — PLAN.md item 7
 - [ ] Aggregate ombudsman-vs-human agreement-% dashboard — PLAN.md item 8 remainder
