@@ -1304,6 +1304,13 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-infotip-content { min-width: 0; width: min(240px, calc(100vw - 48px)); }
   .admin-main [style*="min-width: 220px"] { min-width: 0 !important; }
   .admin-main code, .admin-main pre, .admin-main a { overflow-wrap: anywhere; }
+
+  /* Inline flex rows (input + button, title + action) wrap instead of crushing buttons letter by letter. */
+  .admin-main div[style*="display: flex"] { flex-wrap: wrap; }
+  .admin-main div[style*="display: flex"] > .admin-input,
+  .admin-main div[style*="display: flex"] > .admin-select { flex: 1 1 160px; min-width: 0; }
+  .admin-main div[style*="display: flex"] > div:not([class]) { min-width: 0; flex: 1 1 200px; }
+  .admin-main .ds-button { flex-shrink: 0; overflow-wrap: normal; word-break: normal; }
 }
 
 @media (max-width: 380px) {
