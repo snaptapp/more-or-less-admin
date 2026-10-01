@@ -855,10 +855,17 @@ th .admin-infotip:focus-visible .admin-infotip-content,
 
 .admin-lint-finding__evidence dl {
   display: grid;
-  grid-template-columns: minmax(90px, max-content) minmax(0, 1fr);
-  gap: 4px var(--ds-arena-space-3);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-arena-space-2);
   margin: 0;
   font-size: 12px;
+}
+
+.admin-lint-finding__evidence dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  min-width: 0;
 }
 
 .admin-lint-finding__evidence dt {
