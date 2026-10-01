@@ -341,7 +341,7 @@ function ConfigPage() {
   }
 
   return (
-    <main className="admin-main">
+    <div className="admin-config">
       <div className="admin-page-head">
         <div>
           <h1>Remote Config &amp; Feature Flags</h1>
@@ -1221,6 +1221,6 @@ function ConfigPage() {
           )}
         </>
       )}
-    </main>
+    </div>
   );
 }
