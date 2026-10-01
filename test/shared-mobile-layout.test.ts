@@ -38,6 +38,7 @@ describe("site-wide narrow layouts", () => {
     expect(block(".ds-tabbar__item")).toContain("min-width: max-content");
     expect(tokens).toMatch(/@media \(max-width: 600px\) \{[\s\S]*?\.ds-navbar \{\s*flex-wrap: wrap/);
     expect(tokens).toMatch(/@media \(max-width: 600px\) \{[\s\S]*?\.ds-stat__value \{\s*font-size: var\(--ds-arena-text-stat-mobile\)/);
+    expect(tokens).toMatch(/@media \(max-width: 600px\) \{[\s\S]*?\.ds-leader \{\s*display: grid;\s*grid-template-columns: auto minmax\(0, 1fr\)/);
   });
 
   it("retains visible keyboard focus for shared game controls", () => {

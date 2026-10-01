@@ -597,6 +597,20 @@
     font-size: var(--ds-arena-text-stat-mobile);
   }
 
+  .ds-leader {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .ds-leader__rank {
+    grid-row: span 2;
+    align-self: start;
+  }
+
+  .ds-leader__score {
+    grid-column: 2;
+  }
+
   .ds-button--lg {
     padding-inline: var(--ds-arena-space-4);
   }
