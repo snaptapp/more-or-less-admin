@@ -1358,7 +1358,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
 
   /* Analytics delete-category buttons stay compact beside their bar. */
   .admin-bar-row--filterable { grid-template-columns: minmax(0, 1fr) minmax(24px, 1fr) auto auto; align-items: center; }
-  .admin-bar-row--filterable .ds-button { grid-column: auto; min-height: 36px; padding-inline: var(--ds-arena-space-2); }
+  .admin-bar-row--filterable .ds-button { grid-column: auto; padding-inline: var(--ds-arena-space-2); }
 
   /* Daily schedule cards: compact 3-up meta row under the date and theme. */
   .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--ds-arena-space-2); padding: var(--ds-arena-space-2) var(--ds-arena-space-3); margin-bottom: var(--ds-arena-space-2); }

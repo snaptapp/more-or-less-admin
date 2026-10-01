@@ -14,6 +14,6 @@
 - [x] Responsive non-admin routes and shared design-system components across phone, tablet, and desktop widths
 
 ## In progress
-- [ ] Fix collapsing mobile fields and align admin button text, weight, clipping, and spacing
+- [x] Fix collapsing mobile fields and align admin button text, weight, clipping, and spacing
 - [ ] Reporter overturn-rate escalation (`escalateHuman`) — PLAN.md item 7
 - [ ] Aggregate ombudsman-vs-human agreement-% dashboard — PLAN.md item 8 remainder
