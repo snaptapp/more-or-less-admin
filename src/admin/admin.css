@@ -1332,7 +1332,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-button-tabs { display: grid !important; grid-template-columns: minmax(0, 1fr); width: 100%; }
   .admin-button-tabs > .ds-button { width: 100%; justify-content: flex-start; }
   .admin-segmented { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .admin-segmented > button { min-height: 44px; overflow-wrap: normal; }
+  .admin-segmented > button { width: 100%; min-height: 44px; overflow-wrap: normal; }
 
   /* Analytics delete-category buttons stay compact beside their bar. */
   .admin-bar-row--filterable { grid-template-columns: minmax(0, 1fr) minmax(24px, 1fr) auto auto; align-items: center; }
