@@ -95,6 +95,7 @@
 }
 
 .admin-error { overflow-wrap: anywhere; }
+.admin-config .ds-button { white-space: nowrap; flex-shrink: 0; }
 
 .admin-page-head {
   display: flex;
@@ -1348,7 +1349,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
   .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:not([colspan]) > * { grid-column: auto; }
   .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:nth-child(2)::before { display: none; }
   .admin-card-table--timeline tbody > tr:not(.admin-inline-editor-row) > td:last-child:has(.ds-button) { padding-top: var(--ds-arena-space-2); }
-  .admin-card-table--timeline .ds-badge { white-space: nowrap; }
+  .admin-card-table--timeline .ds-badge { white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 }
 
 @media (max-width: 380px) {
