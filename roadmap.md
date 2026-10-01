@@ -12,8 +12,8 @@
 - [x] Responsive admin navigation and mobile layouts for admin views (dense tables scroll within their panels)
 - [x] Collapsible mobile navigation drawer with active states and close-on-navigation; compact mobile record cards retain row actions
 - [x] Responsive non-admin routes and shared design-system components across phone, tablet, and desktop widths
+- [x] Fix collapsing mobile fields and align admin button text, weight, clipping, and spacing
 
 ## In progress
-- [x] Fix collapsing mobile fields and align admin button text, weight, clipping, and spacing
 - [ ] Reporter overturn-rate escalation (`escalateHuman`) — PLAN.md item 7
 - [ ] Aggregate ombudsman-vs-human agreement-% dashboard — PLAN.md item 8 remainder
