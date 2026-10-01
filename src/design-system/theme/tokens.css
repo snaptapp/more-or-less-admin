@@ -4,8 +4,13 @@
   --ds-arena-color-surface: #14161c;
   --ds-arena-color-surface-raised: #1b1e26;
   --ds-arena-color-surface-sunken: #0f1116;
+  --ds-arena-color-surface-interactive: #252a35;
+  --ds-arena-color-surface-hover: #303746;
+  --ds-arena-color-surface-overlay: #343b4b;
   --ds-arena-color-border: #262a34;
   --ds-arena-color-border-strong: #3a4050;
+  --ds-arena-color-border-hover: #596176;
+  --ds-arena-color-border-subtle: #20242d;
 
   /* Text */
   --ds-arena-color-text: #f5f7fa;
@@ -153,25 +158,42 @@
   color: var(--ds-arena-color-primary-foreground);
   box-shadow: var(--ds-arena-shadow-press-lime);
 }
+.ds-button--primary:not(:disabled):hover {
+  background: var(--ds-arena-color-amber);
+}
 .ds-button--danger {
   background: var(--ds-arena-color-red);
   color: var(--ds-arena-color-danger-foreground);
   box-shadow: var(--ds-arena-shadow-press-red);
+}
+.ds-button--danger:not(:disabled):hover {
+  background: var(--ds-arena-color-red-dim);
 }
 .ds-button--daily {
   background: var(--ds-arena-color-purple);
   color: var(--ds-arena-color-text);
   box-shadow: var(--ds-arena-shadow-press-purple);
 }
+.ds-button--daily:not(:disabled):hover {
+  background: var(--ds-arena-color-purple-dim);
+}
 .ds-button--skip {
   background: var(--ds-arena-color-amber);
   color: var(--ds-arena-color-text-inverse);
   box-shadow: var(--ds-arena-shadow-press-amber);
 }
-.ds-button--ghost {
-  background: var(--ds-arena-color-surface-raised);
+.ds-button--skip:not(:disabled):hover {
+  background: var(--ds-arena-color-amber-dim);
   color: var(--ds-arena-color-text);
-  border-color: var(--ds-arena-color-border);
+}
+.ds-button--ghost {
+  background: var(--ds-arena-color-surface-interactive);
+  color: var(--ds-arena-color-text);
+  border-color: var(--ds-arena-color-border-strong);
+}
+.ds-button--ghost:not(:disabled):hover {
+  background: var(--ds-arena-color-surface-hover);
+  border-color: var(--ds-arena-color-border-hover);
 }
 
 .ds-button:not(:disabled):active {
