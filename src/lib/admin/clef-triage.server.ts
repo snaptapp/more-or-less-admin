@@ -121,7 +121,23 @@ export async function saveFactTriageRecord(record: FactTriageRecord): Promise<vo
 
   const existing = await getDoc(`fact_triage/${record.fact_id}`).catch(() => null);
   if (existing) {
-    await patchDoc(`fact_triage/${record.fact_id}`, data);
+    const deletePaths: string[] = [];
+    if (record.is_objectively_verifiable === undefined) {
+      deletePaths.push("is_objectively_verifiable");
+    }
+    if (record.is_subjective === undefined) {
+      deletePaths.push("is_subjective");
+    }
+    if (record.raw_surprise_score === undefined) {
+      deletePaths.push("raw_surprise_score");
+    }
+    if (record.canonical_surprise_factor === undefined) {
+      deletePaths.push("canonical_surprise_factor");
+    }
+    if (record.error === undefined) {
+      deletePaths.push("error");
+    }
+    await patchDoc(`fact_triage/${record.fact_id}`, data, deletePaths);
   } else {
     await createDoc("fact_triage", record.fact_id, data);
   }
