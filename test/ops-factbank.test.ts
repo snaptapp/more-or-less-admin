@@ -302,6 +302,23 @@ describe("ops factbank tools", () => {
     expect(typeof snapshot.validation_summary?.capped).toBe("boolean");
   });
 
+  it("discloses a capped validation scan in the system snapshot", async () => {
+    const snapshot = await molSystemSnapshot({
+      env: ENV,
+      fetch: vi.fn(async () =>
+        response({ bank_version: "bank-1", fact_count: 2, ddm_version: "ddm-4" }),
+      ) as typeof fetch,
+      scanCap: 2,
+      persist: false,
+      includeValidation: true,
+    });
+
+    expect(snapshot.validation_summary?.scanned).toBe(2);
+    expect(snapshot.validation_summary?.capped).toBe(true);
+    expect(snapshot.validation_summary?.note).toContain("Partial scan");
+    expect(snapshot.anomalies.some((line) => line.includes("Validation scan capped"))).toBe(true);
+  });
+
   it("does not write snapshot bookkeeping unless persist is explicitly true", async () => {
     const writesBefore = firestoreDouble().writeCount();
     const snapshot = await molSystemSnapshot({

@@ -641,6 +641,11 @@ export async function molSystemSnapshot(
   if (validation && validation.errors > 0) {
     anomalies.push(`Validation errors=${validation.errors} warnings=${validation.warnings}`);
   }
+  if (validation?.capped) {
+    anomalies.push(
+      `Validation scan capped at ${validation.scanned} facts; counts are partial and may omit errors beyond the scan window.`,
+    );
+  }
   if (health.deployed_raw.state === "unknown") {
     anomalies.push(`Serving stamp unknown: ${health.deployed_raw.reason}`);
   }
@@ -673,6 +678,9 @@ export async function molSystemSnapshot(
           by_rule: validation.by_rule,
           scanned: validation.scanned,
           capped: validation.capped,
+          note: validation.capped
+            ? `Partial scan: validated ${validation.scanned} facts (cap reached); do not treat counts as bank-complete.`
+            : null,
         }
       : null,
     persist: deps.persist === true,
