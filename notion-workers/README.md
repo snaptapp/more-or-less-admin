@@ -47,7 +47,7 @@ ntn workers deploy
 
 Then in Notion: open **More-or-Less Ops Assistant** → Settings → Tools and access → connect both Workers and enable the tools.
 
-Also set Admin Worker secret `OPS_ASSISTANT_SECRET` (or reuse `OPS_CRON_SECRET`) on `ops.snaptapp.us`.
+Also set Admin Worker secret `OPS_ASSISTANT_SECRET` on `ops.snaptapp.us` (do not reuse `OPS_CRON_SECRET` in production).
 
 ## Local tool exec
 

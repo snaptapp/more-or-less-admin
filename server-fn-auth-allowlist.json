@@ -14,7 +14,7 @@
       "path": "src/routes/api/internal/ops/factbank/$action.ts",
       "routeId": "/api/internal/ops/factbank/$action",
       "methods": ["GET"],
-      "mechanism": "shared-secret header gate: returns 503 when OPS_ASSISTANT_SECRET and OPS_CRON_SECRET are both unset and 401 unless requireOpsAssistantAuth(request.headers.get(\"authorization\")) matches Bearer against OPS_ASSISTANT_SECRET (fallback OPS_CRON_SECRET) via constant-time compare (src/lib/admin/ops-assistant-auth.server.ts).",
+      "mechanism": "shared-secret header gate: returns 503 when OPS_ASSISTANT_SECRET is unset (OPS_CRON_SECRET only when OPS_ASSISTANT_ALLOW_CRON_FALLBACK=1) and 401 unless requireOpsAssistantAuth(request.headers.get(\"authorization\")) matches Bearer against OPS_ASSISTANT_SECRET via constant-time compare (src/lib/admin/ops-assistant-auth.server.ts).",
       "reason": "Notion Workers / Ops Assistant callers have no Firebase ID token. Read-only Fact Bank observability only; no fact_bank mutation, deploy, or hydration side effects beyond optional snapshot bookkeeping on /snapshot."
     },
     {

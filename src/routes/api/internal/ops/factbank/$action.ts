@@ -8,7 +8,7 @@ import {
  * Read-only Fact Bank ops API for the Notion Ops Assistant.
  *
  * GET /api/internal/ops/factbank/:action
- * Auth: Bearer OPS_ASSISTANT_SECRET (or OPS_CRON_SECRET fallback).
+ * Auth: Bearer OPS_ASSISTANT_SECRET (optional OPS_CRON_SECRET when OPS_ASSISTANT_ALLOW_CRON_FALLBACK=1).
  */
 export const Route = createFileRoute("/api/internal/ops/factbank/$action")({
   server: {
