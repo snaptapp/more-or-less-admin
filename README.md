@@ -245,3 +245,10 @@ Do this when:
 **Game analytics** (`users/*/game_history`) needs collection-group indexes on `playedAt` (ASC and DESC). Those live in the game repo’s `firestore.indexes.json` fieldOverrides. Without them, Overview “Games (7d)” count may work while Game analytics / mode pies fail or fall back.
 
 Single-field equality/`count()` aggregations usually need no new composite index. Index builds can take minutes after deploy; keep the console link until status is Enabled.
+
+## Clef Fact Auto-Triage (`fact_triage/` Sidecar)
+
+The Admin Worker incorporates Cloudflare's native `@cf/cloudflare/clef` (27B parameter decision model) via the `env.AI` binding in `wrangler.jsonc` (`src/lib/admin/clef-triage.server.ts`):
+- **Structured Assessment:** Exposes `triageFactCandidate` (not yet wired into submit/import flows) to assess fact candidates for objective verifiability (`is_objectively_verifiable`, noul), subjectivity (`is_subjective`, noul), and counter-intuitiveness (`surprise_factor`, score 0–3).
+- **Data Boundary & Contract Isolation:** Triage results are written strictly to the sidecar collection `fact_triage/{factId}`. Canonical `facts` documents remain untouched to preserve `ALLOWED_FIELDS` in `fact-admission.ts` and ensure that only the Fact Foundry promoter elevates facts to active status.
+- **Fail-Closed Reporting:** Partial or malformed Clef evaluations mark the record as `status: "triage_failed"` with error details, rather than synthesizing false confidence or default values.
