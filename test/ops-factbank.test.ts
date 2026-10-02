@@ -22,6 +22,10 @@ function response(body: unknown, status = 200): Response {
   return Response.json(body, { status });
 }
 
+function expectNoFirestoreWrites(): void {
+  expect(firestoreDouble().writeCount()).toBe(0);
+}
+
 describe("ops factbank tools", () => {
   beforeEach(() => {
     firestoreDouble().seedMany({
@@ -110,6 +114,7 @@ describe("ops factbank tools", () => {
     expect(health.drift.first_divergence).toBe("none");
     expect(health.status).toBe("healthy");
     expect(health.kv.role).toBe("pack_cache_not_fact_bank");
+    expectNoFirestoreWrites();
   });
 
   it("marks serving unknown when the game worker is down", async () => {
@@ -119,12 +124,14 @@ describe("ops factbank tools", () => {
     });
     expect(health.status).toBe("unknown");
     expect(health.drift.first_divergence).toBe("serving_unknown");
+    expectNoFirestoreWrites();
   });
 
   it("breaks down active facts by genre", async () => {
     const result = await factbankBreakdown("genre", { scanCap: 100 });
     expect(result.dimension).toBe("genre");
     expect(result.thinnest.some((bucket) => bucket.key === "Music")).toBe(true);
+    expectNoFirestoreWrites();
   });
 
   it("aggregates validation errors without dumping every row", async () => {
@@ -135,12 +142,14 @@ describe("ops factbank tools", () => {
     expect(result.examples.length).toBeLessThanOrEqual(8);
     expect(result.scanned).toBeGreaterThan(0);
     expect(typeof result.capped).toBe("boolean");
+    expectNoFirestoreWrites();
   });
 
   it("finds exact question duplicate clusters", async () => {
     const result = await factbankDuplicates({ scanCap: 100 });
     expect(result.summary.exact_question_clusters).toBeGreaterThan(0);
     expect(result.exact_question[0]?.count).toBeGreaterThanOrEqual(2);
+    expectNoFirestoreWrites();
   });
 
   it("inspects a topic query", async () => {
@@ -153,6 +162,7 @@ describe("ops factbank tools", () => {
     });
     expect(result.active).toBe(2);
     expect(result.matched_subjects[0]?.subject).toBe("Disco");
+    expectNoFirestoreWrites();
   });
 
   it("matches genre-only inspect queries via subject category", async () => {
@@ -166,6 +176,7 @@ describe("ops factbank tools", () => {
     expect(result.matched_subjects.length).toBeGreaterThan(0);
     expect(result.matched_subjects.every((subject) => subject.genre === "Music")).toBe(true);
     expect(result.active).toBe(2);
+    expectNoFirestoreWrites();
   });
 
   it("returns drift recommendation from the first divergent layer", async () => {
@@ -177,6 +188,7 @@ describe("ops factbank tools", () => {
     });
     expect(drift.drift.first_divergence).toBe("firestore→serving");
     expect(drift.recommendation).toContain("Firestore → serving");
+    expectNoFirestoreWrites();
   });
 
   it("composes a system snapshot with change lines when a previous snapshot exists", async () => {
@@ -226,5 +238,32 @@ describe("ops factbank tools", () => {
     expect(snapshot.persist).toBe(false);
     expect(firestoreDouble().document("ops_assistant_snapshots/factbank_latest")).toBeNull();
     expect(firestoreDouble().writeCount()).toBe(writesBefore);
+  });
+
+  it("persists snapshot bookkeeping when persist is true", async () => {
+    const snapshot = await molSystemSnapshot({
+      env: ENV,
+      fetch: vi.fn(async () =>
+        response({ bank_version: "bank-1", fact_count: 2, ddm_version: "ddm-4" }),
+      ) as typeof fetch,
+      scanCap: 100,
+      persist: true,
+      includeValidation: true,
+    });
+
+    expect(snapshot.persist).toBe(true);
+    const stored = firestoreDouble().document("ops_assistant_snapshots/factbank_latest");
+    expect(stored).not.toBeNull();
+    expect(stored?.data["firestore_active"]).toBe(2);
+    expect(stored?.data["firestore_total"]).toBe(3);
+    expect(stored?.data["serving_facts"]).toBe(2);
+    expect(stored?.data["serving_version"]).toBe("bank-1");
+    expect(stored?.data["status"]).toBe(snapshot.game.production_status);
+    expect(typeof stored?.data["checked_at"]).toBe("string");
+    expect(
+      firestoreDouble()
+        .writes()
+        .every((write) => write.path.startsWith("ops_assistant_snapshots/")),
+    ).toBe(true);
   });
 });
