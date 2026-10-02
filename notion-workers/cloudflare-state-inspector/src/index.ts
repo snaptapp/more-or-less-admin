@@ -86,8 +86,16 @@ async function cfGet(path: string): Promise<JSONValue> {
 async function workerDetails(scriptName: string) {
   const { accountId } = cfAuth();
   try {
-    const result = await cfGet(`/accounts/${accountId}/workers/scripts/${scriptName}`);
-    return { found: true, script: result };
+    const settings = (await cfGet(
+      `/accounts/${accountId}/workers/scripts/${scriptName}/settings`,
+    )) as { usage_model?: string; logpush?: boolean };
+    return {
+      found: true,
+      metadata: {
+        usage_model: settings?.usage_model ?? null,
+        logpush: settings?.logpush ?? null,
+      },
+    };
   } catch (error) {
     return {
       found: false,

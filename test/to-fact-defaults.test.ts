@@ -127,6 +127,7 @@ const EXPECTED_DEFAULTS: FactRecord = {
   // Nullable fields → null.
   true_number: null,
   surprise_factor: null,
+  difficulty_hint: null,
   previous_true_number: null,
   retired_reason: null,
   verified_at: null,

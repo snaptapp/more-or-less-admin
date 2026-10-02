@@ -81,16 +81,14 @@ function healthStatus(input: {
   deployedKnown: boolean;
   firestoreActive: number;
   servingCount: number | null;
-  delta: number | null;
 }): "healthy" | "warning" | "critical" | "unknown" {
-  if (!input.deployedKnown || input.servingCount === null || input.delta === null) {
+  if (!input.deployedKnown || input.servingCount === null) {
     return "unknown";
   }
-  const abs = Math.abs(input.delta);
-  if (input.firestoreActive === 0 || input.servingCount === 0) return "critical";
-  if (abs === 0) return "healthy";
-  if (abs / Math.max(input.firestoreActive, 1) > 0.05 || abs > 250) return "critical";
-  return "warning";
+  if (input.firestoreActive > 0 && input.servingCount === 0) {
+    return "critical";
+  }
+  return "healthy";
 }
 
 /**
@@ -121,7 +119,6 @@ export async function factbankHealth(deps: OpsFactbankDependencies = {}) {
     deployedKnown: obs.deployed.state === "known",
     firestoreActive,
     servingCount,
-    delta,
   });
 
   return {
@@ -145,7 +142,7 @@ export async function factbankHealth(deps: OpsFactbankDependencies = {}) {
         "Cloudflare TRIVIA_CACHE stores generated packs keyed by topic, not fact_bank rows. Use Cloudflare State Inspector for KV reachability.",
       role: "pack_cache_not_fact_bank",
       total_facts: null as number | null,
-      version: serving?.version ?? null,
+      version: null as string | null,
       updated_at: null as string | null,
     },
     serving,
@@ -187,7 +184,7 @@ function dimensionKey(
         "(no match scope)"
       );
     case "difficulty":
-      return fact.content_rating || "(unset)";
+      return fact.difficulty_hint?.trim() || "(unset)";
     case "status":
       return String(fact.status || "(unset)");
     case "source":
@@ -513,8 +510,9 @@ export async function factbankInspect(
     pending: matchedFacts.filter((fact) => fact.status === STATUS.pending).length,
     validation_warnings: validation.length,
     validation_examples: validation.slice(0, EXAMPLE_CAP),
-    production_count: deployed.state === "known" ? deployed.factCount : null,
-    production_bank_version: deployed.state === "known" ? deployed.bankVersion : null,
+    serving_bank_total_facts:
+      deployed.state === "known" ? deployed.factCount : null,
+    serving_bank_version: deployed.state === "known" ? deployed.bankVersion : null,
     sample_ids: active.slice(0, 10).map((fact) => fact.id),
     scanned,
     capped,
