@@ -83,17 +83,23 @@ async function cfGet(path: string): Promise<JSONValue> {
   return asJson(body.result ?? null);
 }
 
+/**
+ * Presence + non-source metadata only.
+ * Uses the Worker settings endpoint — never the download-script API
+ * (`GET .../workers/scripts/{name}`), which returns production source.
+ */
 async function workerDetails(scriptName: string) {
   const { accountId } = cfAuth();
   try {
     const settings = (await cfGet(
       `/accounts/${accountId}/workers/scripts/${scriptName}/settings`,
-    )) as { usage_model?: string; logpush?: boolean };
+    )) as { usage_model?: string; logpush?: boolean; bindings?: unknown[] };
     return {
       found: true,
       metadata: {
         usage_model: settings?.usage_model ?? null,
         logpush: settings?.logpush ?? null,
+        binding_count: Array.isArray(settings?.bindings) ? settings.bindings.length : null,
       },
     };
   } catch (error) {

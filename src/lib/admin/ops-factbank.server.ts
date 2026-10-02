@@ -121,6 +121,16 @@ export async function factbankHealth(deps: OpsFactbankDependencies = {}) {
     servingCount,
   });
 
+  // Non-zero exportedDelta alone is not a publication incident: export filters
+  // (after-dark, flagged, malformed) make active Firestore and serving differ.
+  // Only an empty serving stamp with active facts is a hard divergence signal.
+  const firstDivergence =
+    obs.deployed.state !== "known"
+      ? ("serving_unknown" as const)
+      : firestoreActive > 0 && servingCount === 0
+        ? ("firestore→serving" as const)
+        : ("none" as const);
+
   return {
     checked_at: checkedAt,
     hydration_explanation: HYDRATION_EXPLANATION,
@@ -139,9 +149,10 @@ export async function factbankHealth(deps: OpsFactbankDependencies = {}) {
     },
     kv: {
       note:
-        "Cloudflare TRIVIA_CACHE stores generated packs keyed by topic, not fact_bank rows. Use Cloudflare State Inspector for KV reachability.",
+        "Cloudflare TRIVIA_CACHE stores generated packs keyed by topic, not fact_bank rows. Use Cloudflare State Inspector for KV reachability; do not treat this object as a fact-bank layer.",
       role: "pack_cache_not_fact_bank",
       total_facts: null as number | null,
+      // Intentionally null — never copy serving.version; pack KV is not a bank stamp.
       version: null as string | null,
       updated_at: null as string | null,
     },
@@ -150,12 +161,11 @@ export async function factbankHealth(deps: OpsFactbankDependencies = {}) {
       firestore_vs_export: delta,
       export_vs_kv: null as number | null,
       firestore_active_vs_serving: delta,
-      first_divergence:
-        obs.deployed.state !== "known"
-          ? "serving_unknown"
-          : delta === 0
-            ? "none"
-            : "firestore→serving",
+      first_divergence: firstDivergence,
+      note:
+        firstDivergence === "none" && delta !== null && delta !== 0
+          ? "Non-zero firestore_active_vs_serving can be expected from export filters; status stays healthy unless serving is empty while Firestore has active facts."
+          : null,
     },
     deployed_raw: obs.deployed,
     status,
@@ -445,10 +455,13 @@ export async function factbankDrift(deps: OpsFactbankDependencies = {}) {
     hydration_explanation: health.hydration_explanation,
     recommendation:
       health.drift.first_divergence === "none"
-        ? "No Firestore-active vs serving divergence detected."
+        ? health.drift.firestore_active_vs_serving !== null &&
+          health.drift.firestore_active_vs_serving !== 0
+          ? "Serving stamp is present. Non-zero firestore_active_vs_serving may reflect export filters (after-dark/flagged/malformed), not a failed deploy — see exported_delta_definition."
+          : "No Firestore-active vs serving divergence detected."
         : health.drift.first_divergence === "serving_unknown"
           ? "Cannot compare: GAME_WORKER_URL bank-version endpoint is unavailable."
-          : "Divergence starts at Firestore → serving publication (export → hydration PR → Worker deploy).",
+          : "Hard divergence: Firestore has active facts but serving fact_count is 0 — inspect export → hydration PR → Worker deploy.",
   };
 }
 
@@ -510,9 +523,12 @@ export async function factbankInspect(
     pending: matchedFacts.filter((fact) => fact.status === STATUS.pending).length,
     validation_warnings: validation.length,
     validation_examples: validation.slice(0, EXAMPLE_CAP),
+    // Bank-wide serving stamp for context only — not a topic-scoped production count.
     serving_bank_total_facts:
       deployed.state === "known" ? deployed.factCount : null,
     serving_bank_version: deployed.state === "known" ? deployed.bankVersion : null,
+    serving_bank_note:
+      "serving_bank_total_facts is the entire deployed bank; do not compare it to topic-scoped facts/active/pending.",
     sample_ids: active.slice(0, 10).map((fact) => fact.id),
     scanned,
     capped,

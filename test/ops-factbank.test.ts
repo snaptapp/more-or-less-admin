@@ -114,6 +114,22 @@ describe("ops factbank tools", () => {
     expect(health.drift.first_divergence).toBe("none");
     expect(health.status).toBe("healthy");
     expect(health.kv.role).toBe("pack_cache_not_fact_bank");
+    expect(health.kv.version).toBeNull();
+    expect(health.kv.total_facts).toBeNull();
+    expectNoFirestoreWrites();
+  });
+
+  it("keeps healthy status when export-filter delta is nonzero but serving is present", async () => {
+    const health = await factbankHealth({
+      env: ENV,
+      fetch: vi.fn(async () =>
+        response({ bank_version: "bank-1", fact_count: 1, ddm_version: "ddm-4" }),
+      ) as typeof fetch,
+    });
+    expect(health.drift.firestore_active_vs_serving).toBe(1);
+    expect(health.drift.first_divergence).toBe("none");
+    expect(health.status).toBe("healthy");
+    expect(health.drift.note).toContain("export filters");
     expectNoFirestoreWrites();
   });
 
@@ -131,6 +147,52 @@ describe("ops factbank tools", () => {
     const result = await factbankBreakdown("genre", { scanCap: 100 });
     expect(result.dimension).toBe("genre");
     expect(result.thinnest.some((bucket) => bucket.key === "Music")).toBe(true);
+    expectNoFirestoreWrites();
+  });
+
+  it("breaks down by difficulty_hint rather than content_rating", async () => {
+    firestoreDouble().seedMany({
+      "fact_bank/a1": {
+        status: "active",
+        subject: "Disco",
+        subject_key: "disco",
+        angle: "Peak year",
+        angle_key: "peak-year",
+        true_number: 1978,
+        unit: "year",
+        question: "In what year did disco peak?",
+        claim_template: "Disco peaked in YEAR",
+        source_urls: ["https://example.com/disco"],
+        verifier_model: "foundry",
+        category: "Music",
+        content_rating: "standard",
+        difficulty_hint: "casual",
+        quality_flags: [],
+      },
+      "fact_bank/a2": {
+        status: "active",
+        subject: "Disco",
+        subject_key: "disco",
+        angle: "Peak year dup",
+        angle_key: "peak-year-dup",
+        true_number: 1978,
+        unit: "year",
+        question: "In what year did disco peak?",
+        claim_template: "Disco peaked in YEAR",
+        source_urls: ["https://example.com/disco"],
+        verifier_model: "foundry",
+        category: "Music",
+        content_rating: "after_dark",
+        difficulty_hint: "hard",
+        quality_flags: [],
+      },
+    });
+    const result = await factbankBreakdown("difficulty", { scanCap: 100 });
+    const keys = result.thinnest.map((bucket) => bucket.key);
+    expect(keys).toContain("casual");
+    expect(keys).toContain("hard");
+    expect(keys).not.toContain("standard");
+    expect(keys).not.toContain("after_dark");
     expectNoFirestoreWrites();
   });
 
@@ -156,12 +218,14 @@ describe("ops factbank tools", () => {
     const result = await factbankInspect("Disco", {
       env: ENV,
       fetch: vi.fn(async () =>
-        response({ bank_version: "bank-1", fact_count: 2, ddm_version: "ddm-4" }),
+        response({ bank_version: "bank-1", fact_count: 999, ddm_version: "ddm-4" }),
       ) as typeof fetch,
       scanCap: 100,
     });
     expect(result.active).toBe(2);
     expect(result.matched_subjects[0]?.subject).toBe("Disco");
+    expect(result.serving_bank_total_facts).toBe(999);
+    expect(result.serving_bank_note).toContain("entire deployed bank");
     expectNoFirestoreWrites();
   });
 
@@ -179,15 +243,29 @@ describe("ops factbank tools", () => {
     expectNoFirestoreWrites();
   });
 
-  it("returns drift recommendation from the first divergent layer", async () => {
+  it("treats empty serving with active facts as hard divergence", async () => {
+    const drift = await factbankDrift({
+      env: ENV,
+      fetch: vi.fn(async () =>
+        response({ bank_version: "bank-1", fact_count: 0, ddm_version: "ddm-4" }),
+      ) as typeof fetch,
+    });
+    expect(drift.drift.first_divergence).toBe("firestore→serving");
+    expect(drift.status).toBe("critical");
+    expect(drift.recommendation).toContain("serving fact_count is 0");
+    expectNoFirestoreWrites();
+  });
+
+  it("does not treat export-filter delta alone as hard divergence", async () => {
     const drift = await factbankDrift({
       env: ENV,
       fetch: vi.fn(async () =>
         response({ bank_version: "bank-1", fact_count: 1, ddm_version: "ddm-4" }),
       ) as typeof fetch,
     });
-    expect(drift.drift.first_divergence).toBe("firestore→serving");
-    expect(drift.recommendation).toContain("Firestore → serving");
+    expect(drift.drift.first_divergence).toBe("none");
+    expect(drift.status).toBe("healthy");
+    expect(drift.recommendation).toContain("export filters");
     expectNoFirestoreWrites();
   });
 
