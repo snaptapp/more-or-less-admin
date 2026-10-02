@@ -7,6 +7,9 @@
   "observability": {
     "enabled": true
   },
+  "ai": {
+    "binding": "AI"
+  },
   "vars": {
     // Project ids and the Firebase *web* API key are publishable (the key is
     // also served by /api/public/firebase-config for browser Auth). Real
