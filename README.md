@@ -184,7 +184,13 @@ npx wrangler secret put OPS_ASSISTANT_SECRET --name more-or-less-ops
 
 `ops.snaptapp.us` is served by `more-or-less-ops`. The `name` in `wrangler.jsonc` is `tanstack-start-app`, and secrets on that Worker do not reach the hostname. Do not reuse `OPS_CRON_SECRET` or set `OPS_ASSISTANT_ALLOW_CRON_FALLBACK` in production. Do not commit or print either secret.
 
-The CLI cannot connect workers to the agent or paste instructions. In Notion, open **More-or-Less Ops Assistant** → Settings → Tools and access, enable the worker tools, and paste `notion-workers/AGENT_INSTRUCTIONS.md`.
+The CLI cannot connect workers to the agent or enable their tools. In Notion, open **More-or-Less Ops Assistant** → Settings → Tools and access and enable the worker tools. The instructions themselves are the agent's Instructions page (`fb6dfb7d-5260-4ca8-abc1-5d2a3a998f8a`). Replace that page from `notion-workers/AGENT_INSTRUCTIONS.md`:
+
+```sh
+ntn api -X PATCH /v1/pages/fb6dfb7d-5260-4ca8-abc1-5d2a3a998f8a/markdown -d @body.json
+```
+
+`body.json` is `{ "type": "replace_content", "replace_content": { "new_str": "<markdown>" } }`. Do not commit that file.
 
 ## Deploy (local)
 

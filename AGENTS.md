@@ -24,7 +24,7 @@ npm run deploy                    # Manual production deploy (build -> wrangler 
 
 ## Notion workers (`ntn`)
 
-Ops Assistant tools live in `notion-workers/`. Workspace Trackdub `01454199-cd94-8168-873e-00038ccb0750`. Factbank worker id `01a0fb75-8c71-77fc-b769-0d2f008a8bd9`. `ntn` is the Notion CLI; if it is missing from `PATH`, it is installed next to the mise Node 22 binary. `workers.json` is gitignored and appears after the first deploy. The CLI cannot attach tools or paste `notion-workers/AGENT_INSTRUCTIONS.md`; that stays in the agent Settings UI.
+Ops Assistant tools live in `notion-workers/`. Workspace Trackdub `01454199-cd94-8168-873e-00038ccb0750`. Factbank worker id `01a0fb75-8c71-77fc-b769-0d2f008a8bd9`. `ntn` is the Notion CLI; if it is missing from `PATH`, it is installed next to the mise Node 22 binary. `workers.json` is gitignored and appears after the first deploy. The CLI cannot attach worker tools. That stays in the agent Settings UI. The agent's instructions are the page parented by the agent (`fb6dfb7d-5260-4ca8-abc1-5d2a3a998f8a`). Replace that page from `notion-workers/AGENT_INSTRUCTIONS.md` with `ntn api -X PATCH /v1/pages/<id>/markdown`.
 
 ```sh
 ntn login
