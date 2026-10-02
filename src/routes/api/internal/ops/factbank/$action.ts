@@ -91,8 +91,8 @@ export const Route = createFileRoute("/api/internal/ops/factbank/$action")({
               );
           }
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Ops factbank error.";
-          return Response.json({ error: message }, { status: 500 });
+          console.error("[ops/factbank]", error);
+          return Response.json({ error: "Ops factbank error." }, { status: 500 });
         }
       },
     },
