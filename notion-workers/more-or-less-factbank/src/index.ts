@@ -132,6 +132,6 @@ worker.tool("mol_system_snapshot", {
   hints: { readOnlyHint: true },
   execute: async ({ include_validation }) => {
     const validation = include_validation === false ? "0" : "1";
-    return opsGet(`/api/internal/ops/factbank/snapshot?validation=${validation}`);
+    return opsGet(`/api/internal/ops/factbank/snapshot?validation=${validation}&persist=0`);
   },
 });
