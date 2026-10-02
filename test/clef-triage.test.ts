@@ -6,7 +6,23 @@ import {
 import {
   canonicalSurpriseFactor,
   triageFactCandidate,
+  saveFactTriageRecord,
 } from "@/lib/admin/clef-triage.server";
+import { getDoc, createDoc, patchDoc, type FirestoreDoc } from "@/lib/firebase/firestore.server";
+
+vi.mock("@/lib/firebase/firestore.server", () => ({
+  getDoc: vi.fn(),
+  createDoc: vi.fn(),
+  patchDoc: vi.fn(),
+}));
+
+const mockDoc: FirestoreDoc = {
+  id: "fact-abc",
+  path: "fact_triage/fact-abc",
+  data: {},
+  createTime: "2026-10-02T12:00:00Z",
+  updateTime: "2026-10-02T12:00:00Z",
+};
 
 describe("Clef Fact Triage (Admin)", () => {
   describe("validateNoulAnswer", () => {
@@ -124,6 +140,78 @@ describe("Clef Fact Triage (Admin)", () => {
       expect(res).not.toBeNull();
       expect(res?.status).toBe("triage_failed");
       expect(res?.error).toBe("Rate limited on Workers AI");
+    });
+  });
+
+  describe("saveFactTriageRecord", () => {
+    it("creates a new record in fact_triage/{factId} when doc does not exist", async () => {
+      vi.mocked(getDoc).mockResolvedValue(null);
+      vi.mocked(createDoc).mockResolvedValue(mockDoc);
+
+      await saveFactTriageRecord({
+        fact_id: "fact-abc",
+        status: "success",
+        is_objectively_verifiable: 0.98,
+        is_subjective: 0.02,
+        raw_surprise_score: 2.1,
+        canonical_surprise_factor: 2,
+        triaged_at: "2026-10-02T12:00:00Z",
+      });
+
+      expect(getDoc).toHaveBeenCalledWith("fact_triage/fact-abc");
+      expect(createDoc).toHaveBeenCalledWith("fact_triage", "fact-abc", {
+        fact_id: "fact-abc",
+        status: "success",
+        triaged_at: "2026-10-02T12:00:00Z",
+        is_objectively_verifiable: 0.98,
+        is_subjective: 0.02,
+        raw_surprise_score: 2.1,
+        canonical_surprise_factor: 2,
+      });
+      // Verifies canonical facts collection is NEVER touched!
+      expect(createDoc).not.toHaveBeenCalledWith("facts", expect.anything(), expect.anything());
+    });
+
+    it("patches an existing record with deletePaths for omitted fields", async () => {
+      vi.mocked(getDoc).mockResolvedValue(mockDoc);
+      vi.mocked(patchDoc).mockResolvedValue(mockDoc);
+
+      // Transitioning from success to triage_failed: success fields omitted
+      await saveFactTriageRecord({
+        fact_id: "fact-abc",
+        status: "triage_failed",
+        error: "NETWORK_ERROR",
+        triaged_at: "2026-10-02T12:01:00Z",
+      });
+
+      expect(patchDoc).toHaveBeenCalledWith(
+        "fact_triage/fact-abc",
+        {
+          fact_id: "fact-abc",
+          status: "triage_failed",
+          triaged_at: "2026-10-02T12:01:00Z",
+          error: "NETWORK_ERROR",
+        },
+        [
+          "is_objectively_verifiable",
+          "is_subjective",
+          "raw_surprise_score",
+          "canonical_surprise_factor",
+        ]
+      );
+    });
+
+    it("propagates getDoc errors instead of swallowing them", async () => {
+      vi.mocked(getDoc).mockRejectedValue(new Error("Permission denied (403)"));
+
+      await expect(
+        saveFactTriageRecord({
+          fact_id: "fact-abc",
+          status: "triage_failed",
+          error: "AUTH_FAILURE",
+          triaged_at: "2026-10-02T12:00:00Z",
+        })
+      ).rejects.toThrow("Permission denied (403)");
     });
   });
 });

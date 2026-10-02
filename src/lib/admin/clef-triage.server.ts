@@ -119,7 +119,7 @@ export async function saveFactTriageRecord(record: FactTriageRecord): Promise<vo
     data.error = record.error;
   }
 
-  const existing = await getDoc(`fact_triage/${record.fact_id}`).catch(() => null);
+  const existing = await getDoc(`fact_triage/${record.fact_id}`);
   if (existing) {
     const deletePaths: string[] = [];
     if (record.is_objectively_verifiable === undefined) {

@@ -249,6 +249,6 @@ Single-field equality/`count()` aggregations usually need no new composite index
 ## Clef Fact Auto-Triage (`fact_triage/` Sidecar)
 
 The Admin Worker incorporates Cloudflare's native `@cf/cloudflare/clef` (27B parameter decision model) via the `env.AI` binding in `wrangler.jsonc` (`src/lib/admin/clef-triage.server.ts`):
-- **Structured Assessment:** Evaluates newly submitted or imported fact candidates for objective verifiability (`is_objectively_verifiable`, noul), subjectivity (`is_subjective`, noul), and counter-intuitiveness (`surprise_factor`, score 0–3).
+- **Structured Assessment:** Exposes `triageFactCandidate` (not yet wired into submit/import flows) to assess fact candidates for objective verifiability (`is_objectively_verifiable`, noul), subjectivity (`is_subjective`, noul), and counter-intuitiveness (`surprise_factor`, score 0–3).
 - **Data Boundary & Contract Isolation:** Triage results are written strictly to the sidecar collection `fact_triage/{factId}`. Canonical `facts` documents remain untouched to preserve `ALLOWED_FIELDS` in `fact-admission.ts` and ensure that only the Fact Foundry promoter elevates facts to active status.
 - **Fail-Closed Reporting:** Partial or malformed Clef evaluations mark the record as `status: "triage_failed"` with error details, rather than synthesizing false confidence or default values.
