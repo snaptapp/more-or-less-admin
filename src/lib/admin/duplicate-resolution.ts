@@ -64,20 +64,26 @@ export function scoreFactCandidateQuality(
     breakdown.push("no source citations (0)");
   }
 
-  // 4. Prompt phrasing & clarity
-  // Fast-paced party trivia needs engaging, natural phrasing that is quickly readable during
-  // a timed round (7-30s shot clock), avoiding clinical/sterile database stubs on one end
-  // and overly bloated academic run-ons on the other.
+  // 4. Prompt phrasing & clarity (NO question marks in presented prompt)
+  // The on-screen card prompt sets up the number orb in a fast-paced timed round:
+  // - NO question marks ('?') in the presented prompt (the prompt sets up the orb, not a conversational interrogative).
+  // - Warm, engaging natural phrasing rather than dry, clinical database stubs (e.g. "How many career Grammy Awards Stevie Wonder won", NOT "Stevie Wonder Grammys").
   const q = cand.question?.trim() || "";
-  if (q.length >= 12 && q.length <= 100) {
+  const hasQuestionMark = q.includes("?");
+  const wordCount = q.split(/\s+/).filter(Boolean).length;
+
+  if (hasQuestionMark) {
+    score -= 15;
+    breakdown.push("contains question mark in presented card prompt (-15)");
+  } else if (q.length >= 15 && q.length <= 100 && wordCount >= 3) {
     score += 15;
-    breakdown.push("engaging, well-sized card prompt (+15)");
+    breakdown.push("engaging natural prompt without question mark (+15)");
   } else if (q.length > 100) {
     score += 8;
-    breakdown.push("verbose prompt (+8)");
+    breakdown.push("overly verbose prompt (+8)");
   } else if (q.length > 0) {
-    score += 5;
-    breakdown.push("under-specified / stub prompt (+5)");
+    score += 3;
+    breakdown.push("clinical/stub prompt (+3)");
   } else {
     score -= 20;
     breakdown.push("missing question prompt (-20)");
@@ -175,7 +181,9 @@ export function compareDuplicateCandidates(
 
   const winnerQ = winner.candidate.question?.trim() || "";
   const runnerUpQ = runnerUp.candidate.question?.trim() || "";
-  if (winnerQ.length >= 12 && runnerUpQ.length < 12) {
+  if (!winnerQ.includes("?") && runnerUpQ.includes("?")) {
+    reasons.push(`clean card prompt without question mark (found '?' on ${runnerUp.candidate.id})`);
+  } else if (winnerQ.length >= 15 && runnerUpQ.length < 15) {
     reasons.push(`richer prompt description (${winnerQ.length} chars vs stub '${runnerUpQ}')`);
   }
 
@@ -261,6 +269,10 @@ export function isDuplicateDecisionSafe(
       const count = (tmpl.match(/\{n\}/g) || []).length;
       if (count !== 1) {
         reasons.push(`Winning fact ${keepFact.id} has invalid claim template (must contain {n} exactly once, found ${count}).`);
+      }
+      const finalPrompt = (review as { suggested?: { question?: string } }).suggested?.question || keepFact.question || "";
+      if (finalPrompt.includes("?")) {
+        reasons.push(`Winning fact ${keepFact.id} has a question mark in its card prompt; requires clean-up.`);
       }
     }
   }

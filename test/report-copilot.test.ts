@@ -318,14 +318,14 @@ describe("report-copilot", () => {
       unit: "mph",
     });
 
-    // Both natural setup and conversational question are well-sized and engaging (+15)
-    expect(naturalPrompt.breakdown).toContain("engaging, well-sized card prompt (+15)");
-    expect(questionStylePrompt.breakdown).toContain("engaging, well-sized card prompt (+15)");
-    expect(naturalPrompt.score).toBe(questionStylePrompt.score);
+    // Natural prompt without '?' (+15) beats question with '?' (-15)
+    expect(naturalPrompt.breakdown).toContain("engaging natural prompt without question mark (+15)");
+    expect(questionStylePrompt.breakdown).toContain("contains question mark in presented card prompt (-15)");
+    expect(naturalPrompt.score).toBeGreaterThan(questionStylePrompt.score);
 
-    // Stubs receive partial score (+5)
+    // Stubs receive minimal score (+3) vs engaging prompt (+15)
     expect(stubPrompt.score).toBeLessThan(naturalPrompt.score);
-    expect(stubPrompt.breakdown).toContain("under-specified / stub prompt (+5)");
+    expect(stubPrompt.breakdown).toContain("clinical/stub prompt (+3)");
 
     // Missing {n} gets heavily penalized (-30 vs +25 -> 55 pt difference)
     expect(naturalPrompt.score - brokenTemplate.score).toBe(55);
@@ -369,7 +369,7 @@ describe("report-copilot", () => {
         id: "fact_a",
         subject: "Topic",
         angle: "Angle",
-        question: "Q?",
+        question: "Topic prompt in items",
         claim_template: "T {n}",
         true_number: 10,
         unit: "items",
@@ -378,7 +378,7 @@ describe("report-copilot", () => {
         id: "fact_b",
         subject: "Topic",
         angle: "Angle",
-        question: "Q?",
+        question: "Topic prompt in items",
         claim_template: "T {n}",
         true_number: 10,
         unit: "items",
@@ -419,6 +419,15 @@ describe("report-copilot", () => {
     const invalidTemplateCheck = isDuplicateDecisionSafe(safeReview, invalidTemplateCandidates);
     expect(invalidTemplateCheck.safe).toBe(false);
     expect(invalidTemplateCheck.reasons.some((r) => r.includes("invalid claim template"))).toBe(true);
+
+    // Winner with '?' in presented prompt -> should NOT be safe for bulk apply
+    const questionMarkCandidates = [
+      { ...candidates[0], question: "How many items are in the topic?" },
+      candidates[1],
+    ];
+    const questionMarkCheck = isDuplicateDecisionSafe(safeReview, questionMarkCandidates);
+    expect(questionMarkCheck.safe).toBe(false);
+    expect(questionMarkCheck.reasons.some((r) => r.includes("question mark"))).toBe(true);
   });
 
   it("handles unbanked AI claims with add_to_bank verdict and suggestions", async () => {

@@ -164,7 +164,7 @@ Rules:
     1. Valid Claim Template: Mandatory requirement that claim_template contains '{n}' exactly once for reveal/export.
     2. Zero Quality Flags: Prefer facts with 0 linter quality flags over facts carrying flags (e.g. bounds_chart_position, ambiguous_unit).
     3. Grounding Citations: Prefer facts with non-empty, authoritative source_urls over facts without sources.
-    4. Engaging Prompt Phrasing: Prefer facts with an engaging, natural card prompt that is fun, inviting, and quickly readable for a fast-paced party game (avoiding sterile, clinical spreadsheet labels like 'Cheetah speed' as well as bloated multi-sentence run-ons).
+    4. Presented Card Prompt (NO question marks): The presented question is a card setup prompt displayed above the number orb. It MUST NOT contain a question mark ('?'), but MUST NOT be a sterile clinical label either. Prefer warm, engaging natural phrasing that sets up the orb (e.g. 'How many career Grammy Awards Stevie Wonder won' or 'A cheetah's top sprint speed in mph', NEVER 'How many ... did he win?' and NEVER sterile labels like 'Stevie Wonder Grammys').
     5. Explanation Depth: Prefer facts with educational, detailed context/explanation over stub/empty explanations.
     6. Lifecycle Stability: Prefer keeping an 'active' fact over 'disputed' or 'pending' if other criteria are equal.
   - In duplicate_resolution: set keep_fact_id to the ID of the chosen winner (or null if retiring all), retire_fact_ids to the IDs of losing duplicates to retire, action to "keep_one" (or "retire_all" if all are flawed, or "reject_report" if not actually duplicates), and reason explaining specifically why the winner was chosen (especially which tie-break factors decided the winner if both true numbers are correct).
