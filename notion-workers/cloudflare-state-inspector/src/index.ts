@@ -124,7 +124,9 @@ async function bindingInventory(scriptName: string) {
   try {
     const settings = (await cfGet(
       `/accounts/${accountId}/workers/scripts/${scriptName}/settings`,
-    )) as { bindings?: Array<{ name?: string; type?: string }> };
+    )) as {
+      bindings?: Array<{ name?: string; type?: string; class_name?: string }>;
+    };
     const bindings = Array.isArray(settings?.bindings) ? settings.bindings : [];
     return {
       found: true,
@@ -132,6 +134,7 @@ async function bindingInventory(scriptName: string) {
       bindings: bindings.map((binding) => ({
         name: binding.name ?? "(unnamed)",
         type: binding.type ?? "(unknown)",
+        class_name: binding.class_name ?? null,
       })),
     };
   } catch (error) {
@@ -140,6 +143,15 @@ async function bindingInventory(scriptName: string) {
       error: error instanceof Error ? error.message : "Bindings unavailable",
     };
   }
+}
+
+function bindingMatchesExpected(
+  bindings: Array<{ name: string; type: string; class_name: string | null }>,
+  expected: string,
+): boolean {
+  return bindings.some(
+    (binding) => binding.name === expected || binding.class_name === expected,
+  );
 }
 
 worker.tool("production_health", {
@@ -161,12 +173,15 @@ worker.tool("production_health", {
       bindingInventory(config.scriptName),
     ]);
 
-    const missingExpected = config.kvNamespaces.filter(
-      (name) =>
-        bindings.found &&
-        Array.isArray(bindings.bindings) &&
-        !bindings.bindings.some((binding) => binding.name === name),
+    const inventoryBindings =
+      bindings.found && Array.isArray(bindings.bindings) ? bindings.bindings : [];
+    const missingExpectedKv = config.kvNamespaces.filter(
+      (name) => bindings.found && !bindingMatchesExpected(inventoryBindings, name),
     );
+    const missingExpectedDurableObjects = config.durableObjects.filter(
+      (name) => bindings.found && !bindingMatchesExpected(inventoryBindings, name),
+    );
+    const missingExpected = [...missingExpectedKv, ...missingExpectedDurableObjects];
 
     const status =
       !worker.found
@@ -191,17 +206,19 @@ worker.tool("production_health", {
         expected_kv: config.kvNamespaces,
         expected_durable_objects: config.durableObjects,
         inventory: bindings,
-        missing_expected_kv: missingExpected,
+        missing_expected_kv: missingExpectedKv,
+        missing_expected_durable_objects: missingExpectedDurableObjects,
       },
       kv: {
         configured_names: config.kvNamespaces,
         reachable: bindings.found
-          ? missingExpected.length === 0 && config.kvNamespaces.length > 0
+          ? missingExpectedKv.length === 0 && config.kvNamespaces.length > 0
           : null,
       },
       durable_objects: {
         configured: config.durableObjects.length > 0,
         names: config.durableObjects,
+        missing_expected: missingExpectedDurableObjects,
       },
       deployments,
       status,

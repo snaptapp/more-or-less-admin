@@ -573,7 +573,8 @@ function deltaLine(
 
 /**
  * Composed system snapshot for "Anything wrong with More or Less?".
- * Persists a tiny previous snapshot for change lines (server bookkeeping).
+ * Persist is opt-in (`persist: true` / `?persist=1`) so plain GETs stay read-only.
+ * When enabled, writes tiny bookkeeping to ops_assistant_snapshots/factbank_latest.
  */
 export async function molSystemSnapshot(
   deps: OpsFactbankDependencies & { readonly persist?: boolean; readonly includeValidation?: boolean } = {},
@@ -598,7 +599,7 @@ export async function molSystemSnapshot(
     status: health.status,
   };
 
-  if (deps.persist !== false) {
+  if (deps.persist === true) {
     await writeSnapshot(current);
   }
 
@@ -654,7 +655,10 @@ export async function molSystemSnapshot(
           warnings: validation.warnings,
           errors: validation.errors,
           by_rule: validation.by_rule,
+          scanned: validation.scanned,
+          capped: validation.capped,
         }
       : null,
+    persist: deps.persist === true,
   };
 }

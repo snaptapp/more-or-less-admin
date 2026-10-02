@@ -122,7 +122,7 @@ worker.tool("factbank_inspect", {
 worker.tool("mol_system_snapshot", {
   title: "More or Less System Snapshot",
   description:
-    "Use for 'Anything wrong with More or Less?' or 'What changed?'. Composes Fact Bank health, validation summary, anomalies, and deltas versus the previous snapshot. The Ops API persists tiny bookkeeping metadata in ops_assistant_snapshots/factbank_latest so later calls can compute change lines.",
+    "Use for 'Anything wrong with More or Less?' or 'What changed?'. Composes Fact Bank health, validation summary, anomalies, and deltas versus the previous snapshot. Explicitly opts into persist=1 so Ops can record tiny bookkeeping in ops_assistant_snapshots/factbank_latest for later change lines.",
   schema: j.object({
     include_validation: j
       .boolean()
@@ -131,6 +131,8 @@ worker.tool("mol_system_snapshot", {
   }),
   execute: async ({ include_validation }) => {
     const validation = include_validation === false ? "0" : "1";
-    return opsGet(`/api/internal/ops/factbank/snapshot?validation=${validation}`);
+    return opsGet(
+      `/api/internal/ops/factbank/snapshot?validation=${validation}&persist=1`,
+    );
   },
 });

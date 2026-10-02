@@ -85,7 +85,10 @@ export async function listSubjects(input: {
   const term = input.search?.trim().toLowerCase();
   if (term) {
     subjects = subjects.filter((s) =>
-      [s.subject, s.sub_category, ...s.aliases].join(" ").toLowerCase().includes(term),
+      [s.subject, s.category, s.sub_category, ...s.aliases]
+        .join(" ")
+        .toLowerCase()
+        .includes(term),
     );
   }
   subjects.sort((a, b) => a.subject.localeCompare(b.subject));

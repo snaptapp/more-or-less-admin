@@ -133,6 +133,8 @@ describe("ops factbank tools", () => {
     expect(result.by_rule.missing_true_number).toBeGreaterThan(0);
     expect(result.examples.length).toBeGreaterThan(0);
     expect(result.examples.length).toBeLessThanOrEqual(8);
+    expect(result.scanned).toBeGreaterThan(0);
+    expect(typeof result.capped).toBe("boolean");
   });
 
   it("finds exact question duplicate clusters", async () => {
@@ -151,6 +153,19 @@ describe("ops factbank tools", () => {
     });
     expect(result.active).toBe(2);
     expect(result.matched_subjects[0]?.subject).toBe("Disco");
+  });
+
+  it("matches genre-only inspect queries via subject category", async () => {
+    const result = await factbankInspect("Music", {
+      env: ENV,
+      fetch: vi.fn(async () =>
+        response({ bank_version: "bank-1", fact_count: 2, ddm_version: "ddm-4" }),
+      ) as typeof fetch,
+      scanCap: 100,
+    });
+    expect(result.matched_subjects.length).toBeGreaterThan(0);
+    expect(result.matched_subjects.every((subject) => subject.genre === "Music")).toBe(true);
+    expect(result.active).toBe(2);
   });
 
   it("returns drift recommendation from the first divergent layer", async () => {
@@ -189,8 +204,27 @@ describe("ops factbank tools", () => {
     });
 
     expect(snapshot.game.production_status).toBeTruthy();
+    expect(snapshot.persist).toBe(false);
     expect(snapshot.recent_change.lines.some((line) => line.includes("fact_count_active"))).toBe(
       true,
     );
+    expect(snapshot.validation_summary?.scanned).toBeGreaterThan(0);
+    expect(typeof snapshot.validation_summary?.capped).toBe("boolean");
+  });
+
+  it("does not write snapshot bookkeeping unless persist is explicitly true", async () => {
+    const writesBefore = firestoreDouble().writeCount();
+    const snapshot = await molSystemSnapshot({
+      env: ENV,
+      fetch: vi.fn(async () =>
+        response({ bank_version: "bank-1", fact_count: 2, ddm_version: "ddm-4" }),
+      ) as typeof fetch,
+      scanCap: 100,
+      includeValidation: false,
+    });
+
+    expect(snapshot.persist).toBe(false);
+    expect(firestoreDouble().document("ops_assistant_snapshots/factbank_latest")).toBeNull();
+    expect(firestoreDouble().writeCount()).toBe(writesBefore);
   });
 });

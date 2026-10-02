@@ -69,7 +69,8 @@ export const Route = createFileRoute("/api/internal/ops/factbank/$action")({
             case "snapshot":
               return Response.json(
                 await ops.molSystemSnapshot({
-                  persist: url.searchParams.get("persist") !== "0",
+                  // Opt-in bookkeeping write; default GET stays read-only.
+                  persist: url.searchParams.get("persist") === "1",
                   includeValidation: url.searchParams.get("validation") !== "0",
                 }),
               );

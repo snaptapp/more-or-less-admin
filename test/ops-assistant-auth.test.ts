@@ -38,6 +38,23 @@ describe("ops assistant auth", () => {
     expect(opsAssistantSecretMatches("Bearer wrong")).toBe(false);
   });
 
+  it("returns 401 when the bearer token does not match OPS_ASSISTANT_SECRET", () => {
+    process.env["OPS_ASSISTANT_SECRET"] = "assistant-secret";
+    const result = requireOpsAssistantAuth("Bearer wrong-token");
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected failure");
+    expect(result.status).toBe(401);
+    expect(result.error).toBe("Unauthorized.");
+  });
+
+  it("returns 401 when Authorization is missing but OPS_ASSISTANT_SECRET is set", () => {
+    process.env["OPS_ASSISTANT_SECRET"] = "assistant-secret";
+    const result = requireOpsAssistantAuth(null);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected failure");
+    expect(result.status).toBe(401);
+  });
+
   it("does not accept OPS_CRON_SECRET without OPS_ASSISTANT_SECRET by default", () => {
     process.env["OPS_CRON_SECRET"] = "cron-secret";
     expect(opsAssistantSecretMatches("Bearer cron-secret")).toBe(false);

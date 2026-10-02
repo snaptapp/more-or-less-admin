@@ -45,7 +45,7 @@ For health checks, summarize:
 - likely impact
 - recommended action
 
-Most tools are read-only; `mol_system_snapshot` also records snapshot metadata in `ops_assistant_snapshots/factbank_latest`.
+Most tools are read-only. `mol_system_snapshot` opts into `persist=1` so the Ops API can record tiny bookkeeping in `ops_assistant_snapshots/factbank_latest` for “What changed?” lines. Plain `GET .../snapshot` without `persist=1` stays read-only.
 
 Suggested tool pairing:
 - "Is production healthy?" → `production_health("more-or-less")` + `factbank_health` or `mol_system_snapshot`
