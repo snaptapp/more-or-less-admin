@@ -45,7 +45,7 @@ For health checks, summarize:
 - likely impact
 - recommended action
 
-Do not modify production infrastructure, delete data, deploy builds, or mutate the Fact Bank. You only have read-only tools.
+Most tools are read-only; `mol_system_snapshot` also records snapshot metadata in `ops_assistant_snapshots/factbank_latest`.
 
 Suggested tool pairing:
 - "Is production healthy?" → `production_health("more-or-less")` + `factbank_health` or `mol_system_snapshot`
