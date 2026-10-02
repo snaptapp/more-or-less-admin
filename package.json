@@ -22,6 +22,7 @@
     "check:contract-literals": "node scripts/check-contract-literals.mjs",
     "check:contract": "node scripts/check-contract-drift.mjs",
     "check:artifacts": "node scripts/check-shared-artifacts.mjs",
+    "check:ops-assistant": "node scripts/check-ops-assistant.mjs",
     "check:artifact-freshness": "node scripts/check-artifact-freshness.mjs",
     "sync:artifacts": "node scripts/sync-shared-artifacts.mjs",
     "sync:shared-artifacts": "node scripts/sync-shared-artifacts.mjs",

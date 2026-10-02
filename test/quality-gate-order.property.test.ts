@@ -4,7 +4,8 @@
  *
  * *For any* member position i that exits non-zero, `Quality_Gate` has invoked exactly
  * members 0 through i in the fixed order Lockfile_Check → Typecheck_Step → Lint_Step →
- * Suppression_Check → Contract_Literal_Check → Test_Suite (→ Contract_Drift_Check when
+ * Suppression_Check → Contract_Literal_Check → Shared_Artifact_Integrity_Check →
+ * Ops_Assistant_Check → Test_Suite (→ Contract_Drift_Check when
  * adopted), invokes no member
  * after i, writes to standard error the name of member i and the names of the members it
  * did not invoke, and itself exits non-zero.
@@ -84,6 +85,7 @@ const FIXED_ORDER = [
   "Suppression_Check",
   "Contract_Literal_Check",
   "Shared_Artifact_Integrity_Check",
+  "Ops_Assistant_Check",
   "Test_Suite",
   "Contract_Drift_Check",
 ] as const;

@@ -19,6 +19,7 @@ const FOUNDRY_FLAG_IDS = [
   "bounds_over_ceiling",
   "unusable_block",
   "conflicting_answer",
+  "question_not_statement",
   "duplicate_question",
   "shared_generic_question",
   "question_missing_entity",
@@ -35,6 +36,17 @@ function renderFindings(flags: string[], evidence?: Parameters<typeof LintFindin
 }
 
 describe("Fact Foundry lint findings", () => {
+  it("explains question_not_statement and shows the current question", () => {
+    const html = renderFindings(["question_not_statement"], {
+      question: "How many receiving yards did Calvin Johnson gain in the 2012 NFL season to set the single-season receiving record?",
+    });
+
+    expect(html).toContain("Question is phrased as a question rather than a statement");
+    expect(html).toContain("Review · human decision required");
+    expect(html).toContain("Rewrite the prompt as a declarative statement or noun phrase");
+    expect(html).toContain("How many receiving yards did Calvin Johnson gain");
+  });
+
   it("explains question_measure_mismatch and shows the current question, claim, and unit", () => {
     const html = renderFindings(["question_measure_mismatch"], {
       question: "How many interception return yards did the player have?",

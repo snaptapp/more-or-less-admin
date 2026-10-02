@@ -24,7 +24,7 @@ Do **not** reimplement Fact Bank validation inside Notion Workers. The Admin Ops
 
 | Worker | Tools |
 | --- | --- |
-| `more-or-less-factbank` | `factbank_health`, `factbank_breakdown`, `factbank_validate`, `factbank_duplicates`, `factbank_drift`, `factbank_inspect`, `mol_system_snapshot` |
+| `more-or-less-factbank` | `factbank_health`, `factbank_breakdown`, `factbank_validate`, `factbank_duplicates`, `factbank_drift`, `factbank_inspect`, `mol_system_snapshot`, `moderation_queue`, `moderation_copilot`, `moderation_act`, `crawl_queue`, `players_search`, `players_player`, `players_premium`, `daily_schedule`, `daily_day`, `daily_delete`, `daily_remove_score`, `daily_fill`, `daily_generate`, `daily_publish`, `analytics_games`, `analytics_questions`, `analytics_flag`, `config_read`, `config_publish`, `roles_list`, `audit_log` |
 | `cloudflare-state-inspector` | `production_health`, `deployment_history`, `worker_health`, `binding_inventory`, `kv_summary`, `d1_summary`, `r2_summary`, `recent_runtime_errors` |
 
 ## Deploy

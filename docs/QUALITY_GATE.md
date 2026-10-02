@@ -19,8 +19,9 @@ or environment variables are reported and ignored.
 | 4 | `Suppression_Check` | `node scripts/check-suppressions.mjs` | `npm run check:suppressions` | Enforces `suppression-baseline.json` ceilings |
 | 5 | `Contract_Literal_Check` | `node scripts/check-contract-literals.mjs` | `npm run check:contract-literals` | Ensures Admin literals come from the consumed contract |
 | 6 | `Shared_Artifact_Integrity_Check` | `node scripts/check-shared-artifacts.mjs` | `npm run check:artifacts` | Verifies the local consumed/published contract, DDM-4 bundle, fixtures, and manifest digests |
-| 7 | `Test_Suite` | `vitest run` | `npm test` | Vitest suite |
-| 8 | `Contract_Drift_Check` | `node scripts/check-contract-drift.mjs` | `npm run check:contract` | Checks the adopted consumed contract against the vendored published snapshot |
+| 7 | `Ops_Assistant_Check` | `node scripts/check-ops-assistant.mjs` | `npm run check:ops-assistant` | Notion worker tools, agent instructions, and Ops API routes name the same surface |
+| 8 | `Test_Suite` | `vitest run` | `npm test` | Vitest suite |
+| 9 | `Contract_Drift_Check` | `node scripts/check-contract-drift.mjs` | `npm run check:contract` | Checks the adopted consumed contract against the vendored published snapshot |
 
 `Contract_Drift_Check` is included only when `contract-adoption.json` records
 `adopted: true`. An absent or false adoption record excludes that member and

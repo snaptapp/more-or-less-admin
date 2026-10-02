@@ -1109,7 +1109,7 @@ export function FactEditor({
         <label className="admin-field">
           <span>
             Question / Prompt{" "}
-            <InfoTip text="The numberless question or phrase shown on the game card (e.g. 'How many neck vertebrae does a giraffe have?' or 'Career touchdowns')." />
+            <InfoTip text="The numberless statement or phrase shown on the game card (e.g. 'Giraffe cervical vertebrae count' or 'Career touchdowns'). Must always be a statement, never phrased as a question." />
           </span>
           <input
             className="admin-input"
@@ -1566,7 +1566,7 @@ export function NewFactForm({ onDone }: { onDone: () => void }) {
         <label className="admin-field">
           <span>
             Question / Prompt{" "}
-            <InfoTip text="The numberless question or phrase shown on the game card (e.g. 'How many neck vertebrae does a giraffe have?' or 'Career touchdowns')." />
+            <InfoTip text="The numberless statement or phrase shown on the game card (e.g. 'Giraffe cervical vertebrae count' or 'Career touchdowns'). Must always be a statement, never phrased as a question." />
           </span>
           <input
             className="admin-input"
@@ -2441,7 +2441,14 @@ export function ImportCsvModal({ onDone }: { onDone: () => void }) {
       if (!subject) issues.push("Missing subject");
       if (!angle) issues.push("Missing angle");
       if (!unit) issues.push("Missing unit");
-      if (!question) issues.push("Missing question");
+      if (!question) {
+        issues.push("Missing question");
+      } else if (
+        /[?¿？]/.test(question) ||
+        /^\s*(how\s+|(in\s+)?what\s+(is|are|was|were|did|do|does|will|would|can|could|has|have|had|year)|(in\s+)?which\s+(is|are|was|were|did|do|does|year)|when\s+(is|are|was|were|did|do|does|will|would|can|could|has|have|had)|where\s+(is|are|was|were|did|do|does)|who\s+(is|are|was|were|did|do|does|won|holds|became|played|scored|invented|discovered|wrote|directed|created)|why\s+(is|are|was|were|did|do|does)|(did|does)\s+)\b/i.test(question)
+      ) {
+        issues.push("Question must be a statement, not phrased as a question");
+      }
       if (!explanation) issues.push("Missing explanation");
       if (!Number.isFinite(trueNumber) || rawNum === "") issues.push("Invalid true_number");
       if (placeholderCount > 1) issues.push("Claim template must contain {n} exactly once");
@@ -2561,7 +2568,7 @@ export function ImportCsvModal({ onDone }: { onDone: () => void }) {
             <textarea
               className="admin-textarea"
               style={{ minHeight: "100px", fontFamily: "var(--ds-arena-font-mono)", fontSize: "12px" }}
-              placeholder={`subject,category,sub_category,angle,true_number,unit,claim_template,question,explanation,surprise_factor,quantity_kind,plausible_min,plausible_max,content_rating,source_urls\nGiraffe,Animals & Nature,Big Cats,Neck vertebrae count,7,vertebrae,"A giraffe has {n} cervical vertebrae.",How many neck vertebrae does a giraffe have?,Mammals have 7 vertebrae.,3,count,1,10,standard,`}
+              placeholder={`subject,category,sub_category,angle,true_number,unit,claim_template,question,explanation,surprise_factor,quantity_kind,plausible_min,plausible_max,content_rating,source_urls\nGiraffe,Animals & Nature,Big Cats,Neck vertebrae count,7,vertebrae,"A giraffe has {n} cervical vertebrae.",Giraffe cervical vertebrae count,Mammals have 7 vertebrae.,3,count,1,10,standard,`}
               value={csvText}
               onChange={(e) => setCsvText(e.target.value)}
             />

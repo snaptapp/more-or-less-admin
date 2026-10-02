@@ -23,7 +23,15 @@ import { Route as AdminRolesRouteImport } from './routes/admin/roles'
 import { Route as AdminTaxonomyRouteImport } from './routes/admin/taxonomy'
 import { Route as ApiInternalDailyDraftsRouteImport } from './routes/api/internal/daily-drafts'
 import { Route as ApiPublicFirebaseConfigRouteImport } from './routes/api/public/firebase-config'
+import { Route as ApiInternalOpsAnalyticsActionRouteImport } from './routes/api/internal/ops/analytics/$action'
+import { Route as ApiInternalOpsAuditActionRouteImport } from './routes/api/internal/ops/audit/$action'
+import { Route as ApiInternalOpsConfigActionRouteImport } from './routes/api/internal/ops/config/$action'
+import { Route as ApiInternalOpsCrawlActionRouteImport } from './routes/api/internal/ops/crawl/$action'
+import { Route as ApiInternalOpsDailyActionRouteImport } from './routes/api/internal/ops/daily/$action'
 import { Route as ApiInternalOpsFactbankActionRouteImport } from './routes/api/internal/ops/factbank/$action'
+import { Route as ApiInternalOpsModerationActionRouteImport } from './routes/api/internal/ops/moderation/$action'
+import { Route as ApiInternalOpsPlayersActionRouteImport } from './routes/api/internal/ops/players/$action'
+import { Route as ApiInternalOpsRolesActionRouteImport } from './routes/api/internal/ops/roles/$action'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -95,10 +103,58 @@ const ApiPublicFirebaseConfigRoute = ApiPublicFirebaseConfigRouteImport.update({
   path: '/api/public/firebase-config',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInternalOpsAnalyticsActionRoute =
+  ApiInternalOpsAnalyticsActionRouteImport.update({
+    id: '/api/internal/ops/analytics/$action',
+    path: '/api/internal/ops/analytics/$action',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalOpsAuditActionRoute =
+  ApiInternalOpsAuditActionRouteImport.update({
+    id: '/api/internal/ops/audit/$action',
+    path: '/api/internal/ops/audit/$action',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalOpsConfigActionRoute =
+  ApiInternalOpsConfigActionRouteImport.update({
+    id: '/api/internal/ops/config/$action',
+    path: '/api/internal/ops/config/$action',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalOpsCrawlActionRoute =
+  ApiInternalOpsCrawlActionRouteImport.update({
+    id: '/api/internal/ops/crawl/$action',
+    path: '/api/internal/ops/crawl/$action',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalOpsDailyActionRoute =
+  ApiInternalOpsDailyActionRouteImport.update({
+    id: '/api/internal/ops/daily/$action',
+    path: '/api/internal/ops/daily/$action',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiInternalOpsFactbankActionRoute =
   ApiInternalOpsFactbankActionRouteImport.update({
     id: '/api/internal/ops/factbank/$action',
     path: '/api/internal/ops/factbank/$action',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalOpsModerationActionRoute =
+  ApiInternalOpsModerationActionRouteImport.update({
+    id: '/api/internal/ops/moderation/$action',
+    path: '/api/internal/ops/moderation/$action',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalOpsPlayersActionRoute =
+  ApiInternalOpsPlayersActionRouteImport.update({
+    id: '/api/internal/ops/players/$action',
+    path: '/api/internal/ops/players/$action',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalOpsRolesActionRoute =
+  ApiInternalOpsRolesActionRouteImport.update({
+    id: '/api/internal/ops/roles/$action',
+    path: '/api/internal/ops/roles/$action',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -117,7 +173,15 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/api/internal/daily-drafts': typeof ApiInternalDailyDraftsRoute
   '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
+  '/api/internal/ops/analytics/$action': typeof ApiInternalOpsAnalyticsActionRoute
+  '/api/internal/ops/audit/$action': typeof ApiInternalOpsAuditActionRoute
+  '/api/internal/ops/config/$action': typeof ApiInternalOpsConfigActionRoute
+  '/api/internal/ops/crawl/$action': typeof ApiInternalOpsCrawlActionRoute
+  '/api/internal/ops/daily/$action': typeof ApiInternalOpsDailyActionRoute
   '/api/internal/ops/factbank/$action': typeof ApiInternalOpsFactbankActionRoute
+  '/api/internal/ops/moderation/$action': typeof ApiInternalOpsModerationActionRoute
+  '/api/internal/ops/players/$action': typeof ApiInternalOpsPlayersActionRoute
+  '/api/internal/ops/roles/$action': typeof ApiInternalOpsRolesActionRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -133,7 +197,15 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/api/internal/daily-drafts': typeof ApiInternalDailyDraftsRoute
   '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
+  '/api/internal/ops/analytics/$action': typeof ApiInternalOpsAnalyticsActionRoute
+  '/api/internal/ops/audit/$action': typeof ApiInternalOpsAuditActionRoute
+  '/api/internal/ops/config/$action': typeof ApiInternalOpsConfigActionRoute
+  '/api/internal/ops/crawl/$action': typeof ApiInternalOpsCrawlActionRoute
+  '/api/internal/ops/daily/$action': typeof ApiInternalOpsDailyActionRoute
   '/api/internal/ops/factbank/$action': typeof ApiInternalOpsFactbankActionRoute
+  '/api/internal/ops/moderation/$action': typeof ApiInternalOpsModerationActionRoute
+  '/api/internal/ops/players/$action': typeof ApiInternalOpsPlayersActionRoute
+  '/api/internal/ops/roles/$action': typeof ApiInternalOpsRolesActionRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -151,7 +223,15 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/api/internal/daily-drafts': typeof ApiInternalDailyDraftsRoute
   '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
+  '/api/internal/ops/analytics/$action': typeof ApiInternalOpsAnalyticsActionRoute
+  '/api/internal/ops/audit/$action': typeof ApiInternalOpsAuditActionRoute
+  '/api/internal/ops/config/$action': typeof ApiInternalOpsConfigActionRoute
+  '/api/internal/ops/crawl/$action': typeof ApiInternalOpsCrawlActionRoute
+  '/api/internal/ops/daily/$action': typeof ApiInternalOpsDailyActionRoute
   '/api/internal/ops/factbank/$action': typeof ApiInternalOpsFactbankActionRoute
+  '/api/internal/ops/moderation/$action': typeof ApiInternalOpsModerationActionRoute
+  '/api/internal/ops/players/$action': typeof ApiInternalOpsPlayersActionRoute
+  '/api/internal/ops/roles/$action': typeof ApiInternalOpsRolesActionRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -170,7 +250,15 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/api/internal/daily-drafts'
     | '/api/public/firebase-config'
+    | '/api/internal/ops/analytics/$action'
+    | '/api/internal/ops/audit/$action'
+    | '/api/internal/ops/config/$action'
+    | '/api/internal/ops/crawl/$action'
+    | '/api/internal/ops/daily/$action'
     | '/api/internal/ops/factbank/$action'
+    | '/api/internal/ops/moderation/$action'
+    | '/api/internal/ops/players/$action'
+    | '/api/internal/ops/roles/$action'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -186,7 +274,15 @@ export interface FileRouteTypes {
     | '/admin'
     | '/api/internal/daily-drafts'
     | '/api/public/firebase-config'
+    | '/api/internal/ops/analytics/$action'
+    | '/api/internal/ops/audit/$action'
+    | '/api/internal/ops/config/$action'
+    | '/api/internal/ops/crawl/$action'
+    | '/api/internal/ops/daily/$action'
     | '/api/internal/ops/factbank/$action'
+    | '/api/internal/ops/moderation/$action'
+    | '/api/internal/ops/players/$action'
+    | '/api/internal/ops/roles/$action'
   id:
     | '__root__'
     | '/'
@@ -203,7 +299,15 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/api/internal/daily-drafts'
     | '/api/public/firebase-config'
+    | '/api/internal/ops/analytics/$action'
+    | '/api/internal/ops/audit/$action'
+    | '/api/internal/ops/config/$action'
+    | '/api/internal/ops/crawl/$action'
+    | '/api/internal/ops/daily/$action'
     | '/api/internal/ops/factbank/$action'
+    | '/api/internal/ops/moderation/$action'
+    | '/api/internal/ops/players/$action'
+    | '/api/internal/ops/roles/$action'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -211,7 +315,15 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   ApiInternalDailyDraftsRoute: typeof ApiInternalDailyDraftsRoute
   ApiPublicFirebaseConfigRoute: typeof ApiPublicFirebaseConfigRoute
+  ApiInternalOpsAnalyticsActionRoute: typeof ApiInternalOpsAnalyticsActionRoute
+  ApiInternalOpsAuditActionRoute: typeof ApiInternalOpsAuditActionRoute
+  ApiInternalOpsConfigActionRoute: typeof ApiInternalOpsConfigActionRoute
+  ApiInternalOpsCrawlActionRoute: typeof ApiInternalOpsCrawlActionRoute
+  ApiInternalOpsDailyActionRoute: typeof ApiInternalOpsDailyActionRoute
   ApiInternalOpsFactbankActionRoute: typeof ApiInternalOpsFactbankActionRoute
+  ApiInternalOpsModerationActionRoute: typeof ApiInternalOpsModerationActionRoute
+  ApiInternalOpsPlayersActionRoute: typeof ApiInternalOpsPlayersActionRoute
+  ApiInternalOpsRolesActionRoute: typeof ApiInternalOpsRolesActionRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -314,11 +426,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFirebaseConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/ops/analytics/$action': {
+      id: '/api/internal/ops/analytics/$action'
+      path: '/api/internal/ops/analytics/$action'
+      fullPath: '/api/internal/ops/analytics/$action'
+      preLoaderRoute: typeof ApiInternalOpsAnalyticsActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/ops/audit/$action': {
+      id: '/api/internal/ops/audit/$action'
+      path: '/api/internal/ops/audit/$action'
+      fullPath: '/api/internal/ops/audit/$action'
+      preLoaderRoute: typeof ApiInternalOpsAuditActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/ops/config/$action': {
+      id: '/api/internal/ops/config/$action'
+      path: '/api/internal/ops/config/$action'
+      fullPath: '/api/internal/ops/config/$action'
+      preLoaderRoute: typeof ApiInternalOpsConfigActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/ops/crawl/$action': {
+      id: '/api/internal/ops/crawl/$action'
+      path: '/api/internal/ops/crawl/$action'
+      fullPath: '/api/internal/ops/crawl/$action'
+      preLoaderRoute: typeof ApiInternalOpsCrawlActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/ops/daily/$action': {
+      id: '/api/internal/ops/daily/$action'
+      path: '/api/internal/ops/daily/$action'
+      fullPath: '/api/internal/ops/daily/$action'
+      preLoaderRoute: typeof ApiInternalOpsDailyActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/internal/ops/factbank/$action': {
       id: '/api/internal/ops/factbank/$action'
       path: '/api/internal/ops/factbank/$action'
       fullPath: '/api/internal/ops/factbank/$action'
       preLoaderRoute: typeof ApiInternalOpsFactbankActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/ops/moderation/$action': {
+      id: '/api/internal/ops/moderation/$action'
+      path: '/api/internal/ops/moderation/$action'
+      fullPath: '/api/internal/ops/moderation/$action'
+      preLoaderRoute: typeof ApiInternalOpsModerationActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/ops/players/$action': {
+      id: '/api/internal/ops/players/$action'
+      path: '/api/internal/ops/players/$action'
+      fullPath: '/api/internal/ops/players/$action'
+      preLoaderRoute: typeof ApiInternalOpsPlayersActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/ops/roles/$action': {
+      id: '/api/internal/ops/roles/$action'
+      path: '/api/internal/ops/roles/$action'
+      fullPath: '/api/internal/ops/roles/$action'
+      preLoaderRoute: typeof ApiInternalOpsRolesActionRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -357,8 +525,26 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   ApiInternalDailyDraftsRoute: ApiInternalDailyDraftsRoute,
   ApiPublicFirebaseConfigRoute: ApiPublicFirebaseConfigRoute,
+  ApiInternalOpsAnalyticsActionRoute: ApiInternalOpsAnalyticsActionRoute,
+  ApiInternalOpsAuditActionRoute: ApiInternalOpsAuditActionRoute,
+  ApiInternalOpsConfigActionRoute: ApiInternalOpsConfigActionRoute,
+  ApiInternalOpsCrawlActionRoute: ApiInternalOpsCrawlActionRoute,
+  ApiInternalOpsDailyActionRoute: ApiInternalOpsDailyActionRoute,
   ApiInternalOpsFactbankActionRoute: ApiInternalOpsFactbankActionRoute,
+  ApiInternalOpsModerationActionRoute: ApiInternalOpsModerationActionRoute,
+  ApiInternalOpsPlayersActionRoute: ApiInternalOpsPlayersActionRoute,
+  ApiInternalOpsRolesActionRoute: ApiInternalOpsRolesActionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

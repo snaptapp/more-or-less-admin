@@ -5,10 +5,37 @@
  */
 import { getAccessToken } from "../firebase/credentials.server";
 import { asJsonObject, isAbortError, responseSnippet } from "./http";
+import {
+  scoreFactCandidateQuality,
+  compareDuplicateCandidates,
+  isDuplicateDecisionSafe,
+  type DuplicateFactCandidate,
+  type CandidateQualityScore,
+  type MinimalReviewForSafety,
+} from "./duplicate-resolution";
+
+export {
+  scoreFactCandidateQuality,
+  compareDuplicateCandidates,
+  isDuplicateDecisionSafe,
+  type DuplicateFactCandidate,
+  type CandidateQualityScore,
+  type MinimalReviewForSafety,
+};
+export type CopilotFactCandidate = DuplicateFactCandidate;
 
 const MODEL_ID = "gemini-3.8-flash";
 
-export type CopilotVerdict = "uphold_fact" | "fix_number" | "edit_fact" | "retire_fact" | "unclear";
+export type CopilotVerdict =
+  | "uphold_fact"
+  | "fix_number"
+  | "edit_fact"
+  | "retire_fact"
+  | "resolve_duplicate"
+  | "add_to_bank"
+  | "resolve_as_is"
+  | "reject"
+  | "unclear";
 
 export interface CopilotSource {
   url: string;
@@ -19,6 +46,13 @@ export interface CopilotSource {
   stance: "supports" | "contradicts" | "unclear";
   /** True when this source's value disagrees with the recommended number or other sources. */
   conflicting: boolean;
+}
+
+export interface CopilotDuplicateResolution {
+  keepFactId: string | null;
+  retireFactIds: string[];
+  action: "keep_one" | "retire_all" | "reject_report";
+  reason: string;
 }
 
 /**
@@ -57,7 +91,15 @@ export interface CopilotReview {
     claim_template?: string;
     context?: string;
     note?: string;
+    subject?: string;
+    angle?: string;
+    quantity_kind?: string;
+    surprise_factor?: number;
+    plausible_min?: string;
+    plausible_max?: string;
+    difficulty_hint?: "casual" | "medium" | "hard";
   };
+  duplicateResolution?: CopilotDuplicateResolution;
   sources: CopilotSource[];
   policy: CopilotPolicy;
   model: string;
@@ -71,7 +113,9 @@ export interface CopilotInput {
   unit: string;
   reason: string;
   feedbackText: string;
+  qualityFlags?: string[];
   fact?: {
+    id?: string;
     subject: string;
     angle: string;
     question: string;
@@ -80,10 +124,25 @@ export interface CopilotInput {
     unit: string;
     context: string;
     source_urls: string[];
+    quality_flags?: string[];
+    status?: string;
+    quantity_kind?: string;
+    surprise_factor?: number;
   } | null;
+  duplicateFacts?: CopilotFactCandidate[];
 }
 
-const VERDICTS: CopilotVerdict[] = ["uphold_fact", "fix_number", "edit_fact", "retire_fact", "unclear"];
+const VERDICTS: CopilotVerdict[] = [
+  "uphold_fact",
+  "fix_number",
+  "edit_fact",
+  "retire_fact",
+  "resolve_duplicate",
+  "add_to_bank",
+  "resolve_as_is",
+  "reject",
+  "unclear",
+];
 
 function vertexUrl(): string {
   const id = process.env["GOOGLE_CLOUD_PROJECT"]?.trim() || process.env["FIREBASE_PROJECT_ID"]?.trim();
@@ -93,9 +152,33 @@ function vertexUrl(): string {
 }
 
 const SYSTEM = `You are the moderation copilot for "More or Less", a numeric trivia game.
-A player disputed a fact. Use Google Search to verify the true number. Respond with ONLY a JSON object:
-{"verdict":"uphold_fact|fix_number|edit_fact|retire_fact|unclear","confidence":"low|medium|high","rationale":"2-4 sentences","suggested":{"true_number":number?,"unit":string?,"question":string?,"claim_template":string? (must contain {n}),"context":string?,"note":string (short resolution note)},"sources":[{"url":string,"title":string,"excerpt":"verbatim quote","value":number|null (the number this source states, in the fact's unit),"stance":"supports|contradicts|unclear" (relative to your recommended true number)}]}\nNever invent excerpts; if sources disagree, say so in the rationale.
-Rules: uphold_fact when the stored number is right. fix_number when only the number is wrong. edit_fact when unit/wording is ambiguous or wrong. retire_fact when the fact is unverifiable or inherently ambiguous. Only include suggested fields you would change. true_number must be a single finite number, never a range.`;
+A player disputed a fact or a linter flagged duplicate/conflicting facts. Use Google Search to verify the true number. Respond with ONLY a JSON object:
+{"verdict":"uphold_fact|fix_number|edit_fact|retire_fact|resolve_duplicate|add_to_bank|resolve_as_is|reject|unclear","confidence":"low|medium|high","rationale":"2-4 sentences","suggested":{"true_number":number?,"unit":string?,"question":string?,"claim_template":string? (must contain {n}),"context":string?,"subject":string?,"angle":string?,"quantity_kind":string?,"surprise_factor":number?,"plausible_min":string?,"plausible_max":string?,"difficulty_hint":"casual|medium|hard"?,"note":string (short resolution note)},"duplicate_resolution":{"keep_fact_id":string|null,"retire_fact_ids":[string],"action":"keep_one|retire_all|reject_report","reason":string},"sources":[{"url":string,"title":string,"excerpt":"verbatim quote","value":number|null (the number this source states, in the fact's unit),"stance":"supports|contradicts|unclear" (relative to your recommended true number)}]}
+Never invent excerpts; if sources disagree, say so in the rationale.
+Rules:
+- When duplicate candidate facts are present:
+  - verdict should be resolve_duplicate (or retire_fact if all duplicates are invalid, or unclear if cannot be verified).
+  - Compare all candidate facts (Fact A, Fact B, etc.).
+  - TIE-BREAKING WHEN BOTH DUPLICATES HAVE THE CORRECT TRUE NUMBER:
+    When multiple candidate facts have the correct verified true_number, choose which to keep using this strict hierarchy:
+    1. Valid Claim Template: Mandatory requirement that claim_template contains '{n}' exactly once for reveal/export.
+    2. Zero Quality Flags: Prefer facts with 0 linter quality flags over facts carrying flags (e.g. bounds_chart_position, ambiguous_unit).
+    3. Grounding Citations: Prefer facts with non-empty, authoritative source_urls over facts without sources.
+    4. Engaging Prompt Phrasing: Prefer facts with an engaging, natural card prompt that is fun, inviting, and quickly readable for a fast-paced party game (avoiding sterile, clinical spreadsheet labels like 'Cheetah speed' as well as bloated multi-sentence run-ons).
+    5. Explanation Depth: Prefer facts with educational, detailed context/explanation over stub/empty explanations.
+    6. Lifecycle Stability: Prefer keeping an 'active' fact over 'disputed' or 'pending' if other criteria are equal.
+  - In duplicate_resolution: set keep_fact_id to the ID of the chosen winner (or null if retiring all), retire_fact_ids to the IDs of losing duplicates to retire, action to "keep_one" (or "retire_all" if all are flawed, or "reject_report" if not actually duplicates), and reason explaining specifically why the winner was chosen (especially which tie-break factors decided the winner if both true numbers are correct).
+  - If the kept fact's true_number needs correction to match verified ground truth, also provide suggested.true_number.
+- When no fact exists in the fact bank (primaryFactA is null, AI trivia round report):
+  - add_to_bank when the trivia claim is verifiable, factually correct, and an engaging numeric fact. Provide suggested: subject, angle, true_number, unit, claim_template (with {n}), context, and optional quantity_kind/surprise_factor/difficulty_hint.
+  - reject when the claim is factually false, nonsensical, or cannot be verified.
+- For single fact disputes (no duplicates):
+  - uphold_fact or reject when the stored fact and number are correct (player was wrong).
+  - fix_number when only the number is wrong.
+  - edit_fact when question phrasing, unit, context, or plausible bounds need updating.
+  - resolve_as_is when a fact was flagged with linter warnings but is verified correct and acceptable as-is (clearing false positive flags).
+  - retire_fact when the fact is unverifiable, outdated, or fundamentally broken.
+- Only include suggested fields you would change. true_number must be a single finite number, never a range.`;
 
 function clean(value: unknown, max = 800): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -116,7 +199,50 @@ function parseJsonBlock(text: string): Record<string, unknown> | null {
 
 export async function reviewReportWithCopilot(input: CopilotInput): Promise<CopilotReview> {
   const token = await getAccessToken(["https://www.googleapis.com/auth/cloud-platform"]);
-  const prompt = JSON.stringify({ report: input }, null, 2);
+  const promptPayload: Record<string, unknown> = {
+    dispute: {
+      topic: input.topic,
+      claimStatement: input.claimStatement,
+      presentedNumber: input.presentedNumber,
+      storedTrueNumber: input.trueNumber,
+      unit: input.unit,
+      disputeReason: input.reason,
+      qualityFlags: input.qualityFlags ?? [],
+      playerFeedback: input.feedbackText,
+    },
+    primaryFactA: input.fact
+      ? {
+          id: input.fact.id,
+          subject: input.fact.subject,
+          angle: input.fact.angle,
+          question: input.fact.question,
+          claim_template: input.fact.claim_template,
+          true_number: input.fact.true_number,
+          unit: input.fact.unit,
+          context: input.fact.context,
+          source_urls: input.fact.source_urls,
+          quality_flags: input.fact.quality_flags ?? [],
+          status: input.fact.status,
+        }
+      : null,
+  };
+  if (input.duplicateFacts && input.duplicateFacts.length > 0) {
+    promptPayload.candidateDuplicateFacts = input.duplicateFacts.map((d, idx) => ({
+      label: `Duplicate Fact (${String.fromCharCode(66 + idx)})`,
+      id: d.id,
+      subject: d.subject,
+      angle: d.angle,
+      question: d.question,
+      claim_template: d.claim_template,
+      true_number: d.true_number,
+      unit: d.unit,
+      context: d.context,
+      source_urls: d.source_urls ?? [],
+      quality_flags: d.quality_flags ?? [],
+      status: d.status,
+    }));
+  }
+  const prompt = JSON.stringify(promptPayload, null, 2);
   let response: Response;
   try {
     response = await fetch(vertexUrl(), {
@@ -168,7 +294,66 @@ export async function reviewReportWithCopilot(input: CopilotInput): Promise<Copi
     claim_template: template && template.includes("{n}") ? template : undefined,
     context: clean(s.context, 600),
     note: clean(s.note, 300),
+    subject: clean(s.subject, 120),
+    angle: clean(s.angle, 120),
+    quantity_kind: clean(s.quantity_kind, 60),
+    surprise_factor: typeof s.surprise_factor === "number" && s.surprise_factor >= 0 && s.surprise_factor <= 3 ? s.surprise_factor : undefined,
+    plausible_min: clean(s.plausible_min, 60),
+    plausible_max: clean(s.plausible_max, 60),
+    difficulty_hint: ["casual", "medium", "hard"].includes(String(s.difficulty_hint)) ? (s.difficulty_hint as "casual" | "medium" | "hard") : undefined,
   };
+
+  const allCandidates: CopilotFactCandidate[] = [
+    ...(input.fact ? [input.fact as CopilotFactCandidate] : []),
+    ...(input.duplicateFacts ?? []),
+  ];
+
+  const tieBreakEval = allCandidates.length >= 2
+    ? compareDuplicateCandidates(allCandidates, suggested.true_number ?? input.trueNumber)
+    : null;
+
+  // Duplicate resolution parsing
+  const rawDup = asJsonObject(parsed.duplicate_resolution ?? parsed.duplicateResolution);
+  let duplicateResolution: CopilotDuplicateResolution | undefined = undefined;
+  if (rawDup) {
+    const keepId = clean(rawDup.keep_fact_id ?? rawDup.keepFactId, 100) || tieBreakEval?.recommendedWinnerId || null;
+    const rawRetire = Array.isArray(rawDup.retire_fact_ids)
+      ? rawDup.retire_fact_ids
+      : Array.isArray(rawDup.retireFactIds)
+        ? rawDup.retireFactIds
+        : tieBreakEval?.retireIds ?? [];
+    const retireFactIds = rawRetire
+      .map((id) => clean(id, 100))
+      .filter((id): id is string => Boolean(id) && id !== keepId);
+    const rawAction = String(rawDup.action ?? "");
+    const action = (["keep_one", "retire_all", "reject_report"].includes(rawAction)
+      ? rawAction
+      : keepId
+        ? "keep_one"
+        : "retire_all") as CopilotDuplicateResolution["action"];
+    let reason = clean(rawDup.reason, 600) || "";
+    if (tieBreakEval && (!reason || reason.length < 30 || !reason.includes("Winner"))) {
+      reason = reason ? `${reason} (${tieBreakEval.tieBreakReason})` : tieBreakEval.tieBreakReason;
+    }
+
+    duplicateResolution = {
+      keepFactId: keepId,
+      retireFactIds,
+      action,
+      reason: reason || "Duplicate evaluation completed.",
+    };
+  } else if (allCandidates.length >= 2) {
+    const keepId = clean(parsed.keep_fact_id ?? parsed.keepFactId ?? s.keep_fact_id ?? s.keepFactId, 100) || tieBreakEval?.recommendedWinnerId || null;
+    if (keepId || verdict === "resolve_duplicate") {
+      const retireFactIds = allCandidates.map((c) => c.id).filter((id) => id !== keepId);
+      duplicateResolution = {
+        keepFactId: keepId,
+        retireFactIds,
+        action: keepId ? "keep_one" : "retire_all",
+        reason: tieBreakEval?.tieBreakReason || clean(parsed.rationale, 600) || "Duplicate resolved via copilot evaluation.",
+      };
+    }
+  }
 
   // Sources: grounding metadata (authoritative links) + model-quoted excerpts.
   const byUrl = new Map<string, CopilotSource>();
@@ -210,15 +395,29 @@ export async function reviewReportWithCopilot(input: CopilotInput): Promise<Copi
   }
 
   const sources = [...byUrl.values()].slice(0, 8);
-  const policy = applySourcePolicy(sources, suggested.true_number ?? input.fact?.true_number ?? input.trueNumber, confidence);
+  const targetFact = duplicateResolution?.keepFactId
+    ? (duplicateResolution.keepFactId === input.fact?.id
+        ? input.fact
+        : input.duplicateFacts?.find((d) => d.id === duplicateResolution!.keepFactId))
+    : input.fact;
+  const targetNumber = suggested.true_number ?? targetFact?.true_number ?? input.trueNumber;
+  const policy = applySourcePolicy(sources, targetNumber, confidence);
+
   let finalVerdict = verdict;
-  if (sources.length === 0) finalVerdict = "unclear";
+  if (sources.length === 0) {
+    finalVerdict = "unclear";
+  } else if (duplicateResolution && (verdict === "uphold_fact" || verdict === "fix_number")) {
+    finalVerdict = "resolve_duplicate";
+  } else if (!input.fact?.id && (verdict === "uphold_fact" || verdict === "add_to_bank")) {
+    finalVerdict = "add_to_bank";
+  }
 
   return {
     verdict: finalVerdict,
     confidence: policy.confidence,
     rationale: clean(parsed.rationale, 1200) || "No rationale provided.",
     suggested,
+    duplicateResolution,
     sources,
     policy: policy.policy,
     model: MODEL_ID,

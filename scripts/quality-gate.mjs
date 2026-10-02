@@ -16,8 +16,9 @@
  *   4. Suppression_Check       (scripts/check-suppressions.mjs)
  *   5. Contract_Literal_Check  (scripts/check-contract-literals.mjs — Requirement 9.9)
  *   6. Shared_Artifact_Integrity_Check (network-free local handoff digest/adoption gate)
- *   7. Test_Suite              (vitest run)
- *   8. Contract_Drift_Check    (only once contract-adoption.json records adoption — 10.7)
+ *   7. Ops_Assistant_Check (Notion tools, instructions, and Ops API routes agree)
+ *   8. Test_Suite              (vitest run)
+ *   9. Contract_Drift_Check    (only once contract-adoption.json records adoption — 10.7)
  *
  * Contract:
  *   - Each member is spawned as a child process with inherited stdio, so its diagnostics
@@ -148,6 +149,15 @@ export const GATE_MEMBERS = Object.freeze([
     npmScript: "check:artifacts",
     kind: "script",
     script: "scripts/check-shared-artifacts.mjs",
+    args: Object.freeze([]),
+    requiresContractAdoption: false,
+  }),
+  Object.freeze({
+    // Notion worker tools, AGENT_INSTRUCTIONS.md, and the Ops API routes must name the same surface.
+    name: "Ops_Assistant_Check",
+    npmScript: "check:ops-assistant",
+    kind: "script",
+    script: "scripts/check-ops-assistant.mjs",
     args: Object.freeze([]),
     requiresContractAdoption: false,
   }),

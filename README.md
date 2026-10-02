@@ -40,8 +40,10 @@ name, a pointer to that member's own diagnostics, and the members it never reach
 | 3 | `Lint_Step` | `eslint .` reports 0 errors | `npm run lint` |
 | 4 | `Suppression_Check` | no file exceeds its `suppression-baseline.json` entry | `npm run check:suppressions` |
 | 5 | `Contract_Literal_Check` | admin literals derive from the consumed contract artifact | `npm run check:contract-literals` |
-| 6 | `Test_Suite` | `vitest run` passes | `npm test` |
-| 7 | `Contract_Drift_Check` | consumed copy matches the vendored published artifact | `npm run check:contract` |
+| 6 | `Shared_Artifact_Integrity_Check` | vendored contract and DDM digests match the manifest | `npm run check:artifacts` |
+| 7 | `Ops_Assistant_Check` | Notion tools, instructions, and Ops API routes agree | `npm run check:ops-assistant` |
+| 8 | `Test_Suite` | `vitest run` passes | `npm test` |
+| 9 | `Contract_Drift_Check` | consumed copy matches the vendored published artifact | `npm run check:contract` |
 
 `Contract_Drift_Check` is a member because `contract-adoption.json` records `adopted: true`. It
 compares `shared/fact-lifecycle-contract.gen.ts` (the consumed copy) against the vendored published
@@ -143,6 +145,46 @@ Three tracked files hold the gate's ratchet state. The gate reads them; it never
   (the `OPS_CRON_SECRET`-gated `/api/internal/daily-drafts` and the public
   `/api/public/firebase-config`), each with the mechanism applied instead. A new server function that
   is neither authorized nor listed fails the `Test_Suite`; so does a stale entry.
+
+## Notion Ops Assistant (`ntn`)
+
+Custom Agent tools are the workers in `notion-workers/`. They call `https://ops.snaptapp.us` with bearer `OPS_ASSISTANT_SECRET`. `ntn workers env set` stores variables on the Notion worker. A later `ntn workers deploy` leaves them in place, so the token is set once.
+
+Workspace: Trackdub `01454199-cd94-8168-873e-00038ccb0750`. Factbank worker: `more-or-less-factbank` (`01a0fb75-8c71-77fc-b769-0d2f008a8bd9`). `workers.json` is gitignored and is created by the first deploy in that directory. If `ntn` is not on `PATH`, use the copy installed next to mise’s Node 22.
+
+```sh
+ntn login
+ntn whoami
+ntn workers list
+
+cd notion-workers/more-or-less-factbank
+ntn workers deploy --name more-or-less-factbank --yes
+ntn workers env set OPS_API_BASE_URL=https://ops.snaptapp.us OPS_ASSISTANT_SECRET=...
+ntn workers env list
+ntn workers deploy
+ntn workers exec factbank_health -d '{}'
+ntn workers exec factbank_health --local -d '{}'
+```
+
+Remote `exec` uses the worker’s stored env. `--local` reads a gitignored `.env` in that directory.
+
+Cloudflare inspector, from `notion-workers/cloudflare-state-inspector`:
+
+```sh
+ntn workers deploy --name cloudflare-state-inspector --yes
+ntn workers env set CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=...
+ntn workers exec production_health -d '{"project":"more-or-less"}'
+```
+
+From the repo root, add `--worker-id 01a0fb75-8c71-77fc-b769-0d2f008a8bd9` on factbank `env` and `exec` commands. Put the same `OPS_ASSISTANT_SECRET` on the live ops Worker:
+
+```sh
+npx wrangler secret put OPS_ASSISTANT_SECRET --name more-or-less-ops
+```
+
+`ops.snaptapp.us` is served by `more-or-less-ops`. The `name` in `wrangler.jsonc` is `tanstack-start-app`, and secrets on that Worker do not reach the hostname. Do not reuse `OPS_CRON_SECRET` or set `OPS_ASSISTANT_ALLOW_CRON_FALLBACK` in production. Do not commit or print either secret.
+
+The CLI cannot connect workers to the agent or paste instructions. In Notion, open **More-or-Less Ops Assistant** → Settings → Tools and access, enable the worker tools, and paste `notion-workers/AGENT_INSTRUCTIONS.md`.
 
 ## Deploy (local)
 

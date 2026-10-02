@@ -168,6 +168,13 @@ const LINT_RULES: Record<string, LintRule> = {
     check: "An exact or near-matching question appears on another fact with a different true_number.",
     guidance: "Compare the matched facts and verify their sources and scope. Correct the wrong answer or make the questions distinct if they ask different things.",
   },
+  question_not_statement: {
+    title: "Question is phrased as a question rather than a statement",
+    severity: "review",
+    fields: ["question"],
+    check: "The question contains a question mark or is phrased as an interrogative question rather than a declarative prompt or statement.",
+    guidance: "Rewrite the prompt as a declarative statement or noun phrase (e.g. 'Calvin Johnson single-season receiving yards record' instead of 'How many receiving yards did Calvin Johnson gain...?').",
+  },
   duplicate_question: {
     title: "Question duplicates another fact",
     severity: "review",

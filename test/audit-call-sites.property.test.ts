@@ -482,6 +482,18 @@ const DYNAMIC_TARGET_IDS: Readonly<Record<string, Readonly<Record<string, Dynami
         "addFact and asserts the recorded targetId is non-empty.",
     },
   },
+  "src/lib/admin/ops-moderation.server.ts": {
+    reportId: {
+      coverage: "documented",
+      reason:
+        "`moderationAct` validates `reportId` against the pending queue before executing and logging.",
+    },
+    id: {
+      coverage: "documented",
+      reason:
+        "`moderationCopilot` validates `id` against the pending queue before running review and logging.",
+    },
+  },
   "src/lib/admin/ops.functions.ts": {
     "data.id": {
       coverage: "schema-min-1",
@@ -509,6 +521,13 @@ const DYNAMIC_TARGET_IDS: Readonly<Record<string, Readonly<Record<string, Dynami
       reason:
         "`flagQuestionTelemetry` returns the telemetry report id it wrote; not invoked by " +
         "Property 19 (signed telemetry input is outside this task's scope).",
+    },
+  },
+  "src/lib/admin/ops-portal.server.ts": {
+    "result.reportId": {
+      coverage: "documented",
+      reason:
+        "`opsAnalyticsFlag` returns the written telemetry report id; non-empty in practice.",
     },
   },
   "src/lib/admin/ops.server.ts": {

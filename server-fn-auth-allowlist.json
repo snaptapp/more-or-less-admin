@@ -19,6 +19,70 @@
     },
     {
       "symbol": "Route",
+      "path": "src/routes/api/internal/ops/moderation/$action.ts",
+      "routeId": "/api/internal/ops/moderation/$action",
+      "methods": ["GET", "POST"],
+      "mechanism": "shared-secret header gate: returns 503 when OPS_ASSISTANT_SECRET is unset (OPS_CRON_SECRET only when OPS_ASSISTANT_ALLOW_CRON_FALLBACK=1) and 401 unless requireOpsAssistantAuth(request.headers.get(\"authorization\")) matches Bearer against OPS_ASSISTANT_SECRET via constant-time compare (src/lib/admin/ops-assistant-auth.server.ts).",
+      "reason": "Notion Workers / Ops Assistant callers have no Firebase ID token. Read/act moderation inbox operations gated by internal ops assistant shared secret; contract-authorized moderation transitions only."
+    },
+    {
+      "symbol": "Route",
+      "path": "src/routes/api/internal/ops/crawl/$action.ts",
+      "routeId": "/api/internal/ops/crawl/$action",
+      "methods": ["GET"],
+      "mechanism": "shared-secret header gate: returns 503 when OPS_ASSISTANT_SECRET is unset (OPS_CRON_SECRET only when OPS_ASSISTANT_ALLOW_CRON_FALLBACK=1) and 401 unless requireOpsAssistantAuth(request.headers.get(\"authorization\")) matches Bearer against OPS_ASSISTANT_SECRET via constant-time compare (src/lib/admin/ops-assistant-auth.server.ts).",
+      "reason": "Notion Workers / Ops Assistant callers have no Firebase ID token. Read-only crawl queue observability only; gated by internal ops assistant shared secret."
+    },
+    {
+      "symbol": "Route",
+      "path": "src/routes/api/internal/ops/analytics/$action.ts",
+      "routeId": "/api/internal/ops/analytics/$action",
+      "methods": ["GET", "POST"],
+      "mechanism": "shared-secret header gate: returns 503 when OPS_ASSISTANT_SECRET is unset (OPS_CRON_SECRET only when OPS_ASSISTANT_ALLOW_CRON_FALLBACK=1) and 401 unless requireOpsAssistantAuth(request.headers.get(\"authorization\")) matches Bearer against OPS_ASSISTANT_SECRET via constant-time compare (src/lib/admin/ops-assistant-auth.server.ts).",
+      "reason": "Notion Workers / Ops Assistant callers have no Firebase ID token. Ops game analytics read and flag actions gated by internal ops assistant shared secret."
+    },
+    {
+      "symbol": "Route",
+      "path": "src/routes/api/internal/ops/audit/$action.ts",
+      "routeId": "/api/internal/ops/audit/$action",
+      "methods": ["GET"],
+      "mechanism": "shared-secret header gate: returns 503 when OPS_ASSISTANT_SECRET is unset (OPS_CRON_SECRET only when OPS_ASSISTANT_ALLOW_CRON_FALLBACK=1) and 401 unless requireOpsAssistantAuth(request.headers.get(\"authorization\")) matches Bearer against OPS_ASSISTANT_SECRET via constant-time compare (src/lib/admin/ops-assistant-auth.server.ts).",
+      "reason": "Notion Workers / Ops Assistant callers have no Firebase ID token. Audit log query endpoint gated by internal ops assistant shared secret."
+    },
+    {
+      "symbol": "Route",
+      "path": "src/routes/api/internal/ops/config/$action.ts",
+      "routeId": "/api/internal/ops/config/$action",
+      "methods": ["GET", "POST"],
+      "mechanism": "shared-secret header gate: returns 503 when OPS_ASSISTANT_SECRET is unset (OPS_CRON_SECRET only when OPS_ASSISTANT_ALLOW_CRON_FALLBACK=1) and 401 unless requireOpsAssistantAuth(request.headers.get(\"authorization\")) matches Bearer against OPS_ASSISTANT_SECRET via constant-time compare (src/lib/admin/ops-assistant-auth.server.ts).",
+      "reason": "Notion Workers / Ops Assistant callers have no Firebase ID token. Remote config inspection and mutation endpoint gated by internal ops assistant shared secret."
+    },
+    {
+      "symbol": "Route",
+      "path": "src/routes/api/internal/ops/daily/$action.ts",
+      "routeId": "/api/internal/ops/daily/$action",
+      "methods": ["GET", "POST"],
+      "mechanism": "shared-secret header gate: returns 503 when OPS_ASSISTANT_SECRET is unset (OPS_CRON_SECRET only when OPS_ASSISTANT_ALLOW_CRON_FALLBACK=1) and 401 unless requireOpsAssistantAuth(request.headers.get(\"authorization\")) matches Bearer against OPS_ASSISTANT_SECRET via constant-time compare (src/lib/admin/ops-assistant-auth.server.ts).",
+      "reason": "Notion Workers / Ops Assistant callers have no Firebase ID token. Daily draft schedule status and trigger actions gated by internal ops assistant shared secret."
+    },
+    {
+      "symbol": "Route",
+      "path": "src/routes/api/internal/ops/players/$action.ts",
+      "routeId": "/api/internal/ops/players/$action",
+      "methods": ["GET", "POST"],
+      "mechanism": "shared-secret header gate: returns 503 when OPS_ASSISTANT_SECRET is unset (OPS_CRON_SECRET only when OPS_ASSISTANT_ALLOW_CRON_FALLBACK=1) and 401 unless requireOpsAssistantAuth(request.headers.get(\"authorization\")) matches Bearer against OPS_ASSISTANT_SECRET via constant-time compare (src/lib/admin/ops-assistant-auth.server.ts).",
+      "reason": "Notion Workers / Ops Assistant callers have no Firebase ID token. Player lookup and moderation actions gated by internal ops assistant shared secret."
+    },
+    {
+      "symbol": "Route",
+      "path": "src/routes/api/internal/ops/roles/$action.ts",
+      "routeId": "/api/internal/ops/roles/$action",
+      "methods": ["GET"],
+      "mechanism": "shared-secret header gate: returns 503 when OPS_ASSISTANT_SECRET is unset (OPS_CRON_SECRET only when OPS_ASSISTANT_ALLOW_CRON_FALLBACK=1) and 401 unless requireOpsAssistantAuth(request.headers.get(\"authorization\")) matches Bearer against OPS_ASSISTANT_SECRET via constant-time compare (src/lib/admin/ops-assistant-auth.server.ts).",
+      "reason": "Notion Workers / Ops Assistant callers have no Firebase ID token. Staff role roster inspection gated by internal ops assistant shared secret."
+    },
+    {
+      "symbol": "Route",
       "path": "src/routes/api/public/firebase-config.ts",
       "routeId": "/api/public/firebase-config",
       "methods": ["GET"],
