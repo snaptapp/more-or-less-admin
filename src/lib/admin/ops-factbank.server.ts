@@ -135,7 +135,7 @@ export async function factbankHealth(deps: OpsFactbankDependencies = {}) {
         "Export artifact becomes the deployed serving snapshot after hydration PR merge and Worker deployment. This endpoint reports the deployed serving stamp as the published export players hit.",
       total_facts: servingCount,
       generated_at: null as string | null,
-      version: serving?.version ?? null,
+      version: null,
     },
     kv: {
       note:
