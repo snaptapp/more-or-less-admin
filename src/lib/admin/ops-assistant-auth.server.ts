@@ -6,18 +6,11 @@
  * assistant secret is unset (local/bootstrap only). No Firebase session is required.
  */
 
+import { bearerSecretMatches } from "./shared-secret.server";
+
 function cronFallbackAllowed(): boolean {
   const flag = (process.env["OPS_ASSISTANT_ALLOW_CRON_FALLBACK"] ?? "").trim();
   return flag === "1" || flag.toLowerCase() === "true";
-}
-
-function constantTimeEqual(expected: string, provided: string): boolean {
-  const max = Math.max(expected.length, provided.length);
-  let mismatch = expected.length ^ provided.length;
-  for (let i = 0; i < max; i++) {
-    mismatch |= (expected.charCodeAt(i) || 0) ^ (provided.charCodeAt(i) || 0);
-  }
-  return mismatch === 0;
 }
 
 /** Resolves the configured Ops Assistant bearer secret, if any. */
@@ -35,11 +28,7 @@ export function opsAssistantSecret(): string {
  * @returns true when the Bearer token matches the configured secret
  */
 export function opsAssistantSecretMatches(authorization: string | null): boolean {
-  const expected = opsAssistantSecret();
-  if (!expected) return false;
-  const provided = (authorization ?? "").replace(/^Bearer\s+/i, "").trim();
-  if (!provided) return false;
-  return constantTimeEqual(expected, provided);
+  return bearerSecretMatches(authorization, opsAssistantSecret());
 }
 
 export type OpsAuthResult =
