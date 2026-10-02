@@ -26,8 +26,8 @@
   "files": {
     "agent-go/derivation.go": "6f05723d4382a5f1bcdeb131d569f4949e9f94a53721b073f762dd1da9c979ed",
     "agent-go/factlint.go": "8c3e9f4973134ead8e8a0fe29759e1765349dfb3b17c4a296c10c380dbbd851a",
-    "agent-go/factrepair.go": "6195a16bad0fb1ea4581fc4868dcf5b145a21d08f673a08154f050592ea86908",
-    "agent-go/foundry.go": "40495d640041efd2d171e616d741e42fa6b053da18df3d93f37c9dacefd4e313",
+    "agent-go/factrepair.go": "04104b16f2b9d7eefd267fd75355fc95e03ddf243f664a3b45a99744b5b9c380",
+    "agent-go/foundry.go": "ad8a47d831ff5ac4732af52538f8083485f92066a4b2d66e6d226dc0a95b12fe",
     "contract.version": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
     "scripts/contract-transitions.json": "be819193e6b58834671b95ab5f198a1d74c97cb8f39d080456cd38c289b5f6d0",
     "shared/fact-lifecycle-contract.gen.ts": "7d0751b8d9fe400da866a1579f85580c3d62b6e61e6e1ce9af3f69c92aad2523",
@@ -46,5 +46,5 @@
     "tests/fixtures/unit_tables.json": "c5e2ac4d7c92b150c20ba8223a10e2bca23e7ad649f16feee59aca0e19a72846"
   },
   "sourceRepository": "snaptapp/more-or-less",
-  "treeHash": "dee03c53cecfcd6303c7ea14433e28556d0e930d12c9a0236e57690e84d8d48d"
+  "treeHash": "3cabac28861ed753293f6c23d905f66547328c1746f1daa2a2f666d0238961e5"
 }
