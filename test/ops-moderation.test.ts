@@ -92,6 +92,31 @@ describe("ops moderation queue", () => {
     ]);
   });
 
+  it("returns the full pending count and the next page after 100", async () => {
+    const extra: Record<string, Record<string, unknown>> = {};
+    for (let index = 0; index < 99; index += 1) {
+      extra[`trivia_reports/p${index}`] = {
+        status: "pending_review",
+        topic: "Paged",
+        claimStatement: `Paged claim ${index}`,
+        createdAt: "2026-09-01T00:00:00.000Z",
+      };
+    }
+    firestoreDouble().seedMany(extra);
+    const first = await moderationQueue();
+    expect(first.count).toBe(101);
+    expect(first.items).toHaveLength(100);
+    expect(first.truncated).toBe(true);
+    expect(first.next_offset).toBe(100);
+    const second = await moderationQueue(100);
+    expect(second.count).toBe(101);
+    expect(second.items).toHaveLength(1);
+    expect(second.truncated).toBe(false);
+    expect(second.next_offset).toBeNull();
+    const seen = new Set([...first.items, ...second.items].map((item) => item.report.id));
+    expect(seen.size).toBe(101);
+  });
+
   it("rejects a pending report through the inbox reject button", async () => {
     const result = await moderationAct({ reportId: "r2", action: "reject", note: "Not a fact" });
     expect(result).toEqual({ ok: true, reportId: "r2", action: "reject" });

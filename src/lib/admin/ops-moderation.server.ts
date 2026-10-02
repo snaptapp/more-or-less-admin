@@ -11,12 +11,14 @@ import type { CopilotReview, CopilotVerdict } from "./report-copilot.server";
 import {
   findDuplicateFactsForReport,
   findFactForReport,
+  getReport,
   listReports,
   resolveReport,
   type FactRecord,
   type ReportRecord,
 } from "./content.server";
 import { logAdminAction } from "@/lib/firebase/audit.server";
+import { countCollection } from "@/lib/firebase/firestore.server";
 
 const QUEUE_LIMIT = 100;
 
@@ -225,11 +227,12 @@ export function moderationButtons(
 }
 
 async function loadPendingItem(reportId: string): Promise<ModerationQueueItem> {
-  const reports = await listReports({ status: "pending_review", limit: QUEUE_LIMIT });
-  const report = reports.find((item) => item.id === reportId);
-  if (!report) {
+  const report = await getReport(reportId);
+  if (!report || report.status !== "pending_review") {
     throw new ModerationRequestError("Report not found or no longer pending.", 404);
   }
+  const pending = await listReports({ status: "pending_review", limit: QUEUE_LIMIT });
+  const reports = pending.some((item) => item.id === report.id) ? pending : [report, ...pending];
   const fact = await findFactForReport(report);
   const duplicates = await findDuplicateFactsForReport(report, fact, reports);
   return {
@@ -240,16 +243,24 @@ async function loadPendingItem(reportId: string): Promise<ModerationQueueItem> {
   };
 }
 
-/** Pending moderation inbox: count plus each report, its fact, and its buttons. */
-export async function moderationQueue(): Promise<{
+/** Pending moderation inbox: full count, plus one page of reports, facts, and buttons. */
+export async function moderationQueue(offset = 0): Promise<{
   status: "pending_review";
   count: number;
   limit: number;
+  offset: number;
+  next_offset: number | null;
   truncated: boolean;
   checked_at: string;
   items: ModerationQueueItem[];
 }> {
-  const reports = await listReports({ status: "pending_review", limit: QUEUE_LIMIT });
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new ModerationRequestError("offset must be a non-negative integer.", 400);
+  }
+  const [count, reports] = await Promise.all([
+    countCollection("trivia_reports", [{ field: "status", op: "EQUAL", value: "pending_review" }]),
+    listReports({ status: "pending_review", limit: QUEUE_LIMIT, offset }),
+  ]);
   const items = await Promise.all(
     reports.map(async (report) => {
       const fact = await findFactForReport(report);
@@ -262,11 +273,15 @@ export async function moderationQueue(): Promise<{
       };
     }),
   );
+  const nextOffset = offset + items.length;
+  const truncated = items.length === QUEUE_LIMIT && nextOffset < count;
   return {
     status: "pending_review",
-    count: items.length,
+    count,
     limit: QUEUE_LIMIT,
-    truncated: items.length >= QUEUE_LIMIT,
+    offset,
+    next_offset: truncated ? nextOffset : null,
+    truncated,
     checked_at: new Date().toISOString(),
     items,
   };

@@ -31,7 +31,7 @@ export const Route = createFileRoute("/api/internal/ops/moderation/$action")({
         }
         try {
           const ops = await import("@/lib/admin/ops-moderation.server");
-          return Response.json(await ops.moderationQueue());
+          return Response.json(await ops.moderationQueue(readOffset(request)));
         } catch (error) {
           return moderationError(error);
         }
@@ -83,6 +83,16 @@ function moderationError(error: unknown): Response {
   console.error("[ops/moderation]", error);
   const message = error instanceof Error ? error.message : "Moderation error.";
   return Response.json({ error: message }, { status: 500 });
+}
+
+function readOffset(request: Request): number {
+  const raw = new URL(request.url).searchParams.get("offset");
+  if (raw == null || raw === "") return 0;
+  const offset = Number(raw);
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new ModerationRequestError("offset must be a non-negative integer.", 400);
+  }
+  return offset;
 }
 
 function readReportId(body: unknown): string {

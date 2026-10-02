@@ -2,7 +2,7 @@ import { Worker } from "@notionhq/workers";
 import { j } from "@notionhq/workers/schema-builder";
 import type { JSONValue } from "@notionhq/workers/types";
 
-import { registerPortalTools } from "./portal-tools";
+import { registerPortalTools } from "./portal-tools.js";
 
 function asJson(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value)) as JSONValue;
@@ -147,10 +147,13 @@ const MODERATION_ACTIONS = [
 worker.tool("moderation_queue", {
   title: "Moderation Queue",
   description:
-    "Use for the moderation inbox. Returns how many reports are pending_review and the exact contents of each: the report, the matched fact, duplicate facts, and the moderation buttons available for that row. Call this before answering how many reports are waiting or what is in the queue.",
-  schema: j.object({}),
+    "Use for the moderation inbox. count is the full number of pending_review reports. Each call returns at most 100 reports with the matched fact, duplicate facts, and buttons. If truncated is true, call again with offset set to next_offset until truncated is false. Cite count, not the page length.",
+  schema: j.object({
+    offset: j.number().nullable().describe("Page start. Null or 0 is the first page. Use next_offset when truncated is true."),
+  }),
   hints: { readOnlyHint: true },
-  execute: async () => opsGet("/api/internal/ops/moderation/queue"),
+  execute: async ({ offset }) =>
+    opsGet(`/api/internal/ops/moderation/queue?offset=${encodeURIComponent(String(offset ?? 0))}`),
 });
 
 worker.tool("moderation_copilot", {

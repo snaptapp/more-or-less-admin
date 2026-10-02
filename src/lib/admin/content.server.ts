@@ -1673,15 +1673,23 @@ function toReport(doc: FirestoreDoc): ReportRecord {
   };
 }
 
-export async function listReports(input: { status?: string; limit?: number }) {
+export async function listReports(input: { status?: string; limit?: number; offset?: number }) {
   const docs = await runQuery({
     collection: "trivia_reports",
     filters: input.status ? [{ field: "status", op: "EQUAL", value: input.status }] : [],
     limit: input.limit ?? 100,
+    offset: input.offset,
   });
   const reports = docs.map(toReport);
   reports.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
   return reports;
+}
+
+export async function getReport(id: string): Promise<ReportRecord | null> {
+  const trimmed = id.trim();
+  if (!trimmed) return null;
+  const doc = await getDoc(`trivia_reports/${trimmed}`);
+  return doc ? toReport(doc) : null;
 }
 
 /** Best-effort match from a report back to its fact-bank record. */
