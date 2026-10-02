@@ -583,6 +583,7 @@ function buildAdmissionFact(
     ...(input.plausible_max !== undefined ? { plausible_max: input.plausible_max } : {}),
     ...(input.number_pinned !== undefined ? { number_pinned: input.number_pinned } : {}),
     ...(input.pinned_reason !== undefined ? { pinned_reason: input.pinned_reason } : {}),
+    ...(input.content_rating !== undefined ? { content_rating: input.content_rating } : {}),
     origin,
   });
 }

@@ -23,6 +23,10 @@ export const PENDING_FACT_ORIGINS = [
 
 export type PendingFactOrigin = (typeof PENDING_FACT_ORIGINS)[number];
 
+export const CONTENT_RATINGS = ["standard", "after_dark"] as const;
+export type ContentRating = (typeof CONTENT_RATINGS)[number];
+export const DEFAULT_CONTENT_RATING: ContentRating = "standard";
+
 /** User- or import-supplied fields accepted by the admission builder. */
 export interface PendingFactInput {
   subject: string;
@@ -43,6 +47,8 @@ export interface PendingFactInput {
   plausible_max?: string | null;
   number_pinned?: boolean;
   pinned_reason?: string | null;
+  /** Defaults to `standard` when omitted. */
+  content_rating?: ContentRating;
   origin: PendingFactOrigin;
 }
 
@@ -66,6 +72,7 @@ export type PendingFact = {
   plausible_max?: string;
   number_pinned?: boolean;
   pinned_reason?: string;
+  content_rating: ContentRating;
   status: typeof PENDING_FACT_STATUS;
   origin: PendingFactOrigin;
   created_at: string;
@@ -101,6 +108,7 @@ const REQUIRED_FIELDS = [
   "source_urls",
   "surprise_factor",
   "quantity_kind",
+  "content_rating",
   "status",
   "origin",
   "created_at",
@@ -185,6 +193,10 @@ function isPendingFactOrigin(value: unknown): value is PendingFactOrigin {
   return typeof value === "string" && PENDING_FACT_ORIGINS.some((origin) => origin === value);
 }
 
+function isContentRating(value: unknown): value is ContentRating {
+  return typeof value === "string" && CONTENT_RATINGS.some((rating) => rating === value);
+}
+
 function isGenre(value: unknown): value is Genre {
   return typeof value === "string" && GENRES.some((genre) => genre === value);
 }
@@ -219,6 +231,7 @@ function isPendingFactRecord(value: Record<string, unknown>): value is PendingFa
     isSourceUrlArray(value["source_urls"]) &&
     isCanonicalSurprise(value["surprise_factor"]) &&
     isQuantityKind(value["quantity_kind"]) &&
+    isContentRating(value["content_rating"]) &&
     isPendingStatus(value["status"]) &&
     isPendingFactOrigin(value["origin"]) &&
     typeof createdAt === "string" &&
@@ -294,6 +307,7 @@ function candidate(input: PendingFactInput, timestamp: string): Record<string, u
       input.surprise_factor === undefined ? 2 : input.surprise_factor,
     ),
     quantity_kind: text(input.quantity_kind),
+    content_rating: input.content_rating ?? DEFAULT_CONTENT_RATING,
     status: PENDING_FACT_STATUS,
     origin: input.origin,
     created_at: timestamp,
@@ -509,6 +523,9 @@ export function validatePendingFact(value: unknown): PendingFactValidationResult
   validateBounds(value, truth, issues);
   validatePinnedFields(value, issues);
 
+  if (!isContentRating(value["content_rating"])) {
+    issue(issues, "content_rating", "closed_set", "must be standard or after_dark");
+  }
   if (value["status"] !== PENDING_FACT_STATUS) {
     issue(issues, "status", "status", "must be the pending lifecycle status");
   }
