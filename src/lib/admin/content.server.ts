@@ -218,6 +218,7 @@ export interface FactRecord {
   context: string;
   question: string;
   surprise_factor: number | null;
+  difficulty_hint: string | null;
   content_rating: string;
   // Derived from the shared contract (Requirement 9.1). The `string & {}` arm
   // keeps a persisted value absent from the contract representable verbatim
@@ -293,6 +294,10 @@ export function toFact(doc: FirestoreDoc): FactRecord {
       return Math.min(3, Math.max(0, Math.round(raw)));
     })(),
     content_rating: str(d["content_rating"]) || "standard",
+    difficulty_hint: (() => {
+      const hint = str(d["difficulty_hint"]);
+      return hint || null;
+    })(),
     status: str(d["status"]) || STATUS.active,
     previous_true_number: num(d["previous_true_number"]),
     retired_reason: typeof d["retired_reason"] === "string" ? d["retired_reason"] : null,

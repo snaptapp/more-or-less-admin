@@ -87,7 +87,7 @@ function AuditLogPage() {
 
   const handleSelectTab = (tab: "admin" | "derivation") => {
     navigate({
-      search: (prev) => ({ ...prev, tab }),
+      search: (prev: typeof searchParams) => ({ ...prev, tab }),
     });
   };
 

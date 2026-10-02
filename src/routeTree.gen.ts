@@ -23,6 +23,7 @@ import { Route as AdminRolesRouteImport } from './routes/admin/roles'
 import { Route as AdminTaxonomyRouteImport } from './routes/admin/taxonomy'
 import { Route as ApiInternalDailyDraftsRouteImport } from './routes/api/internal/daily-drafts'
 import { Route as ApiPublicFirebaseConfigRouteImport } from './routes/api/public/firebase-config'
+import { Route as ApiInternalOpsFactbankActionRouteImport } from './routes/api/internal/ops/factbank/$action'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -94,6 +95,12 @@ const ApiPublicFirebaseConfigRoute = ApiPublicFirebaseConfigRouteImport.update({
   path: '/api/public/firebase-config',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInternalOpsFactbankActionRoute =
+  ApiInternalOpsFactbankActionRouteImport.update({
+    id: '/api/internal/ops/factbank/$action',
+    path: '/api/internal/ops/factbank/$action',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/api/internal/daily-drafts': typeof ApiInternalDailyDraftsRoute
   '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
+  '/api/internal/ops/factbank/$action': typeof ApiInternalOpsFactbankActionRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -125,6 +133,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/api/internal/daily-drafts': typeof ApiInternalDailyDraftsRoute
   '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
+  '/api/internal/ops/factbank/$action': typeof ApiInternalOpsFactbankActionRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -142,6 +151,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/api/internal/daily-drafts': typeof ApiInternalDailyDraftsRoute
   '/api/public/firebase-config': typeof ApiPublicFirebaseConfigRoute
+  '/api/internal/ops/factbank/$action': typeof ApiInternalOpsFactbankActionRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -160,6 +170,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/api/internal/daily-drafts'
     | '/api/public/firebase-config'
+    | '/api/internal/ops/factbank/$action'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -175,6 +186,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/api/internal/daily-drafts'
     | '/api/public/firebase-config'
+    | '/api/internal/ops/factbank/$action'
   id:
     | '__root__'
     | '/'
@@ -191,6 +203,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/api/internal/daily-drafts'
     | '/api/public/firebase-config'
+    | '/api/internal/ops/factbank/$action'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -198,6 +211,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   ApiInternalDailyDraftsRoute: typeof ApiInternalDailyDraftsRoute
   ApiPublicFirebaseConfigRoute: typeof ApiPublicFirebaseConfigRoute
+  ApiInternalOpsFactbankActionRoute: typeof ApiInternalOpsFactbankActionRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -300,6 +314,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFirebaseConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/ops/factbank/$action': {
+      id: '/api/internal/ops/factbank/$action'
+      path: '/api/internal/ops/factbank/$action'
+      fullPath: '/api/internal/ops/factbank/$action'
+      preLoaderRoute: typeof ApiInternalOpsFactbankActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -336,17 +357,8 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   ApiInternalDailyDraftsRoute: ApiInternalDailyDraftsRoute,
   ApiPublicFirebaseConfigRoute: ApiPublicFirebaseConfigRoute,
+  ApiInternalOpsFactbankActionRoute: ApiInternalOpsFactbankActionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

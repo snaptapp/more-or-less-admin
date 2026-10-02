@@ -129,7 +129,12 @@ describe("competing package-manager files (Requirement 1.3)", () => {
         path.posix.basename(file),
       ),
     );
-    expect(trackedLockfiles).toEqual(["package-lock.json"]);
+    // Nested npm package-lock.json (e.g. notion-workers/*) is allowed; competing
+    // package managers are not — matching scripts/check-lockfiles.mjs.
+    expect(
+      trackedLockfiles.every((file) => path.posix.basename(file) === "package-lock.json"),
+    ).toBe(true);
+    expect(trackedLockfiles).toContain("package-lock.json");
   });
 
   it("has effective ignore rules, so a later commit cannot reintroduce them as tracked files", () => {

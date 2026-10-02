@@ -13,6 +13,7 @@ import {
 } from "./daily-blitz";
 import { generatePackViaGoAgent, goAgentConfigured } from "./goagent.server";
 import { getDailyDraft, getDailyPack, writeDailyDraft } from "./ops.server";
+import { bearerSecretMatches } from "./shared-secret.server";
 
 export const DEFAULT_DRAFT_LOOKAHEAD = 5;
 const DRAFT_CLAIM_COLLECTION = "daily_pack_draft_claims";
@@ -278,14 +279,5 @@ export async function fillUnfilledDailyDrafts(
  * @returns `true` if the token matches the configured secret, `false` otherwise.
  */
 export function cronSecretMatches(authorization: string | null): boolean {
-  const expected = (process.env["OPS_CRON_SECRET"] ?? "").trim();
-  if (!expected) return false;
-  const provided = (authorization ?? "").replace(/^Bearer\s+/i, "").trim();
-  if (!provided) return false;
-  const max = Math.max(expected.length, provided.length);
-  let mismatch = expected.length ^ provided.length;
-  for (let i = 0; i < max; i++) {
-    mismatch |= (expected.charCodeAt(i) || 0) ^ (provided.charCodeAt(i) || 0);
-  }
-  return mismatch === 0;
+  return bearerSecretMatches(authorization, (process.env["OPS_CRON_SECRET"] ?? "").trim());
 }

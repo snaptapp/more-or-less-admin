@@ -13,7 +13,7 @@
   "src/lib/firebase/firestore.server.ts": 0,
   "src/lib/firebase/remote_config.server.ts": 0,
   "src/lib/firebase/verify.server.ts": 0,
-  "src/routeTree.gen.ts": 14,
+  "src/routeTree.gen.ts": 15,
   "src/routes/api/internal/daily-drafts.ts": 0,
   "src/routes/api/public/firebase-config.ts": 0
 }
