@@ -79,7 +79,7 @@ function InsightsPage() {
         description="Paste click counts from Google Analytics for a date range; AI summarizes trends and suggests placements to improve."
       />
       <Card>
-        <form className="admin-stack" onSubmit={submit}>
+        <form style={{ display: "grid", gap: "var(--ds-arena-space-4)" }} onSubmit={submit}>
           <div className="admin-responsive-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "var(--ds-arena-space-3)" }}>
             <label className="admin-field">
               <span>Start date</span>
@@ -94,7 +94,7 @@ function InsightsPage() {
           <div className="admin-table-wrap">
             <table className="admin-table admin-card-table admin-card-table--insights">
               <thead>
-                <tr><th>Event</th><th>Placement</th><th>Clicks</th><th><span className="sr-only">Actions</span></th></tr>
+                <tr><th>Event</th><th>Placement</th><th>Clicks</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {rows.map((r, i) => (
