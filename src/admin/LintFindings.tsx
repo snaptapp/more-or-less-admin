@@ -238,6 +238,27 @@ const LINT_RULES: Record<string, LintRule> = {
     check: "A count, physical measure, money, or duration fact has no persisted plausible_min hint.",
     guidance: "Consider adding a plausible range when it would constrain distractors usefully. This is informational and does not mean the answer is wrong.",
   },
+  missing_source: {
+    title: "Fact is missing source URLs",
+    severity: "severe",
+    fields: ["question", "claim_template"],
+    check: "The fact document has no verified source URLs.",
+    guidance: "Provide at least one verified source URL supporting the fact's true number before promotion.",
+  },
+  reverify_weak_sourcing: {
+    title: "Re-verified number changed without supporting source or context",
+    severity: "severe",
+    fields: ["true_number", "question", "claim_template"],
+    check: "Re-verification moved true_number but lacks a supporting source URL or explanatory revision context.",
+    guidance: "Add a source URL supporting the new number and explain the revision (or timestamped reference) in the fact explanation.",
+  },
+  moving_target_stale_risk: {
+    title: "Claim implies a moving target or current record without a time bound",
+    severity: "review",
+    fields: ["claim_template", "question"],
+    check: "The claim implies a current record, world record, or superlative ('most ever') without an explicit temporal bound.",
+    guidance: "Add bounded phrasing (e.g. 'as of the end of the 2025 season') or rephrase the claim to be non-time-sensitive.",
+  },
 };
 
 const SEVERITY_LABELS: Record<LintSeverity, string> = {
