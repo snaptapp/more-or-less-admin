@@ -76,6 +76,7 @@ describe("pending fact admission", () => {
       plausible_max: "2000",
       number_pinned: true,
       pinned_reason: "Confirmed against the expedition record.",
+      content_rating: "standard",
       status: PENDING_FACT_STATUS,
       origin: PENDING_FACT_ORIGINS[0],
       created_at: TIMESTAMP,
@@ -87,6 +88,7 @@ describe("pending fact admission", () => {
         "angle_key",
         "category",
         "claim_template",
+        "content_rating",
         "created_at",
         "explanation",
         "number_pinned",
@@ -117,6 +119,16 @@ describe("pending fact admission", () => {
       expect(fact.origin).toBe(origin);
       expect(fact.status).toBe(PENDING_FACT_STATUS);
     }
+  });
+
+  it("defaults content_rating to standard and persists after_dark when supplied", () => {
+    expect(buildPendingFact(input(), TIMESTAMP).content_rating).toBe("standard");
+    expect(
+      buildPendingFact(input({ content_rating: "after_dark" }), TIMESTAMP).content_rating,
+    ).toBe("after_dark");
+    expect(
+      issueFields({ ...buildPendingFact(input(), TIMESTAMP), content_rating: "spicy" }),
+    ).toContain("content_rating");
   });
 
   it("uses legacy context only as an input alias and persists canonical explanation", () => {

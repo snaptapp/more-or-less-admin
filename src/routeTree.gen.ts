@@ -17,6 +17,7 @@ import { Route as AdminAuditRouteImport } from './routes/admin/audit'
 import { Route as AdminConfigRouteImport } from './routes/admin/config'
 import { Route as AdminDailyRouteImport } from './routes/admin/daily'
 import { Route as AdminFactsRouteImport } from './routes/admin/facts'
+import { Route as AdminInsightsRouteImport } from './routes/admin/insights'
 import { Route as AdminPlayersRouteImport } from './routes/admin/players'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
 import { Route as AdminRolesRouteImport } from './routes/admin/roles'
@@ -71,6 +72,11 @@ const AdminDailyRoute = AdminDailyRouteImport.update({
 const AdminFactsRoute = AdminFactsRouteImport.update({
   id: '/facts',
   path: '/facts',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminInsightsRoute = AdminInsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPlayersRoute = AdminPlayersRouteImport.update({
@@ -166,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/admin/config': typeof AdminConfigRoute
   '/admin/daily': typeof AdminDailyRoute
   '/admin/facts': typeof AdminFactsRoute
+  '/admin/insights': typeof AdminInsightsRoute
   '/admin/players': typeof AdminPlayersRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/roles': typeof AdminRolesRoute
@@ -190,6 +197,7 @@ export interface FileRoutesByTo {
   '/admin/config': typeof AdminConfigRoute
   '/admin/daily': typeof AdminDailyRoute
   '/admin/facts': typeof AdminFactsRoute
+  '/admin/insights': typeof AdminInsightsRoute
   '/admin/players': typeof AdminPlayersRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/roles': typeof AdminRolesRoute
@@ -216,6 +224,7 @@ export interface FileRoutesById {
   '/admin/config': typeof AdminConfigRoute
   '/admin/daily': typeof AdminDailyRoute
   '/admin/facts': typeof AdminFactsRoute
+  '/admin/insights': typeof AdminInsightsRoute
   '/admin/players': typeof AdminPlayersRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/roles': typeof AdminRolesRoute
@@ -243,6 +252,7 @@ export interface FileRouteTypes {
     | '/admin/config'
     | '/admin/daily'
     | '/admin/facts'
+    | '/admin/insights'
     | '/admin/players'
     | '/admin/reports'
     | '/admin/roles'
@@ -267,6 +277,7 @@ export interface FileRouteTypes {
     | '/admin/config'
     | '/admin/daily'
     | '/admin/facts'
+    | '/admin/insights'
     | '/admin/players'
     | '/admin/reports'
     | '/admin/roles'
@@ -292,6 +303,7 @@ export interface FileRouteTypes {
     | '/admin/config'
     | '/admin/daily'
     | '/admin/facts'
+    | '/admin/insights'
     | '/admin/players'
     | '/admin/reports'
     | '/admin/roles'
@@ -382,6 +394,13 @@ declare module '@tanstack/react-router' {
       path: '/facts'
       fullPath: '/admin/facts'
       preLoaderRoute: typeof AdminFactsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/insights': {
+      id: '/admin/insights'
+      path: '/insights'
+      fullPath: '/admin/insights'
+      preLoaderRoute: typeof AdminInsightsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/players': {
@@ -498,6 +517,7 @@ interface AdminRouteChildren {
   AdminConfigRoute: typeof AdminConfigRoute
   AdminDailyRoute: typeof AdminDailyRoute
   AdminFactsRoute: typeof AdminFactsRoute
+  AdminInsightsRoute: typeof AdminInsightsRoute
   AdminPlayersRoute: typeof AdminPlayersRoute
   AdminReportsRoute: typeof AdminReportsRoute
   AdminRolesRoute: typeof AdminRolesRoute
@@ -511,6 +531,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminConfigRoute: AdminConfigRoute,
   AdminDailyRoute: AdminDailyRoute,
   AdminFactsRoute: AdminFactsRoute,
+  AdminInsightsRoute: AdminInsightsRoute,
   AdminPlayersRoute: AdminPlayersRoute,
   AdminReportsRoute: AdminReportsRoute,
   AdminRolesRoute: AdminRolesRoute,
