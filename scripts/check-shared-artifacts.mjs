@@ -48,6 +48,7 @@ const COMMIT_PATTERN = /^[a-f0-9]{7,64}$/i;
 
 /** Generated DDM source files that are valid handoff artifacts. */
 const DDM_SOURCE_FILES = new Set([
+  "src/ddm_implementation_gen.ts",
   "src/derivation.ts",
   "src/derivation_adapter.ts",
   "src/factbank_precompute.ts",
@@ -74,12 +75,38 @@ const FIXTURE_SOURCE_FILES = new Set([
  */
 const COVERAGE_ONLY_SOURCE_FILES = new Set([
   "agent-go/derivation.go",
+  "agent-go/derivation_bounds.go",
+  "agent-go/derivation_candidate.go",
+  "agent-go/derivation_classify.go",
+  "agent-go/derivation_counterexample.go",
+  "agent-go/derivation_derive.go",
+  "agent-go/derivation_enumerate.go",
+  "agent-go/derivation_giveaway_gate.go",
+  "agent-go/derivation_ingest.go",
+  "agent-go/derivation_kernel.go",
+  "agent-go/derivation_schema.go",
+  "agent-go/derivation_snapping.go",
+  "agent-go/derivation_statement_gate.go",
+  "agent-go/derivation_statement_inflect.go",
+  "agent-go/derivation_statement_policy.go",
+  "agent-go/derivation_statement_scan.go",
+  "agent-go/derivation_strategy.go",
+  "agent-go/derivation_surprise.go",
+  "agent-go/derivation_tables_gen.go",
+  "agent-go/derivation_trap.go",
+  "agent-go/derivation_variation.go",
+  "agent-go/derivation_zero.go",
   "agent-go/factlint.go",
   "agent-go/factlint_rules.go",
   "agent-go/factrepair.go",
   "agent-go/foundry.go",
+  "agent-go/unit_tables_gen.go",
   "contract.version",
   "scripts/contract-transitions.json",
+  "scripts/ddm-port-source/derivation.ts",
+  "scripts/ddm-port-source/derivation_resolve.ts",
+  "scripts/ddm-port-source/derivation_statement.ts",
+  "scripts/gen_derivation_tables.mjs",
 ]);
 
 const EXACT_DESTINATIONS = new Map([
@@ -116,6 +143,20 @@ const EXACT_DESTINATIONS = new Map([
   [
     "tests/fixtures/key_normalization.json",
     ["shared/ddm/fixtures/key_normalization.json"],
+  ],
+  // Fact-quality definitions and parity fixtures adopted under their own tree
+  // so the DDM fixture namespace stays scoped to derivation behavior.
+  [
+    "tests/fixtures/fact_quality_pr611.json",
+    ["shared/fact-quality/fixtures/fact_quality_pr611.json"],
+  ],
+  [
+    "tests/fixtures/guardrail_parity.json",
+    ["shared/fact-quality/fixtures/guardrail_parity.json"],
+  ],
+  [
+    "tests/fixtures/question_normalization.json",
+    ["shared/fact-quality/fixtures/question_normalization.json"],
   ],
 ]);
 

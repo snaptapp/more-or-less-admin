@@ -8,7 +8,7 @@
 //   scripts/contract-transitions.json       (status transitions + lifecycle fields)
 //   contract.version                        (CONTRACT_VERSION)
 
-export const CONTRACT_VERSION = 2;
+export const CONTRACT_VERSION = 3;
 
 export const FACT_STATUSES = ["pending", "active", "disputed", "retired"] as const;
 export type FactStatus = (typeof FACT_STATUSES)[number];
@@ -54,4 +54,8 @@ export const LIFECYCLE_FIELDS: readonly FieldDescriptor[] = [
   { name: "quality_flags", type: "string[]", required: false },
   { name: "verified_at", type: "string", required: false },
   { name: "derivation_input_fingerprint", type: "string", required: false },
+  { name: "lint_findings", type: "object[]", required: false },
+  { name: "lint_rules_revision", type: "string", required: false },
+  { name: "number_token", type: "string", required: false },
+  { name: "as_of_year", type: "number", required: false },
 ] as const;

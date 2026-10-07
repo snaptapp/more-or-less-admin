@@ -1,0 +1,2369 @@
+{
+  "$comment": "Guardrail parity fixtures — canonical contract in docs/GUARDRAILS.md. Each case: run `input` through the runtime normalizer with `request` and `locked_rounds`; assert deep equality on rounds, total_rounds, is_valid. status_message/content_rating intentionally not compared. Inputs use strict JSON types only (Go decodes typed; see R1 boundary note). go_expects_error=true: Go signals via error, TS via is_valid=false — same player outcome.",
+  "cases": [
+    {
+      "$comment": "16.8 numberless-claim contract: the claim embeds the true number (5), which is also the model presented number. Under the resolved statement contract the leak is never rewritten into the presented value, so the round drops and the pack fails. Go signals via error (go_expects_error); TS yields an is_valid=false empty pack.",
+      "expected": {
+        "is_valid": false,
+        "rounds": [],
+        "total_rounds": 0
+      },
+      "go_expects_error": true,
+      "input": {
+        "is_valid": true,
+        "category": "Giraffes",
+        "difficulty": "casual",
+        "total_rounds": 1,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Giraffe height",
+            "claim_statement": "An adult giraffe stands 5 meters tall.",
+            "presented_number": 5,
+            "true_number": 5,
+            "unit": "meters",
+            "correct_direction": "MORE",
+            "explanation": "Adult giraffes reach about 5 meters, so the statement was accidentally exact.",
+            "surprise_factor": 9,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "equal_numbers_nudged_truth_leak_drops_round",
+      "request": {
+        "topic": "Giraffes",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Giraffe height",
+            "claim_statement": "Giraffes are the tallest land animals.",
+            "presented_number": 1.8,
+            "true_number": 5,
+            "unit": "meters",
+            "correct_direction": "MORE",
+            "explanation": "No number in the claim to rewrite.",
+            "surprise_factor": 3,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 0.5,
+            "plausible_max": 50,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 1
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Giraffes",
+        "difficulty": "casual",
+        "total_rounds": 1,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Giraffe height",
+            "claim_statement": "Giraffes are the tallest land animals.",
+            "presented_number": 5,
+            "true_number": 5,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "No number in the claim to rewrite.",
+            "surprise_factor": 9,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "equal_numbers_without_statement_match_dropped",
+      "request": {
+        "topic": "Giraffes",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Sprint speed",
+            "claim_statement": "A cheetah's top sprint speed is a fixed number of meters per second.",
+            "presented_number": 290,
+            "true_number": 100,
+            "unit": "meters per second",
+            "correct_direction": "LESS",
+            "explanation": "Cheetahs can briefly exceed 100 meters per second in tall tales only.",
+            "surprise_factor": 3,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 10,
+            "plausible_max": 800,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Gestation",
+            "claim_statement": "A cheetah's gestation lasts a fixed number of days.",
+            "presented_number": 40,
+            "true_number": 95,
+            "unit": "days",
+            "correct_direction": "MORE",
+            "explanation": "Cheetah gestation runs roughly 90 to 95 days.",
+            "surprise_factor": 2,
+            "quantity_kind": "duration",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 9.5,
+            "plausible_max": 950,
+            "difficulty": "medium"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Cheetahs",
+        "difficulty": "medium",
+        "total_rounds": 3,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Sprint speed",
+            "claim_statement": "A cheetah's top sprint speed is a fixed number of meters per second.",
+            "presented_number": 30,
+            "true_number": 100,
+            "unit": "meters per second",
+            "correct_direction": "MORE",
+            "explanation": "Cheetahs can briefly exceed 100 meters per second in tall tales only.",
+            "surprise_factor": 8,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Sprint speed",
+            "claim_statement": "Cheetahs sprint at a sustained top speed.",
+            "presented_number": 29,
+            "true_number": 100,
+            "unit": "meters per second",
+            "correct_direction": "MORE",
+            "explanation": "Duplicate angle that must never reach players twice.",
+            "surprise_factor": 7,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 3,
+            "topic": "Gestation",
+            "claim_statement": "A cheetah's gestation lasts a fixed number of days.",
+            "presented_number": 120,
+            "true_number": 95,
+            "unit": "days",
+            "correct_direction": "LESS",
+            "explanation": "Cheetah gestation runs roughly 90 to 95 days.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "duplicate_angles_dropped_mixed_directions_kept",
+      "request": {
+        "topic": "Cheetahs",
+        "difficulty": "medium",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Horseflies",
+            "claim_statement": "Horseflies have a surprising number of eyes.",
+            "presented_number": 13,
+            "true_number": 5,
+            "unit": "eyes",
+            "correct_direction": "LESS",
+            "explanation": "Horseflies have five eyes: two large compound eyes and three small ocelli.",
+            "surprise_factor": 3,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 0,
+            "plausible_max": 40,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Wing speed",
+            "claim_statement": "Horseflies beat their wings at a rapid rate.",
+            "presented_number": 56,
+            "true_number": 100,
+            "unit": "beats per second",
+            "correct_direction": "MORE",
+            "explanation": "Horsefly wing beats exceed 100 per second.",
+            "surprise_factor": 2,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 10,
+            "plausible_max": 1000,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Horseflies",
+        "difficulty": "casual",
+        "total_rounds": 3,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "",
+            "claim_statement": "Horseflies have a surprising number of eyes.",
+            "presented_number": 288,
+            "true_number": 5,
+            "unit": "eyes",
+            "correct_direction": "LESS",
+            "explanation": "Horseflies have five eyes: two large compound eyes and three small ocelli.",
+            "surprise_factor": 9,
+            "difficulty": ""
+          },
+          {
+            "round_number": 2,
+            "topic": "",
+            "claim_statement": "Horseflies can fly at a measurable speed.",
+            "presented_number": 40,
+            "true_number": 39,
+            "unit": "km/h",
+            "correct_direction": "LESS",
+            "explanation": "Blank topic duplicate of the pack angle.",
+            "surprise_factor": 5,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 3,
+            "topic": "Wing speed",
+            "claim_statement": "Horseflies beat their wings at a rapid rate.",
+            "presented_number": 80,
+            "true_number": 100,
+            "unit": "beats per second",
+            "correct_direction": "MORE",
+            "explanation": "Horsefly wing beats exceed 100 per second.",
+            "surprise_factor": 7,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "blank_topics_fall_back_to_pack_topic_and_dedupe",
+      "request": {
+        "topic": "Horseflies",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Sprint length",
+            "claim_statement": "A cheetah's sprint covers a fixed distance in meters.",
+            "presented_number": 100,
+            "true_number": 40,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "A cheetah's full sprint is about 40 meters before it overheats.",
+            "surprise_factor": 3,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 4,
+            "plausible_max": 400,
+            "difficulty": "hard"
+          },
+          {
+            "round_number": 2,
+            "topic": "Tail length",
+            "claim_statement": "A cheetah's tail measures a fixed length in centimeters.",
+            "presented_number": 38,
+            "true_number": 70,
+            "unit": "centimeters",
+            "correct_direction": "MORE",
+            "explanation": "Cheetah tails run about 70 centimeters.",
+            "surprise_factor": 2,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 7,
+            "plausible_max": 560,
+            "difficulty": "hard"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Cheetahs",
+        "difficulty": "hard",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Sprint length",
+            "claim_statement": "A cheetah's sprint covers a fixed distance in meters.",
+            "presented_number": 100,
+            "true_number": 40,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "A cheetah's full sprint is about 40 meters before it overheats.",
+            "surprise_factor": 8,
+            "difficulty": "hard"
+          },
+          {
+            "round_number": 2,
+            "topic": "Tail length",
+            "claim_statement": "A cheetah's tail measures a fixed length in centimeters.",
+            "presented_number": 80,
+            "true_number": 70,
+            "unit": "centimeters",
+            "correct_direction": "LESS",
+            "explanation": "Cheetah tails run about 70 centimeters.",
+            "surprise_factor": 6,
+            "difficulty": "hard"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "all_less_pack_flips_first_rewritable_round",
+      "request": {
+        "topic": "Cheetahs",
+        "difficulty": "hard",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "16.8 rebalance: a numberless claim survives re-stamping at any presented value, so the all-LESS pack rebalances onto the MORE side through re-derivation rather than failing on an unrewritable statement.",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Heart size",
+            "claim_statement": "A blue whale's heart is enormous.",
+            "presented_number": 450,
+            "true_number": 180,
+            "unit": "kilograms",
+            "correct_direction": "LESS",
+            "explanation": "A blue whale's heart weighs about 180 kilograms.",
+            "surprise_factor": 3,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 18,
+            "plausible_max": 1800,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Call loudness",
+            "claim_statement": "Blue whale calls reach a measured loudness in decibels.",
+            "presented_number": 48,
+            "true_number": 150,
+            "unit": "decibels",
+            "correct_direction": "MORE",
+            "explanation": "Blue whale calls register around 150 decibels.",
+            "surprise_factor": 3,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 15,
+            "plausible_max": 1500,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Blue whales",
+        "difficulty": "casual",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Heart size",
+            "claim_statement": "A blue whale's heart is enormous.",
+            "presented_number": 400,
+            "true_number": 180,
+            "unit": "kilograms",
+            "correct_direction": "LESS",
+            "explanation": "A blue whale's heart weighs about 180 kilograms.",
+            "surprise_factor": 10,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Call loudness",
+            "claim_statement": "Blue whale calls reach a measured loudness in decibels.",
+            "presented_number": 188,
+            "true_number": 150,
+            "unit": "decibels",
+            "correct_direction": "LESS",
+            "explanation": "Blue whale calls register around 150 decibels.",
+            "surprise_factor": 8,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "rebalance_drops_round_without_number_in_statement_then_fails",
+      "request": {
+        "topic": "Blue whales",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Bolt temperature",
+            "claim_statement": "A lightning bolt heats the air to a fixed temperature in degrees Celsius.",
+            "presented_number": 88000,
+            "true_number": 30000,
+            "unit": "degrees Celsius",
+            "correct_direction": "LESS",
+            "explanation": "Lightning heats surrounding air to roughly 30,000 degrees Celsius.",
+            "surprise_factor": 3,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 3000,
+            "plausible_max": 240000,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Bolt length",
+            "claim_statement": "A typical lightning bolt spans a fixed length in meters.",
+            "presented_number": 140,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "MORE",
+            "explanation": "Typical in-cloud bolts span a few hundred meters.",
+            "surprise_factor": 2,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 30,
+            "plausible_max": 3000,
+            "difficulty": "medium"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Lightning",
+        "difficulty": "medium",
+        "total_rounds": 3,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Bolt temperature",
+            "claim_statement": "A lightning bolt heats the air to a fixed temperature in degrees Celsius.",
+            "presented_number": 10000,
+            "true_number": 30000,
+            "unit": "degrees Celsius",
+            "correct_direction": "LESS",
+            "explanation": "Lightning heats surrounding air to roughly 30,000 degrees Celsius.",
+            "surprise_factor": 9,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Bolt length",
+            "claim_statement": "A typical lightning bolt spans a fixed length in meters.",
+            "presented_number": 500,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "MORE",
+            "explanation": "Typical in-cloud bolts span a few hundred meters.",
+            "surprise_factor": 7,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 3,
+            "topic": "Strikes per second",
+            "claim_statement": "Lightning strikes Earth a fixed number of times per second.",
+            "presented_number": 4,
+            "true_number": 9,
+            "unit": "strikes per second",
+            "correct_direction": "MORE",
+            "explanation": "Earth is struck roughly 9 times per second on average.",
+            "surprise_factor": 8,
+            "difficulty": "medium"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "directions_recomputed_model_lies_corrected",
+      "request": {
+        "topic": "Lightning",
+        "difficulty": "medium",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Sleep hours",
+            "claim_statement": "A domestic cat sleeps a fixed number of hours each day.",
+            "presented_number": 1.3,
+            "true_number": 3,
+            "unit": "hours per day",
+            "correct_direction": "MORE",
+            "explanation": "Cats sleep 12 to 16 hours a day, never as little as 3.",
+            "surprise_factor": 2,
+            "quantity_kind": "duration",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 0.3,
+            "plausible_max": 30,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 1
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Domestic cats",
+        "difficulty": "casual",
+        "total_rounds": 1,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Sleep hours",
+            "claim_statement": "A domestic cat sleeps a fixed number of hours each day.",
+            "presented_number": 12,
+            "true_number": 3,
+            "unit": "hours per day",
+            "correct_direction": "LESS",
+            "explanation": "Cats sleep 12 to 16 hours a day, never as little as 3.",
+            "surprise_factor": 7,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "single_round_pack_never_rebalanced",
+      "request": {
+        "topic": "Domestic cats",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 1
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Neurons",
+            "claim_statement": "An octopus has a fixed neuron count.",
+            "presented_number": 1400,
+            "true_number": 500,
+            "unit": "million neurons",
+            "correct_direction": "LESS",
+            "explanation": "Octopuses carry about 500 million neurons.",
+            "surprise_factor": 3,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 50,
+            "plausible_max": 4000,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Lifespan",
+            "claim_statement": "An octopus lives a fixed number of years in the wild.",
+            "presented_number": 2.5,
+            "true_number": 3,
+            "unit": "years",
+            "correct_direction": "MORE",
+            "explanation": "Most wild octopuses live about 3 years.",
+            "surprise_factor": 0,
+            "quantity_kind": "duration",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 0.3,
+            "plausible_max": 30,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 3,
+            "topic": "Blood color",
+            "claim_statement": "Octopus blood is rated on a blueness scale.",
+            "presented_number": 0,
+            "true_number": 1,
+            "unit": "blueness scale",
+            "correct_direction": "MORE",
+            "explanation": "Copper-based hemocyanin makes octopus blood blue.",
+            "surprise_factor": 0,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 0,
+            "plausible_max": 8,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 3
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Octopuses",
+        "difficulty": "casual",
+        "total_rounds": 4,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Hearts",
+            "claim_statement": "An octopus has a fixed number of hearts.",
+            "presented_number": 8,
+            "true_number": 0,
+            "unit": "year",
+            "correct_direction": "LESS",
+            "explanation": "Octopuses have three hearts.",
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Neurons",
+            "claim_statement": "An octopus has a fixed neuron count.",
+            "presented_number": 400,
+            "true_number": 500,
+            "unit": "million neurons",
+            "correct_direction": "MORE",
+            "explanation": "Octopuses carry about 500 million neurons.",
+            "surprise_factor": 15,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 3,
+            "topic": "Lifespan",
+            "claim_statement": "An octopus lives a fixed number of years in the wild.",
+            "presented_number": 4,
+            "true_number": 3,
+            "unit": "years",
+            "correct_direction": "LESS",
+            "explanation": "Most wild octopuses live about 3 years.",
+            "surprise_factor": -2,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 4,
+            "topic": "Blood color",
+            "claim_statement": "Octopus blood is rated on a blueness scale.",
+            "presented_number": 2,
+            "true_number": 1,
+            "unit": "blueness scale",
+            "correct_direction": "LESS",
+            "explanation": "Copper-based hemocyanin makes octopus blood blue.",
+            "surprise_factor": 0,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "surprise_factor_normalized_missing_clamped_defaulted",
+      "request": {
+        "topic": "Octopuses",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Rings",
+            "claim_statement": "Saturn's rings are a fixed thickness in kilometers.",
+            "presented_number": 950000,
+            "true_number": 282000,
+            "unit": "kilometers wide",
+            "correct_direction": "LESS",
+            "explanation": "Saturn's ring system spans about 282,000 kilometers.",
+            "surprise_factor": 3,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 28200,
+            "plausible_max": 2256000,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Moons",
+            "claim_statement": "Saturn has a counted number of moons.",
+            "presented_number": 55,
+            "true_number": 146,
+            "unit": "moons",
+            "correct_direction": "MORE",
+            "explanation": "Saturn's confirmed moon count has passed 140.",
+            "surprise_factor": 3,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 14,
+            "plausible_max": 1168,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 3,
+            "topic": "Day length",
+            "claim_statement": "Saturn's day lasts a fixed number of hours.",
+            "presented_number": 2.7,
+            "true_number": 10.7,
+            "unit": "hours",
+            "correct_direction": "MORE",
+            "explanation": "Saturn rotates once every 10.7 hours.",
+            "surprise_factor": 3,
+            "quantity_kind": "duration",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 1.07,
+            "plausible_max": 107,
+            "difficulty": "medium"
+          }
+        ],
+        "total_rounds": 3
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Saturn",
+        "difficulty": "medium",
+        "total_rounds": 4,
+        "rounds": [
+          {
+            "round_number": 7,
+            "topic": "Rings",
+            "claim_statement": "Saturn's rings are a fixed thickness in kilometers.",
+            "presented_number": 4,
+            "true_number": 282000,
+            "unit": "kilometers wide",
+            "correct_direction": "MORE",
+            "explanation": "Saturn's ring system spans about 282,000 kilometers.",
+            "surprise_factor": 9,
+            "difficulty": ""
+          },
+          {
+            "round_number": 3,
+            "topic": "Moons",
+            "claim_statement": "Saturn has a counted number of moons.",
+            "presented_number": 82,
+            "true_number": 146,
+            "unit": "moons",
+            "correct_direction": "LESS",
+            "explanation": "Saturn's confirmed moon count has passed 140.",
+            "surprise_factor": 8,
+            "difficulty": "expert"
+          },
+          {
+            "round_number": 4,
+            "topic": "Moons",
+            "claim_statement": "Saturn has an updated count of moons.",
+            "presented_number": 83,
+            "true_number": 146,
+            "unit": "moons",
+            "correct_direction": "MORE",
+            "explanation": "Duplicate angle that must be dropped.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 5,
+            "topic": "Day length",
+            "claim_statement": "Saturn's day lasts a fixed number of hours.",
+            "presented_number": 11,
+            "true_number": 10.7,
+            "unit": "hours",
+            "correct_direction": "LESS",
+            "explanation": "Saturn rotates once every 10.7 hours.",
+            "surprise_factor": 8,
+            "difficulty": "medium"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "difficulty_fallback_and_renumbering_after_drop",
+      "request": {
+        "topic": "Saturn",
+        "difficulty": "medium",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Height",
+            "claim_statement": "The Eiffel Tower stands a fixed height in meters.",
+            "presented_number": 330,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "The tower is about 300 meters to the tip structure.",
+            "surprise_factor": 2,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Weight",
+            "claim_statement": "The Eiffel Tower weighs a fixed mass in tonnes.",
+            "presented_number": 3100,
+            "true_number": 7300,
+            "unit": "tonnes",
+            "correct_direction": "MORE",
+            "explanation": "The iron structure weighs about 7,300 tonnes.",
+            "surprise_factor": 2,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 730,
+            "plausible_max": 73000,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Eiffel Tower",
+        "difficulty": "casual",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Height",
+            "claim_statement": "The Eiffel Tower stands a fixed height in meters.",
+            "presented_number": 330,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "The tower is about 300 meters to the tip structure.",
+            "surprise_factor": 6,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Weight",
+            "claim_statement": "The Eiffel Tower weighs a fixed mass in tonnes.",
+            "presented_number": 10000,
+            "true_number": 7300,
+            "unit": "tonnes",
+            "correct_direction": "LESS",
+            "explanation": "The iron structure weighs about 7,300 tonnes.",
+            "surprise_factor": 7,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 1,
+      "name": "locked_rounds_never_flipped_during_rebalance",
+      "request": {
+        "topic": "Eiffel Tower",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Neck vertebrae",
+            "claim_statement": "A giraffe's neck contains a fixed number of vertebrae.",
+            "presented_number": 25,
+            "true_number": 7,
+            "unit": "vertebrae",
+            "correct_direction": "LESS",
+            "explanation": "Giraffes have the same 7 neck vertebrae as humans.",
+            "surprise_factor": 3,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 0,
+            "plausible_max": 56,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Sleep hours",
+            "claim_statement": "Giraffes sleep a fixed number of hours a day.",
+            "presented_number": 0.43,
+            "true_number": 2,
+            "unit": "hours per day",
+            "correct_direction": "MORE",
+            "explanation": "Giraffes sleep only around 2 hours a day.",
+            "surprise_factor": 3,
+            "quantity_kind": "duration",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 0.2,
+            "plausible_max": 20,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Giraffes",
+        "difficulty": "casual",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Neck vertebrae",
+            "claim_statement": "A giraffe's neck contains a fixed number of vertebrae.",
+            "presented_number": 18,
+            "true_number": 7,
+            "unit": "vertebrae",
+            "correct_direction": "LESS",
+            "explanation": "Giraffes have the same 7 neck vertebrae as humans.",
+            "surprise_factor": 9,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Sleep hours",
+            "claim_statement": "Giraffes sleep a fixed number of hours a day.",
+            "presented_number": 8,
+            "true_number": 2,
+            "unit": "hours per day",
+            "correct_direction": "LESS",
+            "explanation": "Giraffes sleep only around 2 hours a day.",
+            "surprise_factor": 8,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "integer_flip_avoids_fractional_distractor",
+      "request": {
+        "topic": "Giraffes",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Bones",
+            "claim_statement": "An adult human skeleton contains a fixed number of bones.",
+            "presented_number": 70,
+            "true_number": 206,
+            "unit": "bones",
+            "correct_direction": "MORE",
+            "explanation": "Adults have 206 bones after childhood fusion.",
+            "surprise_factor": 3,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 20,
+            "plausible_max": 1648,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 1
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Human body",
+        "difficulty": "casual",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Hearts",
+            "claim_statement": "A human has a fixed number of hearts.",
+            "presented_number": 5,
+            "true_number": 0,
+            "unit": "year",
+            "correct_direction": "LESS",
+            "explanation": "Humans have a single heart; there is no positive integer below 1 to flip to.",
+            "surprise_factor": 7,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Bones",
+            "claim_statement": "An adult human skeleton contains a fixed number of bones.",
+            "presented_number": 300,
+            "true_number": 206,
+            "unit": "bones",
+            "correct_direction": "LESS",
+            "explanation": "Adults have 206 bones after childhood fusion.",
+            "surprise_factor": 8,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "true_number_one_unflippable_kept_next_round_flipped",
+      "request": {
+        "topic": "Human body",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Heart rate",
+            "claim_statement": "A hummingbird's heart beats a fixed number of times per second.",
+            "presented_number": 63,
+            "true_number": 250,
+            "unit": "beats per second",
+            "correct_direction": "MORE",
+            "explanation": "Hummingbird hearts can exceed 1,200 beats per minute in flight.",
+            "surprise_factor": 3,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 25,
+            "plausible_max": 2500,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 1
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Hummingbirds",
+        "difficulty": "casual",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Heart rate",
+            "claim_statement": "A hummingbird's heart beats a fixed number of times per second.",
+            "presented_number": 250,
+            "true_number": 250,
+            "unit": "beats per second",
+            "correct_direction": "MORE",
+            "explanation": "Hummingbird hearts can exceed 1,200 beats per minute in flight.",
+            "surprise_factor": 9,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Heart rate",
+            "claim_statement": "A hummingbird's heart beats a steady rate per second.",
+            "presented_number": 240,
+            "true_number": 250,
+            "unit": "beats per second",
+            "correct_direction": "MORE",
+            "explanation": "Duplicate angle dropped after the nudged round wins dedupe.",
+            "surprise_factor": 8,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "nudge_runs_before_dedupe_nudged_round_survives",
+      "request": {
+        "topic": "Hummingbirds",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Publication",
+            "claim_statement": "Bram Stoker published Dracula in a recorded year.",
+            "presented_number": 1908,
+            "true_number": 1897,
+            "unit": "year",
+            "correct_direction": "LESS",
+            "explanation": "Dracula was published in 1897.",
+            "surprise_factor": 1,
+            "quantity_kind": "year",
+            "trap_direction": "OVERESTIMATE",
+            "plausible_min": 1747,
+            "plausible_max": 2026,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Chapters",
+            "claim_statement": "Dracula has a fixed number of chapters.",
+            "presented_number": 19,
+            "true_number": 27,
+            "unit": "chapters",
+            "correct_direction": "MORE",
+            "explanation": "Dracula is told across 27 chapters.",
+            "surprise_factor": 1,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 2,
+            "plausible_max": 216,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Dracula",
+        "difficulty": "casual",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Publication",
+            "claim_statement": "Bram Stoker published Dracula in a recorded year.",
+            "presented_number": 2767,
+            "true_number": 1897,
+            "unit": "year",
+            "correct_direction": "LESS",
+            "explanation": "Dracula was published in 1897.",
+            "surprise_factor": 1,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Chapters",
+            "claim_statement": "Dracula has a fixed number of chapters.",
+            "presented_number": 15,
+            "true_number": 27,
+            "unit": "chapters",
+            "correct_direction": "MORE",
+            "explanation": "Dracula is told across 27 chapters.",
+            "surprise_factor": 1,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "year_distractor_blowup_rederived_additively",
+      "request": {
+        "topic": "Dracula",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Arms",
+            "claim_statement": "An octopus has a fixed number of arms.",
+            "presented_number": 5,
+            "true_number": 8,
+            "unit": "arms",
+            "correct_direction": "MORE",
+            "explanation": "An octopus has eight arms.",
+            "surprise_factor": 1,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 0,
+            "plausible_max": 64,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 1
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Octopus",
+        "difficulty": "casual",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Hearts",
+            "claim_statement": "An octopus has a fixed number of hearts.",
+            "presented_number": 1,
+            "true_number": 0,
+            "unit": "year",
+            "correct_direction": "MORE",
+            "explanation": "An octopus has three hearts.",
+            "surprise_factor": 3,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Arms",
+            "claim_statement": "An octopus has a fixed number of arms.",
+            "presented_number": 5,
+            "true_number": 8,
+            "unit": "arms",
+            "correct_direction": "MORE",
+            "explanation": "An octopus has eight arms.",
+            "surprise_factor": 1,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "small_count_giveaway_one_rederived_to_less",
+      "request": {
+        "topic": "Octopus",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Publication",
+            "claim_statement": "Bram Stoker published Dracula in a recorded year.",
+            "presented_number": 1908,
+            "true_number": 1897,
+            "unit": "year",
+            "correct_direction": "LESS",
+            "explanation": "Dracula was published in 1897.",
+            "surprise_factor": 1,
+            "quantity_kind": "year",
+            "trap_direction": "OVERESTIMATE",
+            "plausible_min": 1747,
+            "plausible_max": 2026,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Chapters",
+            "claim_statement": "Dracula has a fixed number of chapters.",
+            "presented_number": 19,
+            "true_number": 27,
+            "unit": "chapters",
+            "correct_direction": "MORE",
+            "explanation": "Dracula is told across 27 chapters.",
+            "surprise_factor": 1,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 2,
+            "plausible_max": 216,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Dracula",
+        "difficulty": "casual",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Publication",
+            "claim_statement": "Bram Stoker published Dracula in a recorded year.",
+            "presented_number": 1897,
+            "true_number": 1897,
+            "unit": "year",
+            "correct_direction": "MORE",
+            "explanation": "Dracula was published in 1897.",
+            "surprise_factor": 1,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Chapters",
+            "claim_statement": "Dracula has a fixed number of chapters.",
+            "presented_number": 15,
+            "true_number": 27,
+            "unit": "chapters",
+            "correct_direction": "MORE",
+            "explanation": "Dracula is told across 27 chapters.",
+            "surprise_factor": 1,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "equal_year_numbers_rederived_additively",
+      "request": {
+        "topic": "Dracula",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Arms",
+            "claim_statement": "An octopus has a fixed number of arms.",
+            "presented_number": 5,
+            "true_number": 8,
+            "unit": "arms",
+            "correct_direction": "MORE",
+            "explanation": "An octopus has eight arms.",
+            "surprise_factor": 1,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 0,
+            "plausible_max": 64,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 1
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Octopus",
+        "difficulty": "casual",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Hearts",
+            "claim_statement": "An octopus has a fixed number of hearts.",
+            "presented_number": 0,
+            "true_number": 0,
+            "unit": "year",
+            "correct_direction": "MORE",
+            "explanation": "An octopus has three hearts.",
+            "surprise_factor": 3,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Arms",
+            "claim_statement": "An octopus has a fixed number of arms.",
+            "presented_number": 5,
+            "true_number": 8,
+            "unit": "arms",
+            "correct_direction": "MORE",
+            "explanation": "An octopus has eight arms.",
+            "surprise_factor": 1,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "small_count_zero_presented_rederived_to_less",
+      "request": {
+        "topic": "Octopus",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "16.8 locked-round immutability: the first round is locked (already served) and must pass through byte-for-byte, while the unlocked round 2 is re-derived by the DDM.",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Tower height",
+            "claim_statement": "The tower stands a fixed height in meters.",
+            "presented_number": 330,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "About 300 meters tall.",
+            "surprise_factor": 2,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Bridge span",
+            "claim_statement": "The bridge spans a fixed length in meters.",
+            "presented_number": 56,
+            "true_number": 100,
+            "unit": "meters",
+            "correct_direction": "MORE",
+            "explanation": "About 100 meters.",
+            "surprise_factor": 2,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 10,
+            "plausible_max": 1000,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Landmarks",
+        "difficulty": "casual",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Tower height",
+            "claim_statement": "The tower stands a fixed height in meters.",
+            "presented_number": 330,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "About 300 meters tall.",
+            "surprise_factor": 2,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Bridge span",
+            "claim_statement": "The bridge spans a fixed length in meters.",
+            "presented_number": 100,
+            "true_number": 100,
+            "unit": "meters",
+            "correct_direction": "MORE",
+            "explanation": "About 100 meters.",
+            "surprise_factor": 2,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 1,
+      "name": "locked_round_immutable_unlocked_rederived",
+      "request": {
+        "topic": "Landmarks",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "16.8 forced-side re-derivation: an all-MORE pack (both facts re-derive presented below true) forces R5 to re-derive one round onto the LESS side through the DDM (reDeriveForcedSide), never a legacy multiplicative flip.",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Sprint length",
+            "claim_statement": "A cheetah's sprint covers a fixed distance.",
+            "presented_number": 89,
+            "true_number": 40,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "About 40 meters.",
+            "surprise_factor": 2,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 4,
+            "plausible_max": 400,
+            "difficulty": "hard"
+          },
+          {
+            "round_number": 2,
+            "topic": "Tail length",
+            "claim_statement": "A cheetah's tail measures a fixed length.",
+            "presented_number": 38,
+            "true_number": 70,
+            "unit": "centimeters",
+            "correct_direction": "MORE",
+            "explanation": "About 70 centimeters.",
+            "surprise_factor": 2,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 7,
+            "plausible_max": 560,
+            "difficulty": "hard"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Measures",
+        "difficulty": "hard",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Sprint length",
+            "claim_statement": "A cheetah's sprint covers a fixed distance.",
+            "presented_number": 40,
+            "true_number": 40,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "About 40 meters.",
+            "surprise_factor": 2,
+            "difficulty": "hard"
+          },
+          {
+            "round_number": 2,
+            "topic": "Tail length",
+            "claim_statement": "A cheetah's tail measures a fixed length.",
+            "presented_number": 70,
+            "true_number": 70,
+            "unit": "centimeters",
+            "correct_direction": "LESS",
+            "explanation": "About 70 centimeters.",
+            "surprise_factor": 2,
+            "difficulty": "hard"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "forced_side_rederivation_rebalances_all_more_pack",
+      "request": {
+        "topic": "Measures",
+        "difficulty": "hard",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "16.8 metadata-only non-interference (Property 7): pack/round difficulty metadata is casual here. Paired with metadata_only_difficulty_hard, which carries identical rounds but a hard difficulty; both MUST yield byte-identical expected DDM fields because difficulty cannot reach the DDM.",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Speed",
+            "claim_statement": "A cheetah reaches a fixed speed in meters per second.",
+            "presented_number": 47,
+            "true_number": 100,
+            "unit": "meters per second",
+            "correct_direction": "MORE",
+            "explanation": "About 100 m/s.",
+            "surprise_factor": 2,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 10,
+            "plausible_max": 800,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 1
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Physics",
+        "difficulty": "casual",
+        "total_rounds": 1,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Speed",
+            "claim_statement": "A cheetah reaches a fixed speed in meters per second.",
+            "presented_number": 100,
+            "true_number": 100,
+            "unit": "meters per second",
+            "correct_direction": "MORE",
+            "explanation": "About 100 m/s.",
+            "surprise_factor": 2,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "metadata_only_difficulty_casual",
+      "request": {
+        "topic": "Physics",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "16.8 metadata-only non-interference (Property 7): identical rounds to metadata_only_difficulty_casual but the round difficulty is hard and the request is hard. The DDM cannot observe difficulty, so the derived presented_number/direction/resolved fields are identical; only the pass-through difficulty label differs (normalized to the request difficulty).",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Speed",
+            "claim_statement": "A cheetah reaches a fixed speed in meters per second.",
+            "presented_number": 47,
+            "true_number": 100,
+            "unit": "meters per second",
+            "correct_direction": "MORE",
+            "explanation": "About 100 m/s.",
+            "surprise_factor": 2,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 10,
+            "plausible_max": 800,
+            "difficulty": "hard"
+          }
+        ],
+        "total_rounds": 1
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Physics",
+        "difficulty": "hard",
+        "total_rounds": 1,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Speed",
+            "claim_statement": "A cheetah reaches a fixed speed in meters per second.",
+            "presented_number": 100,
+            "true_number": 100,
+            "unit": "meters per second",
+            "correct_direction": "MORE",
+            "explanation": "About 100 m/s.",
+            "surprise_factor": 2,
+            "difficulty": "hard"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "metadata_only_difficulty_hard",
+      "request": {
+        "topic": "Physics",
+        "difficulty": "hard",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "16.8 zero-strategy: a true value of 0 percent routes through the Zero Value Strategy (source zero_value), which enumerates nonzero additive offsets rather than a multiplicative distractor.",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Failure rate",
+            "claim_statement": "The failure rate is a fixed percentage.",
+            "presented_number": 8,
+            "true_number": 0,
+            "unit": "percent",
+            "correct_direction": "LESS",
+            "explanation": "A perfect zero-percent failure rate.",
+            "surprise_factor": 2,
+            "quantity_kind": "percentage",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 0,
+            "plausible_max": 100,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 1
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Statistics",
+        "difficulty": "casual",
+        "total_rounds": 1,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Failure rate",
+            "claim_statement": "The failure rate is a fixed percentage.",
+            "presented_number": 0,
+            "true_number": 0,
+            "unit": "percent",
+            "correct_direction": "MORE",
+            "explanation": "A perfect zero-percent failure rate.",
+            "surprise_factor": 2,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "zero_strategy_percent_uses_additive_offset",
+      "request": {
+        "topic": "Statistics",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "16.8 full failure cascade with later success: round 1 is a tiny count the DDM abstains on (dropped), but round 2 derives cleanly, so the pack recovers with a later valid round rather than failing.",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Wingspan",
+            "claim_statement": "A condor's wingspan is a fixed length in centimeters.",
+            "presented_number": 110,
+            "true_number": 300,
+            "unit": "centimeters",
+            "correct_direction": "MORE",
+            "explanation": "About 300 centimeters.",
+            "surprise_factor": 2,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 30,
+            "plausible_max": 2400,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 1
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Anatomy",
+        "difficulty": "casual",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Hearts",
+            "claim_statement": "An octopus has 3 hearts.",
+            "presented_number": 1,
+            "true_number": 0,
+            "unit": "year",
+            "correct_direction": "MORE",
+            "explanation": "An octopus has three hearts.",
+            "surprise_factor": 3,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Wingspan",
+            "claim_statement": "A condor's wingspan is a fixed length in centimeters.",
+            "presented_number": 300,
+            "true_number": 300,
+            "unit": "centimeters",
+            "correct_direction": "MORE",
+            "explanation": "About 300 centimeters.",
+            "surprise_factor": 2,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "failure_cascade_drops_abstaining_round_keeps_later_success",
+      "request": {
+        "topic": "Anatomy",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "16.8 full exhausted fallback: every round is a tiny count the DDM abstains on, so no playable round survives. Go signals via error (go_expects_error set by the regenerator); TS yields an is_valid=false empty pack.",
+      "expected": {
+        "is_valid": false,
+        "rounds": [],
+        "total_rounds": 0
+      },
+      "go_expects_error": true,
+      "input": {
+        "is_valid": true,
+        "category": "Anatomy",
+        "difficulty": "casual",
+        "total_rounds": 2,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Hearts",
+            "claim_statement": "An octopus has 3 hearts.",
+            "presented_number": 1,
+            "true_number": 0,
+            "unit": "year",
+            "correct_direction": "MORE",
+            "explanation": "An octopus has three hearts.",
+            "surprise_factor": 3,
+            "difficulty": "casual"
+          },
+          {
+            "round_number": 2,
+            "topic": "Stomachs",
+            "claim_statement": "A cow has 3 stomachs.",
+            "presented_number": 1,
+            "true_number": 0,
+            "unit": "year",
+            "correct_direction": "MORE",
+            "explanation": "A cow's stomach has multiple compartments.",
+            "surprise_factor": 3,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "exhausted_fallback_all_rounds_abstain",
+      "request": {
+        "topic": "Anatomy",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "comments": "Round arrives with no presented_number (the model output shape). The claim carries incidental numerals 0 and 60 (0 to 60 mph) that equal neither the true value (3.4) nor the derived presented value, so both stay put and the round survives. Absent presented must not be treated as 0.",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Acceleration",
+            "claim_statement": "The coupe accelerates from 0 to 60 mph in a few seconds.",
+            "presented_number": 2.5,
+            "true_number": 3.4,
+            "unit": "seconds",
+            "correct_direction": "MORE",
+            "explanation": "The coupe takes 3.4 seconds to reach 60 mph.",
+            "surprise_factor": 1,
+            "quantity_kind": "duration",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 0.34,
+            "plausible_max": 34,
+            "difficulty": "casual"
+          }
+        ],
+        "total_rounds": 1
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Supercars",
+        "difficulty": "casual",
+        "total_rounds": 1,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Acceleration",
+            "claim_statement": "The coupe accelerates from 0 to 60 mph in a few seconds.",
+            "true_number": 3.4,
+            "unit": "seconds",
+            "correct_direction": "LESS",
+            "explanation": "The coupe takes 3.4 seconds to reach 60 mph.",
+            "surprise_factor": 1,
+            "difficulty": "casual"
+          }
+        ],
+        "status_message": "ok"
+      },
+      "locked_rounds": 0,
+      "name": "absent_presented_preserves_incidental_zero",
+      "request": {
+        "topic": "Supercars",
+        "difficulty": "casual",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "Boundary: word spellings cover 0..999,999,999. Probe embeds the cardinal word form of its presented_number (999,999,999); the control carries the same presented with a numberless claim, so the drop is attributable to the word-form match alone.",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "River width",
+            "claim_statement": "A wide river spans a fixed width in meters.",
+            "presented_number": 630,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "Wide rivers can span hundreds of meters.",
+            "surprise_factor": 2,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 30,
+            "plausible_max": 3000,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Ledger pages",
+            "claim_statement": "The ledger holds a remarkably large entry count.",
+            "presented_number": 190,
+            "true_number": 400,
+            "unit": "entries",
+            "correct_direction": "MORE",
+            "explanation": "Same presented, clean claim.",
+            "surprise_factor": 2,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 40,
+            "plausible_max": 3200,
+            "difficulty": "medium"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Boundary",
+        "difficulty": "medium",
+        "total_rounds": 3,
+        "status_message": "ok",
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "River width",
+            "claim_statement": "A wide river spans a fixed width in meters.",
+            "presented_number": 140,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "MORE",
+            "explanation": "Wide rivers can span hundreds of meters.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Ledger entries",
+            "claim_statement": "The ledger holds nine hundred ninety-nine million nine hundred ninety-nine thousand nine hundred ninety-nine entries.",
+            "presented_number": 999999999,
+            "true_number": 300,
+            "unit": "entries",
+            "correct_direction": "MORE",
+            "explanation": "A bookkeeping edge case.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 3,
+            "topic": "Ledger pages",
+            "claim_statement": "The ledger holds a remarkably large entry count.",
+            "presented_number": 999999999,
+            "true_number": 400,
+            "unit": "entries",
+            "correct_direction": "MORE",
+            "explanation": "Same presented, clean claim.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          }
+        ]
+      },
+      "locked_rounds": 0,
+      "name": "word_cardinal_below_ceiling_drops",
+      "request": {
+        "topic": "Boundary",
+        "difficulty": "medium",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "Boundary: numberWordSpellings returns no forms for |v| \u003e= 1e9, so a word-form occurrence of the presented_number (one billion) is not detected and the round survives. This locks the documented ceiling behavior; the digit literal scan still catches digit forms at any magnitude.",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "River width",
+            "claim_statement": "A wide river spans a fixed width in meters.",
+            "presented_number": 630,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "Wide rivers can span hundreds of meters.",
+            "surprise_factor": 2,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 30,
+            "plausible_max": 3000,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Archive records",
+            "claim_statement": "The archive holds about one billion records.",
+            "presented_number": 220,
+            "true_number": 500,
+            "unit": "records",
+            "correct_direction": "MORE",
+            "explanation": "An archival edge case.",
+            "surprise_factor": 2,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 50,
+            "plausible_max": 4000,
+            "difficulty": "medium"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Boundary",
+        "difficulty": "medium",
+        "total_rounds": 2,
+        "status_message": "ok",
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "River width",
+            "claim_statement": "A wide river spans a fixed width in meters.",
+            "presented_number": 140,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "MORE",
+            "explanation": "Wide rivers can span hundreds of meters.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Archive records",
+            "claim_statement": "The archive holds about one billion records.",
+            "presented_number": 1000000000,
+            "true_number": 500,
+            "unit": "records",
+            "correct_direction": "LESS",
+            "explanation": "An archival edge case.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          }
+        ]
+      },
+      "locked_rounds": 0,
+      "name": "word_cardinal_at_ceiling_survives",
+      "request": {
+        "topic": "Boundary",
+        "difficulty": "medium",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "Boundary: decimal word forms (X point d d d) are generated for |v| \u003e= 0.001. Probe embeds the word form of presented_number 0.001; the control carries the same presented with a numberless claim, so the drop is attributable to the word-form match alone.",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "River width",
+            "claim_statement": "A wide river spans a fixed width in meters.",
+            "presented_number": 630,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "Wide rivers can span hundreds of meters.",
+            "surprise_factor": 2,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 30,
+            "plausible_max": 3000,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Gauge precision",
+            "claim_statement": "The gauge reads an unremarkable value in millimeters.",
+            "presented_number": 2800,
+            "true_number": 6000,
+            "unit": "millimeters",
+            "correct_direction": "MORE",
+            "explanation": "Same presented, clean claim.",
+            "surprise_factor": 2,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 600,
+            "plausible_max": 48000,
+            "difficulty": "medium"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Boundary",
+        "difficulty": "medium",
+        "total_rounds": 3,
+        "status_message": "ok",
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "River width",
+            "claim_statement": "A wide river spans a fixed width in meters.",
+            "presented_number": 140,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "MORE",
+            "explanation": "Wide rivers can span hundreds of meters.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Gauge reading",
+            "claim_statement": "The gauge reads zero point zero zero one millimeters.",
+            "presented_number": 0.001,
+            "true_number": 5000,
+            "unit": "millimeters",
+            "correct_direction": "LESS",
+            "explanation": "A metrology edge case.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 3,
+            "topic": "Gauge precision",
+            "claim_statement": "The gauge reads an unremarkable value in millimeters.",
+            "presented_number": 0.001,
+            "true_number": 6000,
+            "unit": "millimeters",
+            "correct_direction": "LESS",
+            "explanation": "Same presented, clean claim.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          }
+        ]
+      },
+      "locked_rounds": 0,
+      "name": "word_decimal_at_floor_drops",
+      "request": {
+        "topic": "Boundary",
+        "difficulty": "medium",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "Boundary: decimal word forms are suppressed below |v| \u003c 0.001 to keep Go FormatFloat and JS String output aligned. A word-form occurrence of presented_number 0.0009 is not detected and the round survives; the digit literal scan still catches the digit form at any scale.",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "River width",
+            "claim_statement": "A wide river spans a fixed width in meters.",
+            "presented_number": 630,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "LESS",
+            "explanation": "Wide rivers can span hundreds of meters.",
+            "surprise_factor": 2,
+            "quantity_kind": "physical_measure",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 30,
+            "plausible_max": 3000,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Gauge reading",
+            "claim_statement": "The gauge reads zero point zero zero zero nine millimeters.",
+            "presented_number": 2600,
+            "true_number": 5000,
+            "unit": "millimeters",
+            "correct_direction": "MORE",
+            "explanation": "A metrology edge case.",
+            "surprise_factor": 2,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 500,
+            "plausible_max": 40000,
+            "difficulty": "medium"
+          }
+        ],
+        "total_rounds": 2
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Boundary",
+        "difficulty": "medium",
+        "total_rounds": 2,
+        "status_message": "ok",
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "River width",
+            "claim_statement": "A wide river spans a fixed width in meters.",
+            "presented_number": 140,
+            "true_number": 300,
+            "unit": "meters",
+            "correct_direction": "MORE",
+            "explanation": "Wide rivers can span hundreds of meters.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Gauge reading",
+            "claim_statement": "The gauge reads zero point zero zero zero nine millimeters.",
+            "presented_number": 0.0009,
+            "true_number": 5000,
+            "unit": "millimeters",
+            "correct_direction": "LESS",
+            "explanation": "A metrology edge case.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          }
+        ]
+      },
+      "locked_rounds": 0,
+      "name": "word_decimal_below_floor_survives",
+      "request": {
+        "topic": "Boundary",
+        "difficulty": "medium",
+        "content_rating": "standard",
+        "num_rounds": 5
+      }
+    },
+    {
+      "$comment": "R3 dedupe exempts locked rounds: the first two rounds share an angle and are both locked (already streamed), so neither is dropped; an UNLOCKED third round repeating that angle still drops. Locks the stream/terminal count agreement contract.",
+      "expected": {
+        "is_valid": true,
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Moon distance",
+            "claim_statement": "The Moon sits a fixed distance from Earth in kilometers.",
+            "presented_number": 300000,
+            "true_number": 384400,
+            "unit": "kilometers",
+            "correct_direction": "MORE",
+            "explanation": "Already served to players.",
+            "surprise_factor": 2,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Moon distance",
+            "claim_statement": "The Moon sits a fixed distance from Earth in kilometers.",
+            "presented_number": 300000,
+            "true_number": 384400,
+            "unit": "kilometers",
+            "correct_direction": "MORE",
+            "explanation": "Duplicate angle, but locked and already served.",
+            "surprise_factor": 2,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 3,
+            "topic": "Mars moons",
+            "claim_statement": "The planet Mars has a fixed number of moons.",
+            "presented_number": 4,
+            "true_number": 2,
+            "unit": "moons",
+            "correct_direction": "LESS",
+            "explanation": "Mars has two moons.",
+            "surprise_factor": 2,
+            "quantity_kind": "count",
+            "trap_direction": "UNDERESTIMATE",
+            "plausible_min": 0,
+            "plausible_max": 16,
+            "difficulty": "medium"
+          }
+        ],
+        "total_rounds": 3
+      },
+      "input": {
+        "is_valid": true,
+        "category": "Space",
+        "difficulty": "medium",
+        "total_rounds": 4,
+        "status_message": "ok",
+        "rounds": [
+          {
+            "round_number": 1,
+            "topic": "Moon distance",
+            "claim_statement": "The Moon sits a fixed distance from Earth in kilometers.",
+            "presented_number": 300000,
+            "true_number": 384400,
+            "unit": "kilometers",
+            "correct_direction": "MORE",
+            "explanation": "Already served to players.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 2,
+            "topic": "Moon distance",
+            "claim_statement": "The Moon sits a fixed distance from Earth in kilometers.",
+            "presented_number": 300000,
+            "true_number": 384400,
+            "unit": "kilometers",
+            "correct_direction": "MORE",
+            "explanation": "Duplicate angle, but locked and already served.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 3,
+            "topic": "Moon distance",
+            "claim_statement": "A lunar orbital radius measured in kilometers.",
+            "presented_number": 1,
+            "true_number": 2,
+            "unit": "kilometers",
+            "correct_direction": "MORE",
+            "explanation": "Unlocked duplicate of the locked angle.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          },
+          {
+            "round_number": 4,
+            "topic": "Mars moons",
+            "claim_statement": "The planet Mars has a fixed number of moons.",
+            "presented_number": 1,
+            "true_number": 2,
+            "unit": "moons",
+            "correct_direction": "MORE",
+            "explanation": "Mars has two moons.",
+            "surprise_factor": 6,
+            "difficulty": "medium"
+          }
+        ]
+      },
+      "locked_rounds": 2,
+      "name": "locked_duplicate_angles_survive_unlocked_dup_drops",
+      "request": {
+        "topic": "Space",
+        "difficulty": "medium",
+        "content_rating": "standard",
+        "num_rounds": 4
+      }
+    }
+  ]
+}

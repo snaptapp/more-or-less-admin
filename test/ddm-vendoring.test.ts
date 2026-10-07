@@ -62,6 +62,10 @@ const localManifest = JSON.parse(
 ) as ArtifactManifest;
 
 const REQUIRED_DDM_VENDORING = [
+  {
+    source: "src/ddm_implementation_gen.ts",
+    destination: "shared/ddm/ddm_implementation_gen.ts",
+  },
   { source: "src/derivation.ts", destination: "shared/ddm/derivation.ts" },
   { source: "src/derivation_adapter.ts", destination: "shared/ddm/derivation_adapter.ts" },
   { source: "src/factbank_precompute.ts", destination: "shared/ddm/factbank_precompute.ts" },

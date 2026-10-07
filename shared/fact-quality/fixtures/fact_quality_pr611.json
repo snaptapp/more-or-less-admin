@@ -1,0 +1,6962 @@
+{
+ "schema_version": 1,
+ "generated_by": "scripts/extract_pr611_fixture.mjs",
+ "purpose": "Frozen reproduction inputs for the fact-quality gates. Rows copied verbatim from pinned commits are bank rows, not Firestore source documents. Expected values in frozen_cases are fixed by the plan; do not regenerate them from live sources.",
+ "provenance": {
+  "pull_request": 611,
+  "head_commit": "78133f58e55f5f0facb276a431db68e047143da0",
+  "base_commit": "c575704d54441588c1642731b6fdc6a85f8431c8",
+  "producing_workflow_run": "37589500321",
+  "head_bank_version": "b9c6df80",
+  "base_bank_version": "b402d022",
+  "head_fact_count": 702,
+  "base_fact_count": 650
+ },
+ "role_legend": {
+  "confirmed_wrong_value": "stored claim contradicted by cited evidence (debut vs return)",
+  "impossible_candidate_range": "answer supported; independent context bounds reject stored/routable candidates",
+  "entity_numeral_collision": "candidate equals a numeral inside the entity name; statement gate must filter",
+  "consequential_source_conflict": "same-publisher numerical disagreement on the same metric; hold for review",
+  "supported_rounded_value": "valid control: explicitly rounded source-supported value must qualify",
+  "display_precision_loss": "supported value misrendered by kind-level display policy",
+  "valid_control": "supported value that must continue to qualify",
+  "removed_conflicting_answer": "removed by producing run; retained for review regression, not evidence removal was wrong",
+  "synthetic_same_identity_correction": "synthetic: same subject/angle/fact_id with corrected value",
+  "synthetic_distinct_return_identity": "synthetic: different angle; must never reuse the debut identity"
+ },
+ "facts": [
+  {
+   "role": "confirmed_wrong_value",
+   "commit": "head",
+   "fact_id": "a8dfda4553a3d1ae",
+   "row": {
+    "category": "Money & Business",
+    "sub_category": "",
+    "specialty": "Fortune 500 Milestones",
+    "fact": "Berkshire Hathaway made its debut on the Fortune 500 list in 1989.",
+    "number_token": "1989",
+    "number_indexes": [
+     61
+    ],
+    "true_number": 1989,
+    "unit": "year",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-07T07:55:10.475Z",
+    "source_urls": [
+     "https://en.wikipedia.org/wiki/Berkshire_Hathaway",
+     "https://www.latimes.com/archives/la-xpm-1989-04-05-fi-1237-story.html"
+    ],
+    "content_rating": "standard",
+    "fact_id": "a8dfda4553a3d1ae",
+    "angle": "Berkshire Hathaway Debut Fortune 500 Year",
+    "question": "Berkshire Hathaway debut year on the Fortune 500 list",
+    "surprise_factor": 1,
+    "quantity_kind": "year",
+    "plausible_min": "1955",
+    "plausible_max": "2026",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "year",
+     "trap_direction": "OVERESTIMATE",
+     "plausible_min": "1955",
+     "plausible_max": "2026",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1985"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1986"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1984"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1970"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1979"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1960"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1965"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1974"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1955"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1988"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1993"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1992"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1994"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2020"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1995"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2005"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1990"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1979"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1980"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1977"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1981"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1978"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1965"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1974"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1955"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1988"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1970"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1960"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1984"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1999"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1998"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2001"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1997"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2005"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1990"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2020"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1995"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1962"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1958"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1964"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1956"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1960"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1984"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1965"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1974"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1955"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1988"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1970"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1979"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2024"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2020"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2014"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2022"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2018"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1995"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2005"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1990"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1955"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1988"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1970"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1979"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1960"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1984"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1965"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1974"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "1990"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2020"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "1995"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2005"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  },
+  {
+   "role": "impossible_candidate_range",
+   "commit": "head",
+   "fact_id": "b6f4d17b703eb606",
+   "row": {
+    "category": "Money & Business",
+    "sub_category": "",
+    "specialty": "Fortune 500 Milestones",
+    "fact": "Michael Dell became the youngest chief executive in Fortune 500 history in 1992.",
+    "number_token": "1992",
+    "number_indexes": [
+     75
+    ],
+    "true_number": 1992,
+    "unit": "year",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-07T07:55:11.367Z",
+    "source_urls": [
+     "https://en.wikipedia.org/wiki/Michael_Dell",
+     "https://www.achievement.org/achiever/michael-dell/"
+    ],
+    "content_rating": "standard",
+    "fact_id": "b6f4d17b703eb606",
+    "angle": "Youngest Fortune 500 CEO Milestone Year",
+    "question": "year Michael Dell became the youngest chief executive in Fortune 500 history",
+    "surprise_factor": 1,
+    "quantity_kind": "year",
+    "plausible_min": "1955",
+    "plausible_max": "2026",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "year",
+     "trap_direction": "OVERESTIMATE",
+     "plausible_min": "1955",
+     "plausible_max": "2026",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1989"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1988"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1987"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1991"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1971"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1981"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1961"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1986"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1966"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1976"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1955"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1995"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1996"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1997"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1993"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2011"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2002"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2021"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2007"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1984"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1982"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1983"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1980"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1981"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1986"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1966"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1976"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1955"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1991"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1971"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1961"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2002"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2001"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2004"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2003"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1997"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2007"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1993"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2011"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2021"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1963"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1955"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1965"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1957"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1961"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1967"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1959"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1981"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1986"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1966"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1976"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1991"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1971"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2021"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2019"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2023"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2017"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2025"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2002"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1997"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2007"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1993"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2011"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1976"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1955"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1991"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1971"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1981"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1961"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1986"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1966"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2007"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "1993"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2011"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2002"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2021"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "1997"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2016"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  },
+  {
+   "role": "entity_numeral_collision",
+   "commit": "head",
+   "fact_id": "034735f16ee2d7c9",
+   "row": {
+    "category": "Science & Space",
+    "sub_category": "",
+    "specialty": "Apollo Moon Missions",
+    "fact": "Apollo 8 completed 10 lunar orbits in December 1968 before heading back to Earth.",
+    "number_token": "10",
+    "number_indexes": [
+     19
+    ],
+    "true_number": 10,
+    "unit": "orbits",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-07T07:58:52.316Z",
+    "source_urls": [
+     "https://en.wikipedia.org/wiki/Apollo_8",
+     "https://www.lpi.usra.edu/lunar/missions/apollo/apollo_8/"
+    ],
+    "content_rating": "standard",
+    "fact_id": "034735f16ee2d7c9",
+    "angle": "Apollo 8 lunar orbits completed",
+    "question": "Apollo 8 lunar orbits completed before returning to Earth",
+    "surprise_factor": 1,
+    "quantity_kind": "count",
+    "plausible_min": "1",
+    "plausible_max": "50",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "count",
+     "trap_direction": "UNDERESTIMATE",
+     "plausible_min": "1",
+     "plausible_max": "50",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "8"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "7"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "22"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "44"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "16"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "38"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "27"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "50"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "33"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "7"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "8"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "17"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "16"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "27"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "50"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "33"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "22"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "44"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "38"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "7"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "8"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "23"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "26"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "19"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "25"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "22"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "28"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "18"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "33"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "44"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "16"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "38"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "27"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "50"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "7"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "8"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "35"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "31"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "40"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "25"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "33"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "29"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "37"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "27"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "42"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "50"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "39"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "32"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "46"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "28"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "38"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "11"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  },
+  {
+   "role": "consequential_source_conflict",
+   "commit": "head",
+   "fact_id": "f0cd739592cbeef3",
+   "row": {
+    "category": "Science & Space",
+    "sub_category": "",
+    "specialty": "Apollo Moon Missions",
+    "fact": "Eugene Cernan and Harrison Schmitt drove the Apollo 17 Lunar Roving Vehicle for a total distance of 35.9 km across three excursions.",
+    "number_token": "35.9",
+    "number_indexes": [
+     100
+    ],
+    "true_number": 35.9,
+    "unit": "km",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-07T07:58:52.173Z",
+    "source_urls": [
+     "https://nssdc.gsfc.nasa.gov/planetary/lunar/apollo_lrv.html"
+    ],
+    "content_rating": "standard",
+    "fact_id": "f0cd739592cbeef3",
+    "angle": "Apollo 17 Lunar Roving Vehicle distance driven",
+    "question": "Apollo 17 Lunar Roving Vehicle total distance driven in kilometers",
+    "surprise_factor": 1,
+    "quantity_kind": "physical_measure",
+    "plausible_min": "5.0",
+    "plausible_max": "100.0",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "physical_measure",
+     "trap_direction": "UNDERESTIMATE",
+     "plausible_min": "5",
+     "plausible_max": "100",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "27"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "30"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "28"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "29"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "31"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "9.5"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "32"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "23"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "18"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "47"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "42"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "46"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "44"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "48"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "41"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "45"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "43"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "91"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "82"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "63"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "100"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "73"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "54"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "26"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "22"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "24"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "21"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "27"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "23"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "25"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "32"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "18"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "9.5"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "50"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "57"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "54"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "61"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "48"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "56"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "52"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "59"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "45"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "82"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "63"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "100"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "73"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "91"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "17"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "18"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "16"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "27"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "9.5"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "32"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "23"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "85"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "75"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "95"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "70"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "90"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "80"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "65"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "73"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "54"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "91"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "45"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "82"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "63"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "100"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "9.5"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "7.2"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "9.1"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "7.7"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "8.4"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "18"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "27"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "32"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "23"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "90"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "97"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "100"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "73"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "54"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "91"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "45"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "82"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "63"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  },
+  {
+   "role": "supported_rounded_value",
+   "commit": "head",
+   "fact_id": "6cae6f049b88fea6",
+   "row": {
+    "category": "Science & Space",
+    "sub_category": "",
+    "specialty": "Apollo Moon Missions",
+    "fact": "During the final landing of the Apollo program, Apollo 17 spent a record 75 hours on the lunar surface.",
+    "number_token": "75",
+    "number_indexes": [
+     73
+    ],
+    "true_number": 75,
+    "unit": "hours",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-07T07:56:33.179Z",
+    "source_urls": [
+     "https://www.nasa.gov/mission/apollo-17/",
+     "https://www.hq.nasa.gov/alsj/a17/a17.html"
+    ],
+    "content_rating": "standard",
+    "fact_id": "6cae6f049b88fea6",
+    "angle": "Apollo 17 Surface Stay Duration",
+    "question": "Apollo 17 total duration spent on the lunar surface in hours",
+    "surprise_factor": 1,
+    "quantity_kind": "duration",
+    "plausible_min": "20",
+    "plausible_max": "150",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "duration",
+     "trap_direction": "UNDERESTIMATE",
+     "plausible_min": "20",
+     "plausible_max": "150",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "57"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "64"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "58"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "61"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "56"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "65"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "59"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "62"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "28"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "68"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "36"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "52"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "44"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "60"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "99"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "88"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "97"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "93"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "100"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "86"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "95"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "91"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "140"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "85"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "130"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "110"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "150"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "120"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "96"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "50"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "44"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "56"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "48"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "52"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "45"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "54"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "47"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "60"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "28"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "68"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "36"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "110"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "130"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "100"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "120"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "150"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "96"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "140"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "85"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "32"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "36"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "28"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "39"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "30"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "34"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "27"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "42"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "44"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "60"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "68"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "52"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "150"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "140"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "120"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "96"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "85"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "130"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "110"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "28"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "21"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "24"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "30"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "22"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "26"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "23"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "68"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "36"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "52"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "44"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "60"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "85"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "130"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "110"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "150"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "120"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "96"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "140"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  },
+  {
+   "role": "valid_control",
+   "commit": "head",
+   "fact_id": "eeb7789b8284b5e9",
+   "row": {
+    "category": "Science & Space",
+    "sub_category": "",
+    "specialty": "Apollo Moon Missions",
+    "fact": "The Apollo 17 Command and Service Module completed 75 lunar orbits during the mission.",
+    "number_token": "75",
+    "number_indexes": [
+     51
+    ],
+    "true_number": 75,
+    "unit": "orbits",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-07T07:56:33.012Z",
+    "source_urls": [
+     "https://en.wikipedia.org/wiki/Apollo_17",
+     "https://www.lpi.usra.edu/lunar/missions/apollo/apollo_17/"
+    ],
+    "content_rating": "standard",
+    "fact_id": "eeb7789b8284b5e9",
+    "angle": "Apollo 17 lunar orbits completed",
+    "question": "Apollo 17 Command and Service Module lunar orbits completed",
+    "surprise_factor": 1,
+    "quantity_kind": "count",
+    "plausible_min": "10",
+    "plausible_max": "150",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "count",
+     "trap_direction": "UNDERESTIMATE",
+     "plausible_min": "10",
+     "plausible_max": "150",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "65"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "60"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "63"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "58"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "64"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "59"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "62"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "56"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "38"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "29"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "47"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "87"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "95"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "91"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "99"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "89"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "97"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "93"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "100"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "120"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "140"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "86"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "130"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "110"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "150"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "48"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "51"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "45"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "55"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "50"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "53"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "47"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "54"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "29"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "38"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "56"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "65"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "120"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "110"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "130"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "100"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "150"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "97"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "140"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "86"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "37"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "29"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "39"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "31"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "35"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "27"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "41"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "33"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "56"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "65"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "47"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "38"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "150"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "140"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "97"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "86"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "130"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "110"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "120"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "19"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "30"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "24"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "27"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "21"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "29"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "23"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "26"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "22"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "18"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "28"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "38"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "56"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "150"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "120"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "97"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "140"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "86"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "130"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "110"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  },
+  {
+   "role": "display_precision_loss",
+   "commit": "head",
+   "fact_id": "f1d09056c5545f0d",
+   "row": {
+    "category": "Money & Business",
+    "sub_category": "",
+    "specialty": "Billionaires and Net Worth",
+    "fact": "An ownership group led by Walmart heir Rob Walton purchased the NFL's Denver Broncos for 4.65 billion dollars.",
+    "number_token": "4.65",
+    "number_indexes": [
+     89
+    ],
+    "true_number": 4.65,
+    "unit": "billions of dollars",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-07T08:02:04.657Z",
+    "source_urls": [
+     "https://www.forbes.com/sites/siladityaray/2022/06/08/group-led-by-walmart-heir-rob-walton-agrees-to-buy-denver-broncos-for-465-billion/",
+     "https://frontofficesports.com/walmart-heir-rob-walton-agrees-to-buy-broncos-for-record-4-65b/"
+    ],
+    "content_rating": "standard",
+    "fact_id": "f1d09056c5545f0d",
+    "angle": "Denver Broncos Rob Walton Purchase Price",
+    "question": "Denver Broncos purchase price paid by Rob Walton's ownership group in billions of dollars",
+    "surprise_factor": 1,
+    "quantity_kind": "money",
+    "plausible_min": "1.0",
+    "plausible_max": "12.0",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "money",
+     "trap_direction": "UNDERESTIMATE",
+     "plausible_min": "1",
+     "plausible_max": "12",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "7"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "8"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "7"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "8"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "8"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "7"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "8"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "7"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "10"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  },
+  {
+   "role": "display_precision_loss",
+   "commit": "head",
+   "fact_id": "55aa121c840e6469",
+   "row": {
+    "category": "Money & Business",
+    "sub_category": "",
+    "specialty": "Billionaires and Net Worth",
+    "fact": "An investment group led by billionaire Josh Harris acquired the NFL's Washington Commanders for 6.05 billion dollars.",
+    "number_token": "6.05",
+    "number_indexes": [
+     96
+    ],
+    "true_number": 6.05,
+    "unit": "billions of dollars",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-07T08:02:05.554Z",
+    "source_urls": [
+     "https://www.forbes.com/sites/brianbushard/2023/07/21/billionaire-josh-harris-takes-control-of-washington-commanders-as-6-billion-deal-closes/",
+     "https://www.nfl.com/news/nfl-owners-approve-6-05b-sale-of-commanders-to-josh-harris"
+    ],
+    "content_rating": "standard",
+    "fact_id": "55aa121c840e6469",
+    "angle": "Washington Commanders Josh Harris Purchase Price",
+    "question": "Washington Commanders sale price paid by Josh Harris' investment group in billions of dollars",
+    "surprise_factor": 1,
+    "quantity_kind": "money",
+    "plausible_min": "1.0",
+    "plausible_max": "15.0",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "money",
+     "trap_direction": "UNDERESTIMATE",
+     "plausible_min": "1",
+     "plausible_max": "15",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "8"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "8"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "9"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  },
+  {
+   "role": "display_precision_loss",
+   "commit": "head",
+   "fact_id": "a6e18177a0282dc8",
+   "row": {
+    "category": "Food & Drink",
+    "sub_category": "",
+    "specialty": "Pizza Facts and Records",
+    "fact": "The world record for the highest pizza base toss reached a height of 6.52 meters.",
+    "number_token": "6.52",
+    "number_indexes": [
+     69
+    ],
+    "true_number": 6.52,
+    "unit": "meters",
+    "as_of_year": 2026,
+    "verified_at": "2026-09-30T19:03:54.204Z",
+    "source_urls": [
+     "https://www.guinnessworldrecords.com/world-records/highest-pizza-toss"
+    ],
+    "content_rating": "standard",
+    "aliases": [
+     "Pizza"
+    ],
+    "fact_id": "a6e18177a0282dc8",
+    "angle": "Highest Pizza Base Toss",
+    "question": "The height in meters of the highest pizza base toss using a 567-gram ball of dough (Guinness World Records)",
+    "surprise_factor": 1,
+    "quantity_kind": "physical_measure",
+    "plausible_min": "2.0",
+    "plausible_max": "15.0",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "physical_measure",
+     "trap_direction": "UNDERESTIMATE",
+     "plausible_min": "2",
+     "plausible_max": "15",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "5.4"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "4.9"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "5.5"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "5.3"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "4.8"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "5.7"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "5.2"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2.7"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "5.9"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "3.3"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "4.6"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "3.9"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "7.9"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "8.6"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "7.7"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "8.4"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "8.1"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "8.8"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "7.5"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "8.2"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "8.9"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "3.8"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "4.8"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "4.2"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "4.5"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "4.7"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "4.1"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "4.3"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "3.9"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "5.2"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2.7"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "5.9"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "3.3"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "4.6"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "8.8"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "9.5"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "9.1"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "9.8"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "8.9"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "7.7"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "3.6"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2.8"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "3.1"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2.5"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "3.4"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2.6"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2.9"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2.3"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "3.9"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "5.2"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2.7"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "5.9"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "3.3"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "4.6"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "8.9"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "7.7"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2.6"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2.3"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2.1"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2.2"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2.4"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "3.3"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "4.6"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "3.9"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "5.2"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2.7"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "5.9"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "8.9"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "7.7"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  },
+  {
+   "role": "valid_control",
+   "commit": "head",
+   "fact_id": "4754451834acb4cb",
+   "row": {
+    "category": "Pop Culture & Records",
+    "sub_category": "",
+    "specialty": "Guinness World Records Feats",
+    "fact": "Guinness World Records officially measured Chandra Bahadur Dangi at an adult standing height of 54.6 centimeters.",
+    "number_token": "54.6",
+    "number_indexes": [
+     96
+    ],
+    "true_number": 54.6,
+    "unit": "centimeters",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-01T08:01:04.036Z",
+    "source_urls": [
+     "https://www.guinnessworldrecords.com/world-records/shortest-man-ever"
+    ],
+    "content_rating": "standard",
+    "fact_id": "4754451834acb4cb",
+    "angle": "Shortest Adult Human Ever",
+    "question": "The standing height in centimeters recorded by Guinness World Records for Nepalese record holder Chandra Bahadur Dangi",
+    "surprise_factor": 2,
+    "quantity_kind": "physical_measure",
+    "plausible_min": "40.0",
+    "plausible_max": "75.0",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "physical_measure",
+     "trap_direction": "UNDERESTIMATE",
+     "plausible_min": "40",
+     "plausible_max": "75",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "40"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "47"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "43"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "45"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "41"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "46"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "42"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "44"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "48"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "74"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "63"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "69"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "66"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "72"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "64"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "71"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "67"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "75"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "60"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "40"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "46"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "42"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "44"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "48"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "74"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "66"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "60"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "72"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "69"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "63"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "75"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "44"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "48"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "40"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "46"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "42"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "69"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "63"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "75"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "66"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "60"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "72"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "42"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "44"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "48"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "40"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "46"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "60"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "72"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "69"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "63"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "75"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "66"
+      }
+     ],
+     "canonical_surprise_factor": 2
+    }
+   }
+  },
+  {
+   "role": "removed_conflicting_answer",
+   "commit": "base",
+   "fact_id": "b308e8bb8b8f7124",
+   "row": {
+    "category": "Money & Business",
+    "sub_category": "",
+    "specialty": "Billionaires and Net Worth",
+    "fact": "Jeff Bezos became the first person in modern history to reach an estimated net worth of $200 billion in 2020.",
+    "number_token": "2020",
+    "number_indexes": [
+     104
+    ],
+    "true_number": 2020,
+    "unit": "year",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-06T08:27:56.081Z",
+    "source_urls": [
+     "https://www.forbes.com/sites/jonathanponciano/2020/08/26/jeff-bezos-first-person-worth-200-billion/"
+    ],
+    "content_rating": "standard",
+    "fact_id": "b308e8bb8b8f7124",
+    "angle": "First $200 Billion Net Worth Year",
+    "question": "year Jeff Bezos became the first person in modern history to reach an estimated net worth of 200 billion dollars",
+    "surprise_factor": 1,
+    "quantity_kind": "year",
+    "plausible_min": "1994",
+    "plausible_max": "2026",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "year",
+     "trap_direction": "OVERESTIMATE",
+     "plausible_min": "1994",
+     "plausible_max": "2026",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2017"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2012"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1998"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2002"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2009"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1994"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2019"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2005"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2023"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2024"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2025"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2022"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2021"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2011"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2008"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2012"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2009"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1994"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2019"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2005"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1998"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2002"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2023"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2021"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2022"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2025"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2024"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1995"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2019"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2005"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2012"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1998"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2002"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2009"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1994"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2021"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2023"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2022"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2025"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2024"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2002"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2009"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1994"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2019"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2005"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2012"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1998"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2021"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2024"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2023"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2022"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2025"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  },
+  {
+   "role": "removed_conflicting_answer",
+   "commit": "base",
+   "fact_id": "034a44f3f0da52b4",
+   "row": {
+    "category": "Money & Business",
+    "sub_category": "",
+    "specialty": "Billionaires and Net Worth",
+    "fact": "Elon Musk became the first person in history to surpass an estimated net worth of $300 billion in 2021.",
+    "number_token": "2021",
+    "number_indexes": [
+     98
+    ],
+    "true_number": 2021,
+    "unit": "year",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-06T08:27:56.245Z",
+    "source_urls": [
+     "https://www.cbsnews.com/news/elon-musk-net-worth-300-billion-tesla/"
+    ],
+    "content_rating": "standard",
+    "fact_id": "034a44f3f0da52b4",
+    "angle": "First $300 Billion Net Worth Milestone Year",
+    "question": "year Elon Musk became the first person in history to surpass an estimated net worth of 300 billion dollars",
+    "surprise_factor": 2,
+    "quantity_kind": "year",
+    "plausible_min": "2010",
+    "plausible_max": "2026",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "year",
+     "trap_direction": "OVERESTIMATE",
+     "plausible_min": "2010",
+     "plausible_max": "2026",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2018"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2017"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2020"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2012"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2019"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2013"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2024"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2025"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2023"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2022"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2012"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2013"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2011"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2018"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2019"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2020"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2023"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2025"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2022"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2024"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2013"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2020"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2018"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2012"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2019"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2024"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2023"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2022"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2025"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2018"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2012"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2019"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2013"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2020"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2024"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2023"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2025"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2022"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2026"
+      }
+     ],
+     "canonical_surprise_factor": 2
+    }
+   }
+  },
+  {
+   "role": "removed_conflicting_answer",
+   "commit": "base",
+   "fact_id": "83421fb54a95285b",
+   "row": {
+    "category": "Money & Business",
+    "sub_category": "",
+    "specialty": "Billionaires and Net Worth",
+    "fact": "The Walt Disney Company acquired George Lucas's production company Lucasfilm for 4.05 billions of dollars in 2012.",
+    "number_token": "4.05",
+    "number_indexes": [
+     81
+    ],
+    "true_number": 4.05,
+    "unit": "billions of dollars",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-06T08:40:28.217Z",
+    "source_urls": [
+     "https://www.businessinsider.com/disney-buys-lucasfilm-for-4-billion-2012-10",
+     "https://en.wikipedia.org/wiki/Lucasfilm"
+    ],
+    "content_rating": "standard",
+    "fact_id": "83421fb54a95285b",
+    "angle": "Lucasfilm Disney Acquisition Purchase Price",
+    "question": "The Walt Disney Company purchase price for Lucasfilm in billions of dollars",
+    "surprise_factor": 1,
+    "quantity_kind": "money",
+    "plausible_min": "1.0",
+    "plausible_max": "15.0",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "money",
+     "trap_direction": "UNDERESTIMATE",
+     "plausible_min": "1",
+     "plausible_max": "15",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "7"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "7"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "7"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "8"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "7"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "15"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  },
+  {
+   "role": "removed_conflicting_answer",
+   "commit": "base",
+   "fact_id": "4315ad57a143ae89",
+   "row": {
+    "category": "Money & Business",
+    "sub_category": "",
+    "specialty": "Billionaires and Net Worth",
+    "fact": "The Walt Disney Company acquired Steve Jobs' animation studio Pixar in 2006 for 7.4 billion dollars.",
+    "number_token": "7.4",
+    "number_indexes": [
+     80
+    ],
+    "true_number": 7.4,
+    "unit": "billions of dollars",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-06T08:27:59.413Z",
+    "source_urls": [
+     "https://en.wikipedia.org/wiki/Pixar"
+    ],
+    "content_rating": "standard",
+    "fact_id": "4315ad57a143ae89",
+    "angle": "Pixar Disney Acquisition Purchase Price",
+    "question": "purchase price in billions of dollars paid by The Walt Disney Company to acquire Pixar in 2006",
+    "surprise_factor": 1,
+    "quantity_kind": "money",
+    "plausible_min": "1.0",
+    "plausible_max": "25.0",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "money",
+     "trap_direction": "UNDERESTIMATE",
+     "plausible_min": "1",
+     "plausible_max": "25",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "9"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "17"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "22"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "25"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "11"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "25"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "17"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "22"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "15"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "14"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "19"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "16"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "21"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "13"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "18"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "22"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "25"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "17"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "3"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "2"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "4"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "6"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "5"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "19"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "24"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "21"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "25"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "22"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "20"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "23"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "17"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "12"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "10"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "15"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  },
+  {
+   "role": "removed_conflicting_answer",
+   "commit": "base",
+   "fact_id": "f4e6ad1a99715d92",
+   "row": {
+    "category": "Sports",
+    "sub_category": "Football",
+    "specialty": "Touchdowns",
+    "fact": "Tom Brady threw 624 career passing touchdowns, the most in NFL history",
+    "number_token": "624",
+    "number_indexes": [
+     16
+    ],
+    "true_number": 624,
+    "unit": "CAREER PASSING",
+    "as_of_year": 2022,
+    "verified_at": "2022-12-31T00:00:00.000Z",
+    "source_urls": [],
+    "content_rating": "standard",
+    "fact_id": "f4e6ad1a99715d92",
+    "origin": "legacy_backfill",
+    "angle": "Tom Brady's career NFL passing touchdowns record",
+    "question": "Tom Brady's career NFL passing touchdowns record",
+    "surprise_factor": 3,
+    "quantity_kind": "count",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "count",
+     "trap_direction": "UNDERESTIMATE",
+     "plausible_min": "62",
+     "plausible_max": "4992",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "510"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "460"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "540"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "500"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "520"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "480"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "530"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "490"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "380"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "62"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "300"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "140"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "220"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "770"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "840"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "720"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "790"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "750"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "820"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "740"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "810"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2500"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "4992"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "3100"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1900"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "4400"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1200"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "3700"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "460"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "410"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "440"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "380"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "450"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "400"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "420"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "370"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "300"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "140"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "540"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "220"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "62"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "840"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "970"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "910"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1000"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "870"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "940"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1100"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "3100"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1900"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "4400"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1200"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "3700"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2500"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "4992"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "330"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "260"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "290"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "220"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "350"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "280"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "310"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "240"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "540"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "380"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "62"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "300"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "460"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "140"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1200"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1600"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1400"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1700"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1100"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1500"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1300"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "3700"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2500"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "4992"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "3100"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1900"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "4400"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "170"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "240"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "180"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "210"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "160"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "250"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "200"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "220"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "140"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "230"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "130"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "540"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "380"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "62"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "300"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "460"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2400"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "1700"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2200"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2000"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2500"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "1600"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2100"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "1800"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2900"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2700"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "3100"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "4400"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "1200"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "3700"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "4992"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "1900"
+      }
+     ],
+     "canonical_surprise_factor": 3
+    }
+   }
+  },
+  {
+   "role": "synthetic_same_identity_correction",
+   "commit": null,
+   "fact_id": "a8dfda4553a3d1ae",
+   "row": {
+    "category": "Money & Business",
+    "sub_category": "",
+    "specialty": "Fortune 500 Milestones",
+    "fact": "Berkshire Hathaway made its debut on the Fortune 500 list in 1956.",
+    "number_token": "1956",
+    "number_indexes": [
+     61
+    ],
+    "true_number": 1956,
+    "unit": "year",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-07T07:55:10.475Z",
+    "source_urls": [
+     "https://en.wikipedia.org/wiki/Berkshire_Hathaway",
+     "https://www.latimes.com/archives/la-xpm-1989-04-05-fi-1237-story.html"
+    ],
+    "content_rating": "standard",
+    "fact_id": "a8dfda4553a3d1ae",
+    "angle": "Berkshire Hathaway Debut Fortune 500 Year",
+    "question": "Berkshire Hathaway debut year on the Fortune 500 list",
+    "surprise_factor": 1,
+    "quantity_kind": "year",
+    "plausible_min": "1955",
+    "plausible_max": "2026",
+    "derivation": null
+   }
+  },
+  {
+   "role": "synthetic_distinct_return_identity",
+   "commit": null,
+   "fact_id": "SYNTHETIC_RETURN_IDENTITY",
+   "row": {
+    "category": "Money & Business",
+    "sub_category": "",
+    "specialty": "Fortune 500 Milestones",
+    "fact": "Berkshire Hathaway returned to the Fortune 500 list in 1989.",
+    "number_token": "1989",
+    "number_indexes": [
+     61
+    ],
+    "true_number": 1989,
+    "unit": "year",
+    "as_of_year": 2026,
+    "verified_at": "2026-10-07T07:55:10.475Z",
+    "source_urls": [
+     "https://en.wikipedia.org/wiki/Berkshire_Hathaway",
+     "https://www.latimes.com/archives/la-xpm-1989-04-05-fi-1237-story.html"
+    ],
+    "content_rating": "standard",
+    "fact_id": "SYNTHETIC_RETURN_IDENTITY",
+    "angle": "Berkshire Hathaway Return Fortune 500 Year",
+    "question": "Berkshire Hathaway return year on the Fortune 500 list",
+    "surprise_factor": 1,
+    "quantity_kind": "year",
+    "plausible_min": "1955",
+    "plausible_max": "2026",
+    "derivation": {
+     "model_version": "ddm-4",
+     "quantity_kind": "year",
+     "trap_direction": "OVERESTIMATE",
+     "plausible_min": "1955",
+     "plausible_max": "2026",
+     "distractors": [
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1985"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1986"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1984"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1970"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1979"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1960"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1965"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1974"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1955"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "MORE",
+       "presented_number": "1988"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1993"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1992"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1994"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2020"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1995"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2005"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 0,
+       "side": "LESS",
+       "presented_number": "1990"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1979"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1980"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1977"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1981"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1978"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1965"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1974"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1955"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1988"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1970"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1960"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "MORE",
+       "presented_number": "1984"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1999"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1998"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2001"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1997"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2005"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1990"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "2020"
+      },
+      {
+       "surprise_factor": 1,
+       "side": "LESS",
+       "presented_number": "1995"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1962"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1958"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1964"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1956"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1960"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1984"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1965"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1974"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1955"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1988"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1970"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "MORE",
+       "presented_number": "1979"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2016"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2024"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2020"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2014"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2022"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2018"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1995"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2005"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "1990"
+      },
+      {
+       "surprise_factor": 2,
+       "side": "LESS",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1955"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1988"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1970"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1979"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1960"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1984"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1965"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "MORE",
+       "presented_number": "1974"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2026"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "1990"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2010"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2020"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "1995"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2015"
+      },
+      {
+       "surprise_factor": 3,
+       "side": "LESS",
+       "presented_number": "2005"
+      }
+     ],
+     "canonical_surprise_factor": 1
+    }
+   }
+  }
+ ],
+ "evidence": [
+  {
+   "fact_id": "a8dfda4553a3d1ae",
+   "assertions": [
+    {
+     "canonical_url": "https://money.cnn.com/magazines/fortune/fortune500_archive/snapshots/1989/194.html",
+     "publisher": "Fortune (CNN Money archive)",
+     "acquisition": "indexed_search",
+     "direct_fetch_status": 503,
+     "excerpt": "Fortune 500 archive snapshot lists Berkshire Hathaway appearances in 1956, 1957, 1958, 1959, and again from 1989 onward.",
+     "entity_key": "berkshire_hathaway",
+     "measure_key": "fortune_500_list_year",
+     "relation": "first_occurrence",
+     "source_value_token": "1956",
+     "source_period": "annual list, appearances 1956-1959 then 1989+",
+     "stance": "contradicts"
+    },
+    {
+     "canonical_url": "https://static.booktopia.com.au/pdf/9780857199126-1.pdf",
+     "publisher": "Booktopia (published financial history excerpt)",
+     "acquisition": "human_checked_document",
+     "excerpt": "Published history describes the merged Berkshire Hathaway ranking 431st on the Fortune 500 in 1956.",
+     "entity_key": "berkshire_hathaway",
+     "measure_key": "fortune_500_list_year",
+     "relation": "first_occurrence",
+     "source_value_token": "1956",
+     "source_period": "1956 list",
+     "stance": "contradicts"
+    },
+    {
+     "canonical_url": "https://www.latimes.com/archives/la-xpm-1989-04-05-fi-1237-story.html",
+     "publisher": "Los Angeles Times",
+     "acquisition": "indexed_search",
+     "excerpt": "1989 coverage of Berkshire Hathaway's Fortune 500 appearance; establishes an occurrence in 1989, not a first occurrence.",
+     "entity_key": "berkshire_hathaway",
+     "measure_key": "fortune_500_list_year",
+     "relation": "return",
+     "source_value_token": "1989",
+     "source_period": "1989 list",
+     "stance": "unclear"
+    }
+   ]
+  },
+  {
+   "fact_id": "b6f4d17b703eb606",
+   "assertions": [
+    {
+     "canonical_url": "https://achievement.org/achiever/michael-dell/",
+     "publisher": "Academy of Achievement",
+     "acquisition": "fetched_text",
+     "excerpt": "Born February 23, 1965; started the company in 1984; became the youngest CEO of a Fortune 500 company in 1992.",
+     "entity_key": "michael_dell",
+     "measure_key": "fortune_500_ceo_year",
+     "relation": "first_occurrence",
+     "source_value_token": "1992",
+     "source_period": "1992",
+     "stance": "supports",
+     "context_bounds": [
+      {
+       "authority": "source_verified",
+       "reason": "entity birth year",
+       "bound_token": "1965",
+       "kind": "hard_lower"
+      },
+      {
+       "authority": "source_verified",
+       "reason": "company founding year",
+       "bound_token": "1984",
+       "kind": "editorial_lower"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "fact_id": "f0cd739592cbeef3",
+   "assertions": [
+    {
+     "canonical_url": "https://nssdc.gsfc.nasa.gov/planetary/lunar/apollo_lrv.html",
+     "publisher": "NASA NSSDCA",
+     "acquisition": "fetched_text",
+     "excerpt": "Apollo 17 LRV total distance driven: 35.9 km.",
+     "entity_key": "apollo_17_lrv",
+     "measure_key": "total_distance_driven_km",
+     "relation": "measured_value",
+     "source_value_token": "35.9",
+     "source_period": "1972-12 mission",
+     "stance": "supports"
+    },
+    {
+     "canonical_url": "https://www.nasa.gov/missions/apollo/apollo-17-mission-details/",
+     "publisher": "NASA",
+     "acquisition": "fetched_text",
+     "excerpt": "Apollo 17 mission details list total LRV traverse of 30.5 km.",
+     "entity_key": "apollo_17_lrv",
+     "measure_key": "total_distance_driven_km",
+     "relation": "measured_value",
+     "source_value_token": "30.5",
+     "source_period": "1972-12 mission",
+     "stance": "contradicts"
+    }
+   ]
+  },
+  {
+   "fact_id": "6cae6f049b88fea6",
+   "assertions": [
+    {
+     "canonical_url": "https://www.nasa.gov/missions/apollo/apollo-17-mission-details/",
+     "publisher": "NASA",
+     "acquisition": "fetched_text",
+     "excerpt": "Apollo 17 time on the lunar surface: 75 hours.",
+     "entity_key": "apollo_17",
+     "measure_key": "lunar_surface_duration_hours",
+     "relation": "measured_value",
+     "source_value_token": "75",
+     "source_period": "1972-12 mission",
+     "stance": "supports"
+    }
+   ]
+  },
+  {
+   "fact_id": "4754451834acb4cb",
+   "assertions": [
+    {
+     "canonical_url": "https://www.guinnessworldrecords.com/world-records/67521-shortest-man-ever",
+     "publisher": "Guinness World Records",
+     "acquisition": "fetched_text",
+     "excerpt": "Shortest man ever: Chandra Bahadur Dangi, 54.6 cm, measured 26 February 2012.",
+     "entity_key": "chandra_bahadur_dangi",
+     "measure_key": "standing_height_cm",
+     "relation": "measured_value",
+     "source_value_token": "54.6",
+     "source_period": "measured 2012-02-26",
+     "stance": "supports"
+    }
+   ]
+  }
+ ],
+ "frozen_cases": [
+  {
+   "case_id": "berkshire_1989_debut_rejected",
+   "fact_id": "a8dfda4553a3d1ae",
+   "observed": {
+    "path": "foundry keep -> lint pass -> export -> buildRoundDetailed",
+    "default_selection": {
+     "presented_number": "1999",
+     "true_number": "1989",
+     "side": "LESS"
+    },
+    "forced_more_pack_balance": {
+     "presented_number": "1979",
+     "true_number": "1989",
+     "side": "MORE"
+    },
+    "fortune500_pack_seed": 31,
+    "pack_round_index": 0,
+    "is_valid_emitted": true
+   },
+   "expected": {
+    "audit_verdict": "unsupported",
+    "promotable": false,
+    "exportable": false,
+    "qualified_round": false,
+    "reason": "return_citation_cannot_support_first_occurrence"
+   }
+  },
+  {
+   "case_id": "berkshire_1956_same_identity_correction",
+   "fact_id": "a8dfda4553a3d1ae",
+   "observed": {
+    "corrected_value": "1956",
+    "identity_unchanged": true
+   },
+   "expected": {
+    "audit_verdict": "supported",
+    "promotable": true,
+    "requires_fresh_audit": true,
+    "requires_block_regeneration": true
+   }
+  },
+  {
+   "case_id": "berkshire_1989_return_is_new_identity",
+   "fact_id": "SYNTHETIC_RETURN_IDENTITY",
+   "expected": {
+    "in_place_aspect_relabel": "rejected",
+    "new_pending_fact": true,
+    "original_retired": true
+   }
+  },
+  {
+   "case_id": "dell_1961_pre_birth_candidate",
+   "fact_id": "b6f4d17b703eb606",
+   "observed": {
+    "forced_side": "MORE",
+    "variant_seed": "audit-seed-1",
+    "presented_number": "1961",
+    "true_number": "1992",
+    "plausible_min": "1955",
+    "plausible_max": "2026"
+   },
+   "expected": {
+    "candidate_rejected_by": "hard_lower_bound",
+    "independent_floor": "1965",
+    "fact_retained": true
+   }
+  },
+  {
+   "case_id": "apollo8_entity_numeral_collision",
+   "fact_id": "034735f16ee2d7c9",
+   "observed": {
+    "variant_seed": "audit-seed-4",
+    "prompt_contains": "Apollo 8",
+    "presented_number": "8",
+    "true_number": "10",
+    "bank_builder_valid": true,
+    "numberless_drop_rejects": true
+   },
+   "expected": {
+    "candidate_rejected_by": "statement_gate",
+    "retry_other_candidate_same_tier": true,
+    "fact_retained": true
+   }
+  },
+  {
+   "case_id": "money_display_precision",
+   "fact_id": "f1d09056c5545f0d",
+   "observed": {
+    "stored": "4.65 billions of dollars",
+    "legacy_money_render": "5"
+   },
+   "expected": {
+    "display_token": "4.65",
+    "display_unit": "billions of dollars",
+    "min_numeric_format_version": 2
+   }
+  },
+  {
+   "case_id": "money_display_precision_commanders",
+   "fact_id": "55aa121c840e6469",
+   "observed": {
+    "stored": "6.05 billions of dollars",
+    "legacy_money_render": "6"
+   },
+   "expected": {
+    "display_token": "6.05",
+    "min_numeric_format_version": 2
+   }
+  },
+  {
+   "case_id": "physical_display_precision",
+   "fact_id": "a6e18177a0282dc8",
+   "observed": {
+    "stored": "6.52 meters",
+    "legacy_physical_render": "6.5"
+   },
+   "expected": {
+    "display_token": "6.52",
+    "min_numeric_format_version": 2
+   }
+  },
+  {
+   "case_id": "apollo17_lrv_same_publisher_conflict",
+   "fact_id": "f0cd739592cbeef3",
+   "observed": {
+    "stored": "35.9 km",
+    "same_publisher_conflict": [
+     "35.9",
+     "30.5"
+    ]
+   },
+   "expected": {
+    "audit_verdict": "review_required",
+    "promotable": false,
+    "reason": "consequential_source_conflict_same_metric"
+   }
+  }
+ ]
+}

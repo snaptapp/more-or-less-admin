@@ -1,0 +1,115 @@
+{
+  "$comment": "Shared question-normalization contract, replayed identically by three ports: Go normalizeQuestion (agent-go/factlint.go, lint sweep), TS questionKey (src/factbank.ts, serve-time dedup), and JS normalizeQuestion (scripts/export_lib.mjs, export warn report). Algorithm: (1) lowercase, (2) tokenize: every run of non-[a-z0-9] chars collapses to one space and the string is split on whitespace, (3) drop the LEADING token sequence if it matches an entry in interrogative_prefixes (longest match wins, at most one strip, mid-question occurrences are kept), (4) normalized = tokens joined by single spaces. Digits are KEPT: they are incidental identifiers (Apollo 11, Hot 100, 1978) that distinguish questions; stripping them would merge questions that differ only by era or chart. 'number-one' and 'number one' still normalize identically via hyphen -> space.",
+
+  "interrogative_prefixes": [
+    ["how", "many"],
+    ["how", "much"],
+    ["how", "long"],
+    ["how", "tall"],
+    ["how", "far"],
+    ["how", "old"],
+    ["how", "fast"],
+    ["how", "often"],
+    ["how", "does"],
+    ["how", "did"],
+    ["how", "do"],
+    ["what", "is"],
+    ["what", "s"],
+    ["what", "was"],
+    ["what", "were"],
+    ["what", "did"],
+    ["what", "does"],
+    ["what", "are"],
+    ["what", "year"],
+    ["what"],
+    ["which"],
+    ["who"],
+    ["when"],
+    ["where"],
+    ["why"],
+    ["how"]
+  ],
+
+  "cases": [
+    {
+      "input": "How many Billboard Hot 100 number-one hits did Donna Summer score between 1978 and 1980?",
+      "tokens": ["billboard", "hot", "100", "number", "one", "hits", "did", "donna", "summer", "score", "between", "1978", "and", "1980"],
+      "normalized": "billboard hot 100 number one hits did donna summer score between 1978 and 1980"
+    },
+    {
+      "input": "Billboard Hot 100 number one hits scored by Donna Summer between 1978 and 1980",
+      "tokens": ["billboard", "hot", "100", "number", "one", "hits", "scored", "by", "donna", "summer", "between", "1978", "and", "1980"],
+      "normalized": "billboard hot 100 number one hits scored by donna summer between 1978 and 1980"
+    },
+    {
+      "input": "Career Pro Bowl selections for NFL player",
+      "tokens": ["career", "pro", "bowl", "selections", "for", "nfl", "player"],
+      "normalized": "career pro bowl selections for nfl player"
+    },
+    {
+      "input": "What is the peak position of Rapper's Delight on the Hot 100?",
+      "tokens": ["the", "peak", "position", "of", "rapper", "s", "delight", "on", "the", "hot", "100"],
+      "normalized": "the peak position of rapper s delight on the hot 100"
+    },
+    {
+      "input": "What's the longest field goal in NFL history?",
+      "tokens": ["the", "longest", "field", "goal", "in", "nfl", "history"],
+      "normalized": "the longest field goal in nfl history"
+    },
+    {
+      "input": "How many crew members flew on Apollo 11?",
+      "tokens": ["crew", "members", "flew", "on", "apollo", "11"],
+      "normalized": "crew members flew on apollo 11"
+    },
+    {
+      "input": "Weeks spent at #1 by I Will Survive on the Billboard Hot 100",
+      "tokens": ["weeks", "spent", "at", "1", "by", "i", "will", "survive", "on", "the", "billboard", "hot", "100"],
+      "normalized": "weeks spent at 1 by i will survive on the billboard hot 100"
+    },
+    {
+      "input": "The Bodyguard soundtrack worldwide sales",
+      "tokens": ["the", "bodyguard", "soundtrack", "worldwide", "sales"],
+      "normalized": "the bodyguard soundtrack worldwide sales"
+    },
+    {
+      "input": "Which team won the most Super Bowls?",
+      "tokens": ["team", "won", "the", "most", "super", "bowls"],
+      "normalized": "team won the most super bowls"
+    },
+    {
+      "input": "How many Super Bowls have the Steelers won?",
+      "tokens": ["super", "bowls", "have", "the", "steelers", "won"],
+      "normalized": "super bowls have the steelers won"
+    },
+    {
+      "input": "Billboard Hot 100 hits in 1978",
+      "tokens": ["billboard", "hot", "100", "hits", "in", "1978"],
+      "normalized": "billboard hot 100 hits in 1978"
+    },
+    {
+      "input": "Billboard Hot 100 hits in 1979",
+      "tokens": ["billboard", "hot", "100", "hits", "in", "1979"],
+      "normalized": "billboard hot 100 hits in 1979"
+    },
+    {
+      "input": "",
+      "tokens": [],
+      "normalized": ""
+    },
+    {
+      "input": "   ",
+      "tokens": [],
+      "normalized": ""
+    },
+    {
+      "input": "Career interceptions and interception-return touchdowns for Rod Woodson",
+      "tokens": ["career", "interceptions", "and", "interception", "return", "touchdowns", "for", "rod", "woodson"],
+      "normalized": "career interceptions and interception return touchdowns for rod woodson"
+    },
+    {
+      "input": "How many career interception return yards did Ed Reed record?",
+      "tokens": ["career", "interception", "return", "yards", "did", "ed", "reed", "record"],
+      "normalized": "career interception return yards did ed reed record"
+    }
+  ]
+}
