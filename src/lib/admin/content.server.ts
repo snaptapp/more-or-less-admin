@@ -40,6 +40,12 @@ import {
   type FactStatus,
   type QuantityKind,
 } from "../../../shared/fact-lifecycle-contract.gen";
+import {
+  LINT_ENFORCEMENTS,
+  LINT_SEVERITIES,
+  type LintEnforcement,
+  type LintSeverity,
+} from "../../../shared/fact-lint-catalog.gen";
 
 // Derived from the shared contract (Requirement 9.1): the canonical status set
 // is owned by Main_Repository and consumed here, so no hand-written literal list
@@ -236,6 +242,8 @@ export interface FactRecord {
   quantity_kind: string;
   plausible_min: string | null;
   plausible_max: string | null;
+  number_token: string;
+  as_of_year: number | null;
   quality_flags: string[];
   disputed_reason: string | null;
   number_pinned: boolean;
@@ -313,6 +321,8 @@ export function toFact(doc: FirestoreDoc): FactRecord {
     quantity_kind: str(d["quantity_kind"]),
     plausible_min: typeof d["plausible_min"] === "string" ? d["plausible_min"] : null,
     plausible_max: typeof d["plausible_max"] === "string" ? d["plausible_max"] : null,
+    number_token: str(d["number_token"]),
+    as_of_year: num(d["as_of_year"]),
     quality_flags: Array.isArray(d["quality_flags"])
       ? (d["quality_flags"] as Json[]).filter((v): v is string => typeof v === "string")
       : [],
@@ -1559,6 +1569,14 @@ export interface ReportRecord {
   ombudsmanSources: string[];
   ombudsmanArbiter?: "gemini" | "edge_worker" | "unspecified";
   qualityFlags?: string[];
+  lintFindings?: {
+    id: string;
+    severity?: LintSeverity;
+    enforcement?: LintEnforcement;
+    detail?: string;
+    docIds?: string[];
+  }[];
+  lintRulesRevision?: string;
   duplicateFactIds?: string[];
 }
 
@@ -1596,6 +1614,35 @@ function asSources(value: Json | undefined): string[] {
       return "";
     })
     .filter(Boolean);
+}
+
+/**
+ * Parse the structured lint findings persisted by `foundry -lint-apply`.
+ * Entries missing a non-empty `id` are dropped; everything else is passed
+ * through verbatim because the producer owns finding semantics.
+ */
+function asLintFindings(value: Json | undefined): ReportRecord["lintFindings"] {
+  if (!Array.isArray(value)) return undefined;
+  const severities = new Set<string>(LINT_SEVERITIES);
+  const enforcements = new Set<string>(LINT_ENFORCEMENTS);
+  const findings: NonNullable<ReportRecord["lintFindings"]> = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, Json>;
+    const id = typeof row["id"] === "string" ? row["id"].trim() : "";
+    if (!id) continue;
+    const docIds = Array.isArray(row["docIds"])
+      ? row["docIds"].filter((v): v is string => typeof v === "string" && v.trim() !== "")
+      : undefined;
+    findings.push({
+      id,
+      severity: severities.has(row["severity"] as string) ? (row["severity"] as LintSeverity) : undefined,
+      enforcement: enforcements.has(row["enforcement"] as string) ? (row["enforcement"] as LintEnforcement) : undefined,
+      detail: typeof row["detail"] === "string" ? row["detail"] : undefined,
+      docIds: docIds && docIds.length ? docIds : undefined,
+    });
+  }
+  return findings.length ? findings : undefined;
 }
 
 function toReport(doc: FirestoreDoc): ReportRecord {
@@ -1668,6 +1715,13 @@ function toReport(doc: FirestoreDoc): ReportRecord {
     qualityFlags: asSources(d["qualityFlags"]).length
       ? asSources(d["qualityFlags"])
       : asSources(d["quality_flags"]),
+    lintFindings: asLintFindings(d["lintFindings"] ?? d["lint_findings"]),
+    lintRulesRevision:
+      typeof d["lintRulesRevision"] === "string"
+        ? d["lintRulesRevision"]
+        : typeof d["lint_rules_revision"] === "string"
+          ? d["lint_rules_revision"]
+          : undefined,
     duplicateFactIds: asSources(d["duplicateFactIds"]).length
       ? asSources(d["duplicateFactIds"])
       : asSources(d["duplicate_fact_ids"]),

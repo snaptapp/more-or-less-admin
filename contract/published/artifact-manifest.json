@@ -3,11 +3,13 @@
   "coveredSourcePaths": [
     "agent-go/derivation.go",
     "agent-go/factlint.go",
+    "agent-go/factlint_rules.go",
     "agent-go/factrepair.go",
     "agent-go/foundry.go",
     "contract.version",
     "scripts/contract-transitions.json",
     "shared/fact-lifecycle-contract.gen.ts",
+    "shared/fact-lint-catalog.gen.ts",
     "src/derivation.ts",
     "src/derivation_adapter.ts",
     "src/derivation_resolve.ts",
@@ -25,12 +27,14 @@
   "ddmVersion": "ddm-4",
   "files": {
     "agent-go/derivation.go": "6f05723d4382a5f1bcdeb131d569f4949e9f94a53721b073f762dd1da9c979ed",
-    "agent-go/factlint.go": "8c3e9f4973134ead8e8a0fe29759e1765349dfb3b17c4a296c10c380dbbd851a",
+    "agent-go/factlint.go": "4398dd8fc06c1d89f83e322ad0fd761afdaa31d780a7919fc5783b34341cb9f3",
+    "agent-go/factlint_rules.go": "3fd1a49e6a4deaa3607fb428944c15c5405e646099520783776acc3735bb84ce",
     "agent-go/factrepair.go": "04104b16f2b9d7eefd267fd75355fc95e03ddf243f664a3b45a99744b5b9c380",
-    "agent-go/foundry.go": "ad8a47d831ff5ac4732af52538f8083485f92066a4b2d66e6d226dc0a95b12fe",
+    "agent-go/foundry.go": "70516fc25e9c82744e92a25b43e90226b645631dcdfbe9b2860fcda395ec56fb",
     "contract.version": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
     "scripts/contract-transitions.json": "be819193e6b58834671b95ab5f198a1d74c97cb8f39d080456cd38c289b5f6d0",
     "shared/fact-lifecycle-contract.gen.ts": "7d0751b8d9fe400da866a1579f85580c3d62b6e61e6e1ce9af3f69c92aad2523",
+    "shared/fact-lint-catalog.gen.ts": "174e75380310edb29c61a8cffec5543c7a3af26cf2d420cc226261b11acf68c6",
     "src/derivation.ts": "be6d79bf3516d7fc82d094b76cb922d78bd9267411dea0ce0b6227f6736f5871",
     "src/derivation_adapter.ts": "cb9aa9205fa1d0618df40839bf8cead5f2f6c3ccdb64108568057e322cd3f982",
     "src/derivation_resolve.ts": "c2e13994f7ba6d4fef61e165d4f6192876f86008c816d0c3acca7e6708827fdf",
@@ -46,5 +50,5 @@
     "tests/fixtures/unit_tables.json": "c5e2ac4d7c92b150c20ba8223a10e2bca23e7ad649f16feee59aca0e19a72846"
   },
   "sourceRepository": "snaptapp/more-or-less",
-  "treeHash": "3cabac28861ed753293f6c23d905f66547328c1746f1daa2a2f666d0238961e5"
+  "treeHash": "6e32fc2c789c6f619cdaa411dfa6e623dcd56a8f346078c937d8c6743e95f8c7"
 }

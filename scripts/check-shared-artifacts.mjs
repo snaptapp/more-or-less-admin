@@ -75,6 +75,7 @@ const FIXTURE_SOURCE_FILES = new Set([
 const COVERAGE_ONLY_SOURCE_FILES = new Set([
   "agent-go/derivation.go",
   "agent-go/factlint.go",
+  "agent-go/factlint_rules.go",
   "agent-go/factrepair.go",
   "agent-go/foundry.go",
   "contract.version",
@@ -85,6 +86,13 @@ const EXACT_DESTINATIONS = new Map([
   [
     "shared/fact-lifecycle-contract.gen.ts",
     [PUBLISHED_CONTRACT_RELATIVE_PATH, CONSUMED_CONTRACT_RELATIVE_PATH],
+  ],
+  [
+    "shared/fact-lint-catalog.gen.ts",
+    [
+      "contract/published/fact-lint-catalog.gen.ts",
+      "shared/fact-lint-catalog.gen.ts",
+    ],
   ],
   ["src/derivation.ts", ["shared/ddm/derivation.ts"]],
   ["src/derivation_resolve.ts", ["shared/ddm/derivation_resolve.ts"]],

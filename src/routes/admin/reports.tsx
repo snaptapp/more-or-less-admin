@@ -503,6 +503,10 @@ export function ReportCard({ entry }: { entry: Entry }) {
     plausible_max: entry.fact?.plausible_max,
     derivation: entry.fact?.derivation,
     surprise_factor: entry.fact?.surprise_factor,
+    number_token: entry.fact?.number_token,
+    source_urls: entry.fact?.source_urls,
+    verified_at: entry.fact?.verified_at,
+    as_of_year: entry.fact?.as_of_year,
   };
   const guess = report.playerGuess?.toUpperCase();
   const outcome =
@@ -575,7 +579,7 @@ export function ReportCard({ entry }: { entry: Entry }) {
           <>
             <dt>Fact Foundry findings</dt>
             <dd>
-              <LintFindings flags={lintFlags} evidence={lintEvidence} />
+              <LintFindings flags={lintFlags} findings={report.lintFindings} evidence={lintEvidence} />
             </dd>
           </>
         ) : null}

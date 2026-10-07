@@ -124,6 +124,7 @@ const EXPECTED_DEFAULTS: FactRecord = {
   question: "",
   verifier_model: "",
   quantity_kind: "",
+  number_token: "",
   // Nullable fields → null.
   true_number: null,
   surprise_factor: null,
@@ -136,6 +137,7 @@ const EXPECTED_DEFAULTS: FactRecord = {
   derivation: null,
   plausible_min: null,
   plausible_max: null,
+  as_of_year: null,
   disputed_reason: null,
   pinned_reason: null,
   // Array fields → empty arrays.
@@ -186,6 +188,7 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Requirement 6.8: `t
       "question",
       "verifier_model",
       "quantity_kind",
+      "number_token",
     ] as const) {
       expect(fact[key], key).toBe("");
     }
@@ -202,6 +205,7 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Requirement 6.8: `t
       "category",
       "plausible_min",
       "plausible_max",
+      "as_of_year",
       "disputed_reason",
       "pinned_reason",
     ] as const) {
