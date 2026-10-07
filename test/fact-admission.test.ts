@@ -300,3 +300,111 @@ describe("pending fact admission", () => {
     expect(blockedNetworkAttempts()).toEqual([]);
   });
 });
+
+describe("pending fact admission: exact-token and quality-spec fields", () => {
+  const SPEC = {
+    schema_version: 1,
+    entity_key: "mount-everest",
+    measure_key: "calendar_year_of_event",
+    relation: "first_occurrence",
+    aggregation: "single_event",
+    unit_id: "calendar_year",
+    temporal: { mode: "historical_event", observed_at: "1953" },
+    value_semantics: "exact",
+    display_decimal_places: 0,
+  };
+
+  it("carries an agreeing true_number_token onto the pending payload", () => {
+    const fact = buildPendingFact(
+      input({ true_number_token: "1953" }),
+      TIMESTAMP,
+    );
+    expect(fact.true_number_token).toBe("1953");
+    expect(validatePendingFact({ ...fact, true_number_token: "1.953e3" }).ok).toBe(true);
+  });
+
+  it("rejects a token that does not project to true_number", () => {
+    expect(
+      issueFields({ ...buildPendingFact(input(), TIMESTAMP), true_number_token: "1954" }),
+    ).toContain("true_number_token");
+    expect(
+      issueFields({ ...buildPendingFact(input(), TIMESTAMP), true_number_token: "abc" }),
+    ).toContain("true_number_token");
+    expect(() => buildPendingFact(input({ true_number_token: "1954" }), TIMESTAMP)).toThrow(
+      PendingFactValidationError,
+    );
+  });
+
+  it("accepts a coherent proposed quantity_spec", () => {
+    const fact = buildPendingFact(input({ quantity_spec: SPEC }), TIMESTAMP);
+    expect(fact.quantity_spec).toEqual(SPEC);
+    expect(validatePendingFact(fact).ok).toBe(true);
+  });
+
+  it("rejects specs outside the registry closed sets", () => {
+    const bad = (patch: Record<string, unknown>) =>
+      issueFields({
+        ...buildPendingFact(input({ quantity_spec: SPEC }), TIMESTAMP),
+        quantity_spec: { ...SPEC, ...patch },
+      });
+    expect(bad({ relation: "kind_of" })).toContain("quantity_spec.relation");
+    expect(bad({ aggregation: "nope" })).toContain("quantity_spec.aggregation");
+    expect(bad({ value_semantics: "vibes" })).toContain("quantity_spec.value_semantics");
+    expect(bad({ unit_id: "smoots" })).toContain("quantity_spec.unit_id");
+    expect(bad({ measure_key: "unknown_measure" })).toContain("quantity_spec.measure_key");
+    expect(bad({ schema_version: 2 })).toContain("quantity_spec.schema_version");
+    expect(bad({ display_decimal_places: 4 })).toContain(
+      "quantity_spec.display_decimal_places",
+    );
+    expect(
+      bad({ temporal: { mode: "sometime" } }),
+    ).toContain("quantity_spec.temporal.mode");
+  });
+
+  it("rejects a spec whose measure cannot describe the unit's base quantity", () => {
+    const spec = {
+      ...SPEC,
+      measure_key: "net_worth", // money base cannot pair with calendar_year
+    };
+    expect(
+      issueFields({
+        ...buildPendingFact(input({ quantity_spec: SPEC }), TIMESTAMP),
+        quantity_spec: spec,
+      }),
+    ).toContain("quantity_spec.unit_id");
+  });
+
+  it("rejects a spec whose aggregation the measure does not declare", () => {
+    const spec = {
+      ...SPEC,
+      measure_key: "calendar_year_of_event",
+      aggregation: "mean", // calendar_year_of_event declares single_event only
+    };
+    expect(
+      issueFields({
+        ...buildPendingFact(input({ quantity_spec: SPEC }), TIMESTAMP),
+        quantity_spec: spec,
+      }),
+    ).toContain("quantity_spec.aggregation");
+  });
+
+  it("carries an integer as_of_year and rejects non-integer values", () => {
+    const fact = buildPendingFact(input({ as_of_year: 1989 }), TIMESTAMP);
+    expect(fact.as_of_year).toBe(1989);
+    expect(
+      issueFields({ ...buildPendingFact(input(), TIMESTAMP), as_of_year: 1989.5 }),
+    ).toContain("as_of_year");
+    expect(
+      issueFields({ ...buildPendingFact(input(), TIMESTAMP), as_of_year: "1989" }),
+    ).toContain("as_of_year");
+  });
+
+  it("still rejects server-owned quality fields as unknown", () => {
+    const fact = buildPendingFact(input(), TIMESTAMP);
+    expect(issueFields({ ...fact, quality_receipt: {} })).toContain("quality_receipt");
+    expect(issueFields({ ...fact, source_evidence: [] })).toContain("source_evidence");
+    expect(issueFields({ ...fact, answer_uncertainty: {} })).toContain(
+      "answer_uncertainty",
+    );
+  });
+});

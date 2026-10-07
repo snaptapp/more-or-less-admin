@@ -29,9 +29,11 @@ import {
 import {
   buildPendingFact,
   PENDING_FACT_ORIGINS,
+  parseQuantitySpec,
   type PendingFact,
   type PendingFactInput,
   type PendingFactOrigin,
+  type QuantitySpec,
 } from "./fact-admission";
 import {
   FACT_STATUSES as CONTRACT_FACT_STATUSES,
@@ -243,6 +245,10 @@ export interface FactRecord {
   plausible_min: string | null;
   plausible_max: string | null;
   number_token: string;
+  /** Canonical exact decimal truth token stamped by the Foundry decode path. */
+  true_number_token: string;
+  /** Proposed or approved quantity spec; the auditor owns its approval. */
+  quantity_spec: QuantitySpec | null;
   as_of_year: number | null;
   quality_flags: string[];
   disputed_reason: string | null;
@@ -322,6 +328,8 @@ export function toFact(doc: FirestoreDoc): FactRecord {
     plausible_min: typeof d["plausible_min"] === "string" ? d["plausible_min"] : null,
     plausible_max: typeof d["plausible_max"] === "string" ? d["plausible_max"] : null,
     number_token: str(d["number_token"]),
+    true_number_token: str(d["true_number_token"]),
+    quantity_spec: parseQuantitySpec(d["quantity_spec"]),
     as_of_year: num(d["as_of_year"]),
     quality_flags: Array.isArray(d["quality_flags"])
       ? (d["quality_flags"] as Json[]).filter((v): v is string => typeof v === "string")

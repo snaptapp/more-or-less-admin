@@ -125,6 +125,7 @@ const EXPECTED_DEFAULTS: FactRecord = {
   verifier_model: "",
   quantity_kind: "",
   number_token: "",
+  true_number_token: "",
   // Nullable fields → null.
   true_number: null,
   surprise_factor: null,
@@ -137,6 +138,7 @@ const EXPECTED_DEFAULTS: FactRecord = {
   derivation: null,
   plausible_min: null,
   plausible_max: null,
+  quantity_spec: null,
   as_of_year: null,
   disputed_reason: null,
   pinned_reason: null,

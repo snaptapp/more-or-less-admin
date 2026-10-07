@@ -98,6 +98,10 @@ const COVERAGE_ONLY_SOURCE_FILES = new Set([
   "agent-go/derivation_zero.go",
   "agent-go/factlint.go",
   "agent-go/factlint_rules.go",
+  "agent-go/factquality.go",
+  "agent-go/factquality_evidence.go",
+  "agent-go/factquality_numeric.go",
+  "agent-go/factquality_units_gen.go",
   "agent-go/factrepair.go",
   "agent-go/foundry.go",
   "agent-go/unit_tables_gen.go",
@@ -107,6 +111,7 @@ const COVERAGE_ONLY_SOURCE_FILES = new Set([
   "scripts/ddm-port-source/derivation_resolve.ts",
   "scripts/ddm-port-source/derivation_statement.ts",
   "scripts/gen_derivation_tables.mjs",
+  "scripts/gen_fact_quality_units.mjs",
 ]);
 
 const EXACT_DESTINATIONS = new Map([
@@ -120,6 +125,10 @@ const EXACT_DESTINATIONS = new Map([
       "contract/published/fact-lint-catalog.gen.ts",
       "shared/fact-lint-catalog.gen.ts",
     ],
+  ],
+  [
+    "shared/fact-quality-units.gen.ts",
+    ["shared/fact-quality/fact-quality-units.gen.ts"],
   ],
   ["src/derivation.ts", ["shared/ddm/derivation.ts"]],
   ["src/derivation_resolve.ts", ["shared/ddm/derivation_resolve.ts"]],
@@ -149,6 +158,10 @@ const EXACT_DESTINATIONS = new Map([
   [
     "tests/fixtures/fact_quality_pr611.json",
     ["shared/fact-quality/fixtures/fact_quality_pr611.json"],
+  ],
+  [
+    "tests/fixtures/fact_quality_units.json",
+    ["shared/fact-quality/fixtures/fact_quality_units.json"],
   ],
   [
     "tests/fixtures/guardrail_parity.json",

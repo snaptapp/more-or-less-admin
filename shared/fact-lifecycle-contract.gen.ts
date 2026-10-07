@@ -58,4 +58,12 @@ export const LIFECYCLE_FIELDS: readonly FieldDescriptor[] = [
   { name: "lint_rules_revision", type: "string", required: false },
   { name: "number_token", type: "string", required: false },
   { name: "as_of_year", type: "number", required: false },
+  { name: "true_number_token", type: "string", required: false },
+  { name: "quantity_spec", type: "object", required: false },
+  { name: "source_evidence", type: "object[]", required: false },
+  { name: "range_justification", type: "object", required: false },
+  { name: "answer_uncertainty", type: "object", required: false },
+  { name: "quality_receipt", type: "object", required: false },
+  { name: "quality_reviews", type: "object[]", required: false },
+  { name: "quality_hold", type: "object", required: false },
 ] as const;

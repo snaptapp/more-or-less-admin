@@ -4,11 +4,11 @@
 //
 // Source of truth:
 //   agent-go/factlint_rules.go  (canonical lint rule registry)
-//   rules_revision a0b2038497548bc4a4b4bc6275bebeaae3c10bb112c6a658bee6e08a5f71bee4
+//   rules_revision 4915f5c76b01d84fcd1f6f0d2737afde7333d71d9f7d7328b38b1d102f1d7fad
 //   emitted from: agent-go via `agent-go lint-catalog`
 
 export const LINT_CATALOG_SCHEMA_VERSION = 1;
-export const LINT_RULES_REVISION = "a0b2038497548bc4a4b4bc6275bebeaae3c10bb112c6a658bee6e08a5f71bee4";
+export const LINT_RULES_REVISION = "4915f5c76b01d84fcd1f6f0d2737afde7333d71d9f7d7328b38b1d102f1d7fad";
 
 export const LINT_SEVERITIES = ["severe", "review", "warn"] as const;
 export type LintSeverity = (typeof LINT_SEVERITIES)[number];
@@ -85,6 +85,46 @@ export const LINT_RULES: readonly LintRuleDefinition[] = [
     fields: ["question", "subject"],
     check: "The normalized question text repeats another fact's question in the same scope.",
     remediation: "Reword the question to name its distinct angle, or retire the fact if it duplicates the same claim.",
+    overridable: true,
+  },
+  {
+    id: "evidence_insufficient",
+    title: "No source assertion supports the stored value",
+    severity: "review",
+    enforcement: "review_required",
+    fields: ["source_evidence", "true_number"],
+    check: "No evaluated source assertion describes the same quantity and supports the stored value, or every in-scope assertion is unclear.",
+    remediation: "Attach source evidence that states the stored value in the declared unit and period, or hold the fact until a human-checked document is recorded.",
+    overridable: false,
+  },
+  {
+    id: "evidence_malformed",
+    title: "Source assertion could not be normalized",
+    severity: "review",
+    enforcement: "review_required",
+    fields: ["source_evidence"],
+    check: "A source assertion is missing required fields, names an unresolvable unit, or carries a value with no finite decimal spelling (including non-terminating base conversions), so it was excluded from evaluation rather than silently retyped.",
+    remediation: "Correct the assertion's descriptor and value token, or replace it with evidence that can be normalized exactly.",
+    overridable: true,
+  },
+  {
+    id: "evidence_scope_mismatch",
+    title: "Source assertion describes a different quantity",
+    severity: "review",
+    enforcement: "review_required",
+    fields: ["source_evidence", "quantity_spec", "unit"],
+    check: "A source assertion's entity, measure, aggregation, period, or base quantity differs from the declared quantity spec, so its stance cannot count for or against the value.",
+    remediation: "Resolve the scope difference explicitly: correct the spec, correct the assertion descriptor, or obtain evidence for the declared quantity.",
+    overridable: true,
+  },
+  {
+    id: "evidence_value_conflict",
+    title: "Source evidence contradicts the stored value",
+    severity: "severe",
+    enforcement: "review_required",
+    fields: ["source_evidence", "true_number", "quantity_spec"],
+    check: "An in-scope source assertion's value contradicts the stored true_number under the declared value semantics (exact for counts/dates/ranks, resolution interval for rounded/estimated).",
+    remediation: "Resolve with explicit evidence and rationale: correct the value, re-audit the same identity, or retire. Date/count/rank disagreements are consequential at any magnitude.",
     overridable: true,
   },
   {
@@ -188,6 +228,16 @@ export const LINT_RULES: readonly LintRuleDefinition[] = [
     overridable: false,
   },
   {
+    id: "numeric_unsupported",
+    title: "True number needs an unsupported representation",
+    severity: "review",
+    enforcement: "review_required",
+    fields: ["true_number", "unit", "quantity_spec"],
+    check: "true_number is nonzero but underflows to zero at the supported scale, or exceeds the shared safe envelope, so no supported canonical representation exists.",
+    remediation: "Rescale the fact into a supported representation through an approved quantity_spec, or hold it; the value is never silently retyped.",
+    overridable: false,
+  },
+  {
     id: "one_sided_block",
     title: "Derivation has distractors on only one side",
     severity: "severe",
@@ -206,6 +256,26 @@ export const LINT_RULES: readonly LintRuleDefinition[] = [
     check: "The player-facing question field is written as an interrogative (question word lead or trailing question mark). Bank prompts must be numberless noun phrases.",
     remediation: "Rewrite the question as a noun phrase naming the measure (for example \"year X happened\" instead of \"When did X happen?\"). Titles such as \"How to Train Your Dragon\" are not interrogatives.",
     overridable: false,
+  },
+  {
+    id: "quantity_domain_violation",
+    title: "Value violates the declared quantity domain",
+    severity: "severe",
+    enforcement: "review_required",
+    fields: ["true_number", "quantity_spec", "unit", "quantity_kind"],
+    check: "The exact base-quantity value violates the unit's declared domain: a sign or bound breach (negative capacity, proportion over 100%), an off-grid value for an integral base (2.5 astronauts), or a value off the approved quantum (credited half-sack grid).",
+    remediation: "Correct the value, the unit, or the spec. Unsupported-but-legitimate semantics (means, credited statistics, signed temperatures) require the correct aggregation or a signed-domain unit, never a retype.",
+    overridable: false,
+  },
+  {
+    id: "quantity_spec_incoherent",
+    title: "Quantity spec contradicts itself or the registry",
+    severity: "severe",
+    enforcement: "review_required",
+    fields: ["quantity_spec", "unit", "quantity_kind"],
+    check: "The quantity_spec uses an unsupported version or non-registry relation/aggregation/semantics/measure, pairs a measure with a base it cannot be expressed in, or conflicts with the doc's quantity_kind.",
+    remediation: "Correct the descriptor so entity, measure, relation, aggregation, unit, and period describe one quantity; a spec contradiction can never be waived into correctness.",
+    overridable: true,
   },
   {
     id: "question_leaks_number",
@@ -268,6 +338,16 @@ export const LINT_RULES: readonly LintRuleDefinition[] = [
     overridable: false,
   },
   {
+    id: "rounding_unapproved",
+    title: "Value requires undeclared scale-3 rounding",
+    severity: "review",
+    enforcement: "review_required",
+    fields: ["true_number", "true_number_token", "quantity_spec"],
+    check: "true_number carries digits beyond the shared scale-3 envelope but the quantity spec declares exact value semantics, so the stored representation would be an undeclared approximation.",
+    remediation: "Declare rounded or estimated value_semantics with a supported resolution, or rescale the fact so the exact value fits the envelope.",
+    overridable: false,
+  },
+  {
     id: "shared_generic_question",
     title: "Generic question is shared across subjects",
     severity: "review",
@@ -285,6 +365,36 @@ export const LINT_RULES: readonly LintRuleDefinition[] = [
     fields: ["derivation", "precomputed_derivation", "derivation_input_fingerprint"],
     check: "The stored block's model_version or derivation_input_fingerprint no longer matches the fact's current inputs, so the distractors were computed for different content.",
     remediation: "Recompute the derivation block for the current inputs.",
+    overridable: true,
+  },
+  {
+    id: "temporal_semantics_mismatch",
+    title: "Measurement time is absent or conflated with verification time",
+    severity: "review",
+    enforcement: "review_required",
+    fields: ["quantity_spec", "as_of_year", "verified_at"],
+    check: "The quantity spec's temporal mode is absent or the historical/closed/snapshot period lacks its required dates. verified_at records when the fact was checked, never the measurement's as_of period.",
+    remediation: "Record an explicit as_of_year or spec temporal bound (edition, season, observed_at) separate from verified_at.",
+    overridable: false,
+  },
+  {
+    id: "true_number_token_mismatch",
+    title: "Stored canonical truth token disagrees with true number",
+    severity: "review",
+    enforcement: "review_required",
+    fields: ["true_number_token", "true_number"],
+    check: "The persisted true_number_token is not a valid decimal or does not equal the canonical exact value of true_number.",
+    remediation: "Restamp true_number_token from the raw captured token, or correct whichever of the pair is wrong; the token is a projection of the value, not independent evidence.",
+    overridable: false,
+  },
+  {
+    id: "unit_unresolved",
+    title: "Unit does not resolve to a registry unit",
+    severity: "review",
+    enforcement: "review_required",
+    fields: ["unit", "quantity_spec"],
+    check: "The fact's unit spelling resolves to no registry unit ID through the lexical alias index, so its base quantity, domain, and conversion factor cannot be checked.",
+    remediation: "Map the unit to a registry alias or add the unit to the reviewed registry; never restate a conversion inline to satisfy the gate.",
     overridable: true,
   },
   {
