@@ -7,18 +7,19 @@
 
 export const DDM_IMPLEMENTATION_SCHEMA = "ddm-implementation/1";
 export const DDM_IMPLEMENTATION_MODEL_VERSION = "ddm-4";
-export const DDM_IMPLEMENTATION_REVISION = "64482da9326544f930ef8cc841220ef897d1061cb7874dd9e4ea11b1af9ff621";
+export const DDM_IMPLEMENTATION_REVISION = "e3ba0f7d9c3fc6b49f78a64c1abc8a0a02aede4a5dcad5837fd2b4ee6dd7c8a5";
 export const DDM_IMPLEMENTATION_INPUTS = {
-  "agent-go/derivation.go": "6f05723d4382a5f1bcdeb131d569f4949e9f94a53721b073f762dd1da9c979ed",
+  "agent-go/derivation.go": "d262dbfbaa1d1163c8417681b034a7ba9c0140304081e7c1aa2ea30b56bf8a8d",
   "agent-go/derivation_bounds.go": "9a47fa365ad93297db3343d3f6925bad5acc3573b1b20697d6f1141a05ef355d",
   "agent-go/derivation_candidate.go": "257caf38f5db480be611e2a3a7ae7f0aa778de2c4d033ec343c5bdad2930a66f",
   "agent-go/derivation_classify.go": "68e550fb16d6aa5125404814e994efcfa6200ca0d2574f6b99cf5012ede795a2",
   "agent-go/derivation_counterexample.go": "17d28eeb5245a6e6e133093907884a78894f4364cac75eff6b8eb7d45b9fbb6f",
   "agent-go/derivation_derive.go": "95f05d86ec9836d6ae2e356fed2d56c1eae6e832c4ae2c9e73313f0aebffb928",
-  "agent-go/derivation_enumerate.go": "35c0844c6fe68ad2337cfe7476e68b12ee5fd4371cdfdb77a1b33c2e6c9a4a01",
+  "agent-go/derivation_enumerate.go": "a45594c31db5105b3bcf1974337cf2d12486c485f8099442e470079a14a94010",
   "agent-go/derivation_giveaway_gate.go": "89fb6535aec5c2ccacf9fc5e7a522077dd9a0f948753bff7a2b88b11cdfaa4ec",
   "agent-go/derivation_ingest.go": "d239b4e2564b4b8d3c4681bfa7f03e954f22908e91dc7865fd1427ed9a6d2176",
   "agent-go/derivation_kernel.go": "6916b71d7d2a363865418db8514a5b34974a10072b2f035cc50a0072a7f319b5",
+  "agent-go/derivation_playable.go": "e3ae0413f2ba48d07409a645290cc0cdd1482e4f37fa1afc528cc1841fc9610f",
   "agent-go/derivation_schema.go": "350b18f5e9ff09a9004f3c74fca4216a536b267e3fab661b752e68942aa73941",
   "agent-go/derivation_snapping.go": "7cd1f99eab8d9c7a88531897e80a492b15f47a2332ec6dda51aee00b961bb8c7",
   "agent-go/derivation_statement_gate.go": "97d08c226fbffdf72cdd382f4edbf1dfc800a58627cb775bb056934c06217c3a",
@@ -30,8 +31,8 @@ export const DDM_IMPLEMENTATION_INPUTS = {
   "agent-go/derivation_trap.go": "676a1f5135da83d66446a02d0d8d2d7d16b581ed80177fb7cf2f42fbcf9773ed",
   "agent-go/derivation_variation.go": "020361ffce8c9c973e9e5e7a519bc72e36f74556850fef94f208cdc585f8a519",
   "agent-go/derivation_zero.go": "5daba48c3ccf0e2b6a1e59de7c0ccf9144de6ac5e9f75b4f21a75d8fb5d2cc83",
-  "scripts/ddm-port-source/derivation.ts": "42fd7fea2ab95b5d3670594a3575909d8f7a7330a5a28d06180d62ceff55782f",
-  "scripts/ddm-port-source/derivation_resolve.ts": "8d7c29f97a41967b94cbdcfcae5a6d1603892ed2a6ccb192b53e45dc034e819c",
+  "scripts/ddm-port-source/derivation.ts": "6670b684043a8ae53037e235b3fa39815225592688f03391c8572217e6e6cb13",
+  "scripts/ddm-port-source/derivation_resolve.ts": "f7d6c9cf2bbe43e02486f8e7e7dac8c3a653cb3ecf18b6d8c84794674c5f6e72",
   "scripts/ddm-port-source/derivation_statement.ts": "3ada419137e5f5a95957d8f288053b76714a1d314f851241a70e249586f96d34",
   "tests/fixtures/derivation_tables.json": "7a192c113f85e916c5138a6162b369818c5794145b978469cafb285430c236c1",
   "tests/fixtures/unit_tables.json": "c5e2ac4d7c92b150c20ba8223a10e2bca23e7ad649f16feee59aca0e19a72846"

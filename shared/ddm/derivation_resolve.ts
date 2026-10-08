@@ -86,7 +86,9 @@ import {
   TrapUnderestimate,
   type AbstainReason,
   type BoundsHint,
+  type CandidateGroup,
   type CandidateSide,
+  type EnumeratedCandidate,
   type DerivationAbstain,
   type DerivationInput,
   type DerivationResult,
@@ -4051,6 +4053,315 @@ const alternativeMagnitudeProbes: readonly number[] = [0, 1, 2, 3, 4, 5, 6, 7, 8
 // pure and single-sources the remedy order from the generated table.
 function remedyStagesInOrder(): RemedyStageRow[] {
   return [...variationTablesView.remedy_stages].sort((a, b) => a.index - b.index);
+}
+
+// --- Playable candidate-group enumeration (Task 5 first-slice port) ----------
+//
+// enumeratePlayableCandidateGroups is the PRODUCTION inventory view of the same
+// pure pipeline derive() runs (port of agent-go/derivation_playable.go). Unlike
+// a diagnostic all-stage sweep, it exposes only the FIRST fully gated remedy
+// stage per side: the best usable calibration tier the ladder would serve.
+// Each side is evaluated by an ordinary derive() call on a forced-side input
+// copy, so ingest, bounds, zero handling, and trap resolution are shared with
+// derive() verbatim; the winning stage is then re-collected through the same
+// raw->snap->gate pipeline (enumerateStageAll below) with the determinants
+// reported on the success. Provenance (remedyStage, calibrationTier) comes from
+// the generated remedy row index. Sidedness approval policy is a pending
+// Task 5 constraint: a one-sided result is an inventory fact, not an approval.
+
+// enumerateStageAll mirrors runRemedyStage's stage dispatch but collects every
+// passing SNAPPED candidate rather than stopping at the first (port of
+// agent-go enumerateStageAll). An unknown stage id yields no candidates,
+// exactly like the ladder.
+function enumerateStageAll(
+  stage: RemedyStageRow,
+  kind: QuantityKind,
+  canonicalSurprise: number,
+  magnitude: number,
+  trueNumber: FixedPointValue,
+  side: CandidateSide,
+  bounds: ResolvedBounds,
+  slots: number[],
+): FixedPointValue[] {
+  switch (stage.id) {
+    case "preferred_side":
+    case "opposite_side": {
+      const { band, ok } = composeDistanceBand(kind, canonicalSurprise, magnitude);
+      if (!ok) {
+        return [];
+      }
+      return collectBandSlots(kind, band, side, trueNumber, bounds, slots);
+    }
+    case "alternative_calibration": {
+      const { band, ok } = composeAlternativeBand(kind, canonicalSurprise, magnitude);
+      if (!ok) {
+        return [];
+      }
+      return collectBandSlots(kind, band, side, trueNumber, bounds, slots);
+    }
+    case "bound_derived":
+      return collectBoundDerived(kind, side, trueNumber, bounds, slots);
+    default:
+      return [];
+  }
+}
+
+// collectBandSlots walks the deterministic slot order for one composed band
+// and side, screening + snapping + post-gating each candidate through the same
+// gateAndSnap path the ladder uses, and returns every value that fully passes
+// (port of agent-go collectBandSlots).
+function collectBandSlots(
+  kind: QuantityKind,
+  band: ComposedBand,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  bounds: ResolvedBounds,
+  slots: number[],
+): FixedPointValue[] {
+  const out: FixedPointValue[] = [];
+  for (const slot of slots) {
+    const screened = screenRawCandidate(kind, band, side, trueNumber, bounds, slot);
+    if (!screened.accepted) {
+      continue;
+    }
+    const snapped = snapCandidate(kind, screened.value, side, trueNumber, bounds);
+    if (!snapped.accepted) {
+      continue;
+    }
+    if (!gatePasses(kind, snapped.value, trueNumber, side, bounds)) {
+      continue;
+    }
+    const [, dok] = finalDirection(snapped.value, trueNumber);
+    if (!dok) {
+      continue;
+    }
+    out.push(snapped.value);
+  }
+  return out;
+}
+
+// collectBoundDerived is the collecting counterpart of enumerateBoundDerived
+// (port of agent-go collectBoundDerived): inward candidates interpolated
+// between truth and the resolved bound on the required side at each
+// deterministic slot fraction, each screened, snapped, and post-gated exactly
+// like the ladder does.
+function collectBoundDerived(
+  kind: QuantityKind,
+  side: CandidateSide,
+  trueNumber: FixedPointValue,
+  bounds: ResolvedBounds,
+  slots: number[],
+): FixedPointValue[] {
+  const bound = candidateAboveTruth(side) ? bounds.max : bounds.min;
+  const out: FixedPointValue[] = [];
+  for (const slot of slots) {
+    const [candidate, ok] = kindIntegerOnly(kind)
+      ? boundDerivedIntegerCandidate(trueNumber, bound, slot)
+      : boundDerivedCandidate(trueNumber, bound, slot);
+    if (!ok) {
+      continue;
+    }
+    if (!candidateStrictlyOnSide(candidate, trueNumber, side)) {
+      continue;
+    }
+    if (!gatePasses(kind, candidate, trueNumber, side, bounds)) {
+      continue;
+    }
+    const snapped = snapCandidate(kind, candidate, side, trueNumber, bounds);
+    if (!snapped.accepted) {
+      continue;
+    }
+    if (!gatePasses(kind, snapped.value, trueNumber, side, bounds)) {
+      continue;
+    }
+    const [, dok] = finalDirection(snapped.value, trueNumber);
+    if (!dok) {
+      continue;
+    }
+    out.push(snapped.value);
+  }
+  return out;
+}
+
+// playableGroupForSuccess collects the full candidate inventory of the stage a
+// successful derive() won on, stamped with that stage's provenance (port of
+// agent-go playableGroupForSuccess). The stage is re-enumerated through the
+// identical gated pipeline using the determinants reported on the success, so
+// the collection cannot drift from what derive() produced. The first
+// canonical-deduplicated candidate must be the reported winner; any deviation
+// is an internal-consistency failure and fails closed (undefined).
+function playableGroupForSuccess(
+  side: CandidateSide,
+  s: DerivationSuccess,
+): CandidateGroup | undefined {
+  if (s.remedyStage === remedyStageZeroValue) {
+    // The Zero Value Strategy owns zero truth; the playable inventory is
+    // exactly its single derive() winner at calibration tier 0.
+    return {
+      surpriseFactor: s.surpriseFactor,
+      side: s.correctDirection,
+      remedyStage: remedyStageZeroValue,
+      calibrationTier: 0,
+      candidates: [
+        {
+          value: s.presentedNumber,
+          side: s.correctDirection,
+          remedyStage: remedyStageZeroValue,
+          calibrationTier: 0,
+        },
+      ],
+    };
+  }
+
+  const stage = remedyStagesInOrder().find((row) => row.id === s.remedyStage);
+  if (stage === undefined || stage.crosses_side) {
+    return undefined;
+  }
+
+  const [slots, slotsOK] = variationSlotSequence({
+    trueNumber: s.trueNumber,
+    normalizedUnit: s.normalizedUnit,
+    quantityKind: s.quantityKind,
+    canonicalSurprise: s.surpriseFactor,
+    trapDirection: s.trapDirection,
+    plausibleMin: s.plausibleMin,
+    plausibleMax: s.plausibleMax,
+  });
+  if (!slotsOK) {
+    return undefined;
+  }
+
+  const bounds: ResolvedBounds = { min: s.plausibleMin, max: s.plausibleMax };
+  const raw = enumerateStageAll(
+    stage,
+    s.quantityKind,
+    s.surpriseFactor,
+    s.magnitudeScale,
+    s.trueNumber,
+    side,
+    bounds,
+    slots,
+  );
+
+  // Deduplicate by canonical spelling while retaining deterministic slot
+  // order; the derive() winner is always the first element.
+  const seen = new Set<string>();
+  const values: FixedPointValue[] = [];
+  for (const candidate of raw) {
+    const key = formatFixedCanonical(candidate);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    values.push(candidate);
+  }
+  if (values.length === 0) {
+    return undefined;
+  }
+  if (formatFixedCanonical(values[0]) !== formatFixedCanonical(s.presentedNumber)) {
+    return undefined;
+  }
+
+  const candidates: EnumeratedCandidate[] = values.map((value) => ({
+    value,
+    side,
+    remedyStage: stage.id,
+    calibrationTier: stage.index,
+  }));
+  return {
+    surpriseFactor: s.surpriseFactor,
+    side,
+    remedyStage: stage.id,
+    calibrationTier: stage.index,
+    candidates,
+  };
+}
+
+// enumeratePlayableCandidateGroups returns the playable candidate inventory for
+// input: at most one CandidateGroup per enumerated side, holding every fully
+// gated candidate from the FIRST remedy stage derive() would win on that side
+// (port of agent-go EnumeratePlayableCandidateGroups).
+//
+// Side selection: when input.forcedSide is present, only that side is walked
+// and its failure never yields the opposite side. Otherwise the fixed order
+// [MORE, LESS] is walked and each side is evaluated independently. The caller's
+// input is never mutated and input.precomputed is ignored: each side derives on
+// a copy with the block cleared.
+//
+// abstain is populated exactly when no side produced a group AND at least one
+// side abstained: shared-prefix failures (invalid token, underflow, safe-range,
+// bounds, year-zero) are preferred over a bare NO_CANDIDATE_PASSES_GATE so the
+// deterministic reason is preserved.
+export function enumeratePlayableCandidateGroups(
+  input: DerivationInput,
+): { groups: CandidateGroup[]; abstain?: DerivationAbstain } {
+  if (
+    input.forcedSide !== undefined &&
+    input.forcedSide !== SideMore &&
+    input.forcedSide !== SideLess
+  ) {
+    // A forced side outside the closed set fails closed: the playable
+    // inventory must never label valid candidates under an invalid side. Only
+    // the raw incoming token is reported so the abstain carries no resolved
+    // diagnostics for an input the ladder never ran on.
+    return {
+      groups: [],
+      abstain: {
+        outcome: "abstain",
+        reason: AbstainNoCandidatePassesGate,
+        incomingNumericToken: input.incomingNumericToken,
+      },
+    };
+  }
+  const sides: CandidateSide[] =
+    input.forcedSide !== undefined ? [input.forcedSide] : [SideMore, SideLess];
+
+  const groups: CandidateGroup[] = [];
+  const abstains: DerivationAbstain[] = [];
+  for (const side of sides) {
+    // Copy the input, force this side, and drop any precompute block so
+    // inventory is always the live picture.
+    const sideInput: DerivationInput = { ...input, forcedSide: side, precomputed: undefined };
+    const res = derive(sideInput);
+    if (res.abstain !== undefined) {
+      abstains.push(res.abstain);
+      continue;
+    }
+    if (res.success === undefined) {
+      continue;
+    }
+    const group = playableGroupForSuccess(side, res.success);
+    if (group === undefined) {
+      abstains.push({
+        outcome: "abstain",
+        reason: AbstainNoCandidatePassesGate,
+        incomingNumericToken: input.incomingNumericToken,
+        fixedPointValue: res.success.trueNumber,
+        normalizedUnit: res.success.normalizedUnit,
+        quantityKind: res.success.quantityKind,
+        surpriseFactor: res.success.surpriseFactor,
+        magnitudeScale: res.success.magnitudeScale,
+        trapDirection: res.success.trapDirection,
+        plausibleMin: res.success.plausibleMin,
+        plausibleMax: res.success.plausibleMax,
+      });
+      continue;
+    }
+    groups.push(group);
+  }
+
+  if (groups.length > 0) {
+    return { groups };
+  }
+  if (abstains.length === 0) {
+    return { groups };
+  }
+  for (const a of abstains) {
+    if (a.reason !== AbstainNoCandidatePassesGate) {
+      return { groups, abstain: a };
+    }
+  }
+  return { groups, abstain: abstains[0] };
 }
 
 // --- Result assembly ---------------------------------------------------------

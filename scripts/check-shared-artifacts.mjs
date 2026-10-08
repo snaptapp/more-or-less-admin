@@ -63,6 +63,7 @@ const FIXTURE_SOURCE_FILES = new Set([
   "tests/fixtures/derivation_corpus.json",
   "tests/fixtures/derivation_cross_runtime.json",
   "tests/fixtures/derivation_parity.json",
+  "tests/fixtures/derivation_playable_candidates.json",
   "tests/fixtures/derivation_tables.json",
   "tests/fixtures/unit_tables.json",
   "tests/fixtures/key_normalization.json",
@@ -85,6 +86,7 @@ const COVERAGE_ONLY_SOURCE_FILES = new Set([
   "agent-go/derivation_giveaway_gate.go",
   "agent-go/derivation_ingest.go",
   "agent-go/derivation_kernel.go",
+  "agent-go/derivation_playable.go",
   "agent-go/derivation_schema.go",
   "agent-go/derivation_snapping.go",
   "agent-go/derivation_statement_gate.go",
@@ -165,6 +167,10 @@ const EXACT_DESTINATIONS = new Map([
   ],
   // Fact-quality definitions and parity fixtures adopted under their own tree
   // so the DDM fixture namespace stays scoped to derivation behavior.
+  [
+    "tests/fixtures/derivation_playable_candidates.json",
+    ["shared/fact-quality/fixtures/derivation_playable_candidates.json"],
+  ],
   [
     "tests/fixtures/fact_quality_pr611.json",
     ["shared/fact-quality/fixtures/fact_quality_pr611.json"],

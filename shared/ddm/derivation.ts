@@ -1087,6 +1087,33 @@ export interface DerivationResult {
   abstain?: DerivationAbstain;
 }
 
+// EnumeratedCandidate is one playable distractor value with its full
+// provenance, mirroring Go's EnumeratedCandidate (derivation.go): the canonical
+// fixed-point value, the candidate side it lies on (the resulting
+// correct_direction), the remedy stage that produced it, and that stage's
+// calibration tier (the generated remedy row index: preferred 0, alternative
+// calibration 1, bound-derived 2). Emitted only by
+// enumeratePlayableCandidateGroups.
+export interface EnumeratedCandidate {
+  value: FixedPointValue;
+  side: CandidateSide;
+  remedyStage: string;
+  calibrationTier: number;
+}
+
+// CandidateGroup is the best-usable-tier playable inventory for one (canonical
+// surprise, side) pair, mirroring Go's CandidateGroup: every fully gated
+// candidate from the FIRST remedy stage the ladder would win on, in
+// deterministic slot order with the derive() winner first. calibrationTier is
+// the generated remedy row index and stays a separate axis from surpriseFactor.
+export interface CandidateGroup {
+  surpriseFactor: number;
+  side: CandidateSide;
+  remedyStage: string;
+  calibrationTier: number;
+  candidates: EnumeratedCandidate[];
+}
+
 // RawNumericToken is a numeric token captured verbatim from raw JSON, together
 // with the object key path it was found at. Downstream code receives the EXACT
 // token string, not a pre-parsed number (Requirements 8.10, 8.11, 12.9).
@@ -1751,6 +1778,8 @@ export {
   derive,
   finalDirection,
   deriveResultJSON,
+  // best-usable-tier playable enumeration (Task 5 first-slice port)
+  enumeratePlayableCandidateGroups,
 } from "./derivation_resolve";
 
 // ---------------------------------------------------------------------------
