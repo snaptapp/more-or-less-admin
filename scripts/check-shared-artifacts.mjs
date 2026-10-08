@@ -62,6 +62,7 @@ const DDM_SOURCE_FILES = new Set([
 const FIXTURE_SOURCE_FILES = new Set([
   "tests/fixtures/derivation_corpus.json",
   "tests/fixtures/derivation_cross_runtime.json",
+  "tests/fixtures/derivation_numeric_constraints.json",
   "tests/fixtures/derivation_parity.json",
   "tests/fixtures/derivation_playable_candidates.json",
   "tests/fixtures/derivation_tables.json",
@@ -80,6 +81,7 @@ const COVERAGE_ONLY_SOURCE_FILES = new Set([
   "agent-go/derivation_bounds.go",
   "agent-go/derivation_candidate.go",
   "agent-go/derivation_classify.go",
+  "agent-go/derivation_constraints.go",
   "agent-go/derivation_counterexample.go",
   "agent-go/derivation_derive.go",
   "agent-go/derivation_enumerate.go",
@@ -105,6 +107,7 @@ const COVERAGE_ONLY_SOURCE_FILES = new Set([
   "agent-go/factquality.go",
   "agent-go/factquality_audit.go",
   "agent-go/factquality_audit_store.go",
+  "agent-go/factquality_constraints.go",
   "agent-go/factquality_evidence.go",
   "agent-go/factquality_fetch.go",
   "agent-go/factquality_numeric.go",

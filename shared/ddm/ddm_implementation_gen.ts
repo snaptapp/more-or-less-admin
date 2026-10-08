@@ -7,21 +7,22 @@
 
 export const DDM_IMPLEMENTATION_SCHEMA = "ddm-implementation/1";
 export const DDM_IMPLEMENTATION_MODEL_VERSION = "ddm-4";
-export const DDM_IMPLEMENTATION_REVISION = "e3ba0f7d9c3fc6b49f78a64c1abc8a0a02aede4a5dcad5837fd2b4ee6dd7c8a5";
+export const DDM_IMPLEMENTATION_REVISION = "101feb122f1413d4c81e17a303a56dffef3e0191dfaaf6b33707f2413298cd23";
 export const DDM_IMPLEMENTATION_INPUTS = {
-  "agent-go/derivation.go": "d262dbfbaa1d1163c8417681b034a7ba9c0140304081e7c1aa2ea30b56bf8a8d",
-  "agent-go/derivation_bounds.go": "9a47fa365ad93297db3343d3f6925bad5acc3573b1b20697d6f1141a05ef355d",
-  "agent-go/derivation_candidate.go": "257caf38f5db480be611e2a3a7ae7f0aa778de2c4d033ec343c5bdad2930a66f",
+  "agent-go/derivation.go": "fb8f1edc057b3c2eb336083886854e987063c9ec8b156608bf987bdf84c7fcfe",
+  "agent-go/derivation_bounds.go": "d5eb24934cc4dcdb214af29d80a59f71915663d7e6ff90e64e31cb44c43789f7",
+  "agent-go/derivation_candidate.go": "ea6f5eec2311b02950e6e1bd730e027ffcc4f18bfb2b09a969e4b25f50ecedde",
   "agent-go/derivation_classify.go": "68e550fb16d6aa5125404814e994efcfa6200ca0d2574f6b99cf5012ede795a2",
+  "agent-go/derivation_constraints.go": "855aee8179ad4dc78b402191fec46e5c7ba8fa40ee7c030eaafdbeaf8c3826a8",
   "agent-go/derivation_counterexample.go": "17d28eeb5245a6e6e133093907884a78894f4364cac75eff6b8eb7d45b9fbb6f",
-  "agent-go/derivation_derive.go": "95f05d86ec9836d6ae2e356fed2d56c1eae6e832c4ae2c9e73313f0aebffb928",
-  "agent-go/derivation_enumerate.go": "a45594c31db5105b3bcf1974337cf2d12486c485f8099442e470079a14a94010",
-  "agent-go/derivation_giveaway_gate.go": "89fb6535aec5c2ccacf9fc5e7a522077dd9a0f948753bff7a2b88b11cdfaa4ec",
+  "agent-go/derivation_derive.go": "cfb842959ebabbfaecff20f10a6bc5c162954a2b78e05d2f959077b9e8773a4a",
+  "agent-go/derivation_enumerate.go": "cb81e49954de52dadf95299d4a9f102d14c0e6b4b00877ad3dded2ad5da47247",
+  "agent-go/derivation_giveaway_gate.go": "59114b08c3183b0509ed92566dbd0f1255ee096dc8093cb3892f5120dd829098",
   "agent-go/derivation_ingest.go": "d239b4e2564b4b8d3c4681bfa7f03e954f22908e91dc7865fd1427ed9a6d2176",
   "agent-go/derivation_kernel.go": "6916b71d7d2a363865418db8514a5b34974a10072b2f035cc50a0072a7f319b5",
-  "agent-go/derivation_playable.go": "e3ae0413f2ba48d07409a645290cc0cdd1482e4f37fa1afc528cc1841fc9610f",
-  "agent-go/derivation_schema.go": "350b18f5e9ff09a9004f3c74fca4216a536b267e3fab661b752e68942aa73941",
-  "agent-go/derivation_snapping.go": "7cd1f99eab8d9c7a88531897e80a492b15f47a2332ec6dda51aee00b961bb8c7",
+  "agent-go/derivation_playable.go": "d101fdabe600e3e539a705fda122ac4589e8052a959b850692411d9b99a7b4ed",
+  "agent-go/derivation_schema.go": "e8bdc46ae30f6612ea91cf2fc1b382f4d3aa5636af70176a3f540f295c5fb36a",
+  "agent-go/derivation_snapping.go": "f4e4ad1e685c186826b85544911a48f44358596a6f1965d9f0c18226021c9119",
   "agent-go/derivation_statement_gate.go": "97d08c226fbffdf72cdd382f4edbf1dfc800a58627cb775bb056934c06217c3a",
   "agent-go/derivation_statement_inflect.go": "c2613f80ee85f43c6e4bcaee0bab382a42af5379e7693881f98a8308261fb255",
   "agent-go/derivation_statement_policy.go": "baa5e4866df4d1a5b21583469ae62315a83848faf2317a27abcb3b720d8154b2",
@@ -29,11 +30,11 @@ export const DDM_IMPLEMENTATION_INPUTS = {
   "agent-go/derivation_strategy.go": "1de24777a80aa2b116479dc92350b106ef813dcdb81f1ac03ce770f49849fa20",
   "agent-go/derivation_surprise.go": "7430def6b80b7f3bd426e7c31645b04a2ccaec85ba3099994d2e0f0d61f65d4c",
   "agent-go/derivation_trap.go": "676a1f5135da83d66446a02d0d8d2d7d16b581ed80177fb7cf2f42fbcf9773ed",
-  "agent-go/derivation_variation.go": "020361ffce8c9c973e9e5e7a519bc72e36f74556850fef94f208cdc585f8a519",
-  "agent-go/derivation_zero.go": "5daba48c3ccf0e2b6a1e59de7c0ccf9144de6ac5e9f75b4f21a75d8fb5d2cc83",
-  "scripts/ddm-port-source/derivation.ts": "6670b684043a8ae53037e235b3fa39815225592688f03391c8572217e6e6cb13",
-  "scripts/ddm-port-source/derivation_resolve.ts": "f7d6c9cf2bbe43e02486f8e7e7dac8c3a653cb3ecf18b6d8c84794674c5f6e72",
+  "agent-go/derivation_variation.go": "2809f0a3bacbddf3aff4affa2948af41e15df25e243e7145bcc2634f8f53a8b6",
+  "agent-go/derivation_zero.go": "1806df8c78512785a56596b9d08c82d69f2256a0cc619fb072c9c026f2a3ceea",
+  "scripts/ddm-port-source/derivation.ts": "46c04b89c0d756fc3f5495ac14bc4e76f2a40b717ee1ee61780451e73045d176",
+  "scripts/ddm-port-source/derivation_resolve.ts": "b4bfdc12493264e6f168aa31dc035da7f2bf16501fb9e2d991375780e3ed7427",
   "scripts/ddm-port-source/derivation_statement.ts": "3ada419137e5f5a95957d8f288053b76714a1d314f851241a70e249586f96d34",
-  "tests/fixtures/derivation_tables.json": "7a192c113f85e916c5138a6162b369818c5794145b978469cafb285430c236c1",
+  "tests/fixtures/derivation_tables.json": "330d88557023e63dd0cce893ab866625c7f94e1c7e37735dac9fb7cb97ea921d",
   "tests/fixtures/unit_tables.json": "c5e2ac4d7c92b150c20ba8223a10e2bca23e7ad649f16feee59aca0e19a72846"
 } as const;

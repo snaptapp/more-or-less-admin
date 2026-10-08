@@ -11,7 +11,9 @@ import {
   derive,
   DDMVersion,
   fnv1a32,
+  formatFixedCanonical,
   type CandidateSide,
+  type NumericConstraints,
   type PrecomputedDerivation,
   type PrecomputedDistractor,
   type QuantityKind,
@@ -24,6 +26,8 @@ export interface BankDistractor {
   surprise_factor: number;
   side: CandidateSide;
   presented_number: string;
+  remedy_stage?: string;
+  calibration_tier?: number;
 }
 
 /** The snake_case, exact-token block stored in the exported fact bank. */
@@ -34,6 +38,12 @@ export interface BankDerivationBlock {
   plausible_min: string;
   plausible_max: string;
   canonical_surprise_factor?: number;
+  implementation_revision?: string;
+  candidate_policy?: string;
+  true_number_token?: string;
+  normalized_unit?: string;
+  numeric_constraints?: unknown;
+  input_fingerprint?: string;
   distractors: BankDistractor[];
 }
 
@@ -50,8 +60,13 @@ export interface BankPrecomputeFact {
   quantity_kind?: string;
   plausible_min?: string;
   plausible_max?: string;
+  /** Presence, including an explicit null, selects qualified numerics. */
+  numeric_constraints?: unknown;
   derivation?: BankDerivationBlock;
 }
+
+/** Qualified candidate-inventory policy minted by PrecomputeQualifiedBlock. */
+export const QUALIFIED_CANDIDATE_POLICY = "best_usable_tier_v2";
 
 /** Closed sets mirrored from the export boundary and the DDM unions. */
 export const DERIVATION_QUANTITY_KINDS: readonly QuantityKind[] = Object.freeze([
@@ -123,6 +138,55 @@ export function rotateDistractorGroups(
   return rotated;
 }
 
+const BANK_CONSTRAINT_KEYS: ReadonlySet<string> = new Set([
+  "display_decimal_places",
+  "quantum_token",
+  "min_separation_token",
+  "credible_min_token",
+  "credible_max_token",
+]);
+
+/**
+ * Map the stored snake_case constraint object onto the DDM input shape. The
+ * persisted block is untrusted: unknown members, null member values, and
+ * non-integer precision mark the policy invalid so the DDM re-gate fails
+ * closed instead of silently dropping fields. A stored null means absent.
+ */
+function toBankNumericConstraints(value: unknown): NumericConstraints | undefined {
+  if (value === undefined || value === null) return undefined;
+  const invalid: NumericConstraints = { invalid: true };
+  if (typeof value !== "object" || Array.isArray(value)) return invalid;
+  const out: NumericConstraints = {};
+  for (const key of Object.keys(value)) {
+    if (!BANK_CONSTRAINT_KEYS.has(key)) return invalid;
+  }
+  const record = value as Record<string, unknown>;
+  const tokenField = (name: "quantum_token" | "min_separation_token" | "credible_min_token" | "credible_max_token"): string | undefined => {
+    const v = record[name];
+    if (v === undefined) return undefined;
+    if (typeof v !== "string") return undefined;
+    return v;
+  };
+  const places = record.display_decimal_places;
+  if (places !== undefined) {
+    if (typeof places !== "number" || !Number.isInteger(places)) return invalid;
+    out.displayDecimalPlaces = places;
+  }
+  const quantum = tokenField("quantum_token");
+  if (record.quantum_token !== undefined && quantum === undefined) return invalid;
+  if (quantum !== undefined) out.quantumToken = quantum;
+  const separation = tokenField("min_separation_token");
+  if (record.min_separation_token !== undefined && separation === undefined) return invalid;
+  if (separation !== undefined) out.minSeparationToken = separation;
+  const credibleMin = tokenField("credible_min_token");
+  if (record.credible_min_token !== undefined && credibleMin === undefined) return invalid;
+  if (credibleMin !== undefined) out.credibleMinToken = credibleMin;
+  const credibleMax = tokenField("credible_max_token");
+  if (record.credible_max_token !== undefined && credibleMax === undefined) return invalid;
+  if (credibleMax !== undefined) out.credibleMaxToken = credibleMax;
+  return out;
+}
+
 /** Convert a validated snake_case block to the camelCase DDM input shape. */
 export function toPrecomputedDerivation(
   block: BankDerivationBlock | undefined,
@@ -144,14 +208,23 @@ export function toPrecomputedDerivation(
     if (!Number.isInteger(d.surprise_factor) || d.surprise_factor < 0 || d.surprise_factor > 3) continue;
     if (d.side !== "MORE" && d.side !== "LESS") continue;
     if (!isCanonicalToken(d.presented_number)) continue;
-    distractors.push({
+    const entry: PrecomputedDistractor = {
       surpriseFactor: d.surprise_factor,
       side: d.side,
       presentedNumber: d.presented_number,
-    });
+    };
+    if (d.remedy_stage !== undefined) {
+      if (typeof d.remedy_stage !== "string") continue;
+      entry.remedyStage = d.remedy_stage;
+    }
+    if (d.calibration_tier !== undefined) {
+      if (typeof d.calibration_tier !== "number") continue;
+      entry.calibrationTier = d.calibration_tier;
+    }
+    distractors.push(entry);
   }
 
-  return {
+  const out: PrecomputedDerivation = {
     modelVersion: block.model_version,
     quantityKind: block.quantity_kind,
     trapDirection: block.trap_direction,
@@ -159,6 +232,30 @@ export function toPrecomputedDerivation(
     plausibleMax: block.plausible_max,
     distractors: rotateDistractorGroups(distractors, variantSeed, factKey),
   };
+  // Qualified (best_usable_tier_v2) bindings are forwarded verbatim; the DDM
+  // re-gate revalidates every one against the live policy. Malformed types
+  // degrade to absence so the block loses qualification rather than gaining
+  // authority it did not earn.
+  if (typeof block.implementation_revision === "string") {
+    out.implementationRevision = block.implementation_revision;
+  }
+  if (typeof block.candidate_policy === "string") {
+    out.candidatePolicy = block.candidate_policy;
+  }
+  if (typeof block.true_number_token === "string") {
+    out.trueNumberToken = block.true_number_token;
+  }
+  if (typeof block.normalized_unit === "string") {
+    out.normalizedUnit = block.normalized_unit;
+  }
+  if (typeof block.input_fingerprint === "string") {
+    out.inputFingerprint = block.input_fingerprint;
+  }
+  const constraints = toBankNumericConstraints(block.numeric_constraints);
+  if (constraints !== undefined) {
+    out.numericConstraints = constraints;
+  }
+  return out;
 }
 
 export interface DerivedBankRound {
@@ -169,6 +266,12 @@ export interface DerivedBankRound {
   trapDirection: TrapDirection;
   plausibleMin: number;
   plausibleMax: number;
+  // Qualified (Task 5) metadata, additive only: absent on legacy rounds.
+  displayDecimalPlaces?: number;
+  presentedToken?: string;
+  implementationRevision?: string;
+  remedyStage?: string;
+  calibrationTier?: number;
 }
 
 export type DerivationSource = "precomputed" | "live";
@@ -201,6 +304,16 @@ function rawBankRoundJSON(fact: BankPrecomputeFact): string | null {
       /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(maxTok)) {
     parts.push(`"plausible_min":${minTok}`, `"plausible_max":${maxTok}`);
   }
+  // A present numeric_constraints member, including an explicit null, selects
+  // the qualified numerical semantics. It is re-emitted verbatim into the raw
+  // round JSON so the DDM strict parser (not this adapter) stays the sole
+  // authority on policy validity; malformed policies abstain closed.
+  if (Object.prototype.hasOwnProperty.call(fact, "numeric_constraints")) {
+    const encoded = JSON.stringify(fact.numeric_constraints);
+    if (encoded !== undefined) {
+      parts.push(`"numeric_constraints":${encoded}`);
+    }
+  }
   return `{${parts.join(",")}}`;
 }
 
@@ -223,12 +336,28 @@ export function deriveBankRoundDetailed(
   variantSeed?: string
 ): DetailedBankRound {
   const precomputed = toPrecomputedDerivation(fact.derivation, variantSeed, stableFactKey(fact));
+  const factHasConstraints = Object.prototype.hasOwnProperty.call(fact, "numeric_constraints");
+  // A qualified (v2) block cannot authorize a legacy round: when the fact
+  // itself carries no numeric_constraints the stored policy is untrusted
+  // provenance, not permission, so this abstains rather than falling back to
+  // unconstrained derivation.
+  if (precomputed?.candidatePolicy === QUALIFIED_CANDIDATE_POLICY && !factHasConstraints) {
+    return { round: null, abstainReason: "INVALID_NUMERIC_CONSTRAINTS" };
+  }
   const rawRoundJSON = rawBankRoundJSON(fact);
   if (rawRoundJSON === null) return { round: null, abstainReason: "INVALID_NUMERIC_TOKEN" };
 
   let abstainReason: string | undefined;
   let result = runDerive(rawRoundJSON, forced, precomputed);
-  if (result.success === undefined && precomputed !== undefined) {
+  // Stale or non-deciding blocks retry live under the SAME input, so the
+  // fact's own constraints and bounds still bind. An
+  // INVALID_NUMERIC_CONSTRAINTS abstain never retries: a malformed policy or
+  // a v2 block on unconstrained input must not be rescued into a legacy round.
+  if (
+    result.success === undefined &&
+    precomputed !== undefined &&
+    result.abstain !== "INVALID_NUMERIC_CONSTRAINTS"
+  ) {
     abstainReason = result.abstain;
     result = runDerive(rawRoundJSON, forced, undefined);
   }
@@ -246,6 +375,17 @@ export function deriveBankRoundDetailed(
       trapDirection: winner.trapDirection,
       plausibleMin: fixedToNumber(winner.plausibleMin),
       plausibleMax: fixedToNumber(winner.plausibleMax),
+      ...(winner.displayDecimalPlaces !== undefined
+        ? { displayDecimalPlaces: winner.displayDecimalPlaces }
+        : {}),
+      presentedToken: formatFixedCanonical(winner.presentedNumber),
+      ...(winner.implementationRevision !== undefined
+        ? { implementationRevision: winner.implementationRevision }
+        : {}),
+      remedyStage: winner.remedyStage,
+      ...(winner.calibrationTier !== undefined
+        ? { calibrationTier: winner.calibrationTier }
+        : {}),
     },
   };
 }

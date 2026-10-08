@@ -48,8 +48,10 @@
 
 import { UNIT_TABLES } from "./unit_tables_gen";
 import { DERIVATION_TABLES } from "./derivation_tables_gen";
+import { DDM_IMPLEMENTATION_REVISION } from "./ddm_implementation_gen";
 import {
   AbstainBoundsIncoherent,
+  AbstainInvalidNumericConstraints,
   AbstainInvalidNumericToken,
   AbstainNoCandidatePassesGate,
   AbstainOutOfSafeRange,
@@ -65,6 +67,7 @@ import {
   FixedScaleMin,
   guardedAddMag,
   guardedMulMag,
+  idivmod,
   intToDigits,
   KindCount,
   KindPercentage,
@@ -74,6 +77,7 @@ import {
   normalizeFixed,
   numericIngest,
   numericTokenUnderflowedToZero,
+  parseBoundedExponent,
   pow10,
   SafeMantissaMax,
   SideLess,
@@ -81,6 +85,8 @@ import {
   SourceLive,
   SourcePrecomputed,
   SourceZeroValue,
+  splitNumericToken,
+  stripLeadingZeroes,
   subtractFixed,
   TrapOverestimate,
   TrapUnderestimate,
@@ -95,6 +101,7 @@ import {
   type DerivationSource,
   type DerivationSuccess,
   type FixedPointValue,
+  type NumericConstraints,
   type QuantityKind,
   type TrapDirection,
 } from "./derivation";
@@ -1011,6 +1018,12 @@ const unitBoundsOverridesTable = (
 export interface ResolvedBounds {
   min: FixedPointValue;
   max: FixedPointValue;
+  /**
+   * numericPolicy is the resolved strict numerical policy when the input
+   * carried numericConstraints. It is a runtime determinant only; it is never
+   * part of a serialized payload.
+   */
+  numericPolicy?: ResolvedNumericConstraints;
 }
 
 // retrospectiveCeiling returns the table-derived ceiling for retrospective past
@@ -1918,6 +1931,13 @@ export interface VariationDeterminants {
   trapDirection: TrapDirection;
   plausibleMin: FixedPointValue;
   plausibleMax: FixedPointValue;
+  /**
+   * numericPolicyKey is the structural suffix appended to the variation key
+   * ONLY when the input resolved a strict numeric policy (authored
+   * numericPolicyKey). Legacy inputs leave it empty, so their keys — and
+   * therefore their slot orders — are byte-identical to before.
+   */
+  numericPolicyKey?: string;
 }
 
 // variationFieldValue returns the canonical string for one generated
@@ -1959,6 +1979,9 @@ export function buildVariationKey(d: VariationDeterminants): [string, boolean] {
   const parts: string[] = new Array(fields.length);
   for (let i = 0; i < fields.length; i++) {
     parts[i] = variationFieldValue(fields[i], d);
+  }
+  if (d.numericPolicyKey !== undefined && d.numericPolicyKey !== "") {
+    parts.push(d.numericPolicyKey);
   }
   return [parts.join("|"), true];
 }
@@ -2303,7 +2326,10 @@ export function screenRawCandidate(
   if (!candidateStrictlyOnSide(value, trueNumber, side)) {
     return { value, accepted: false, rejection: rawRejectWrongSide };
   }
-  const { satisfies, ok: boundaryOK } = candidateSatisfiesHardBoundary(kind, value);
+  // Under a resolved numeric policy the boundary admits approved fractional
+  // count representations on their grid; otherwise the generated hard
+  // boundary applies verbatim.
+  const { satisfies, ok: boundaryOK } = candidateSatisfiesNumericBoundary(kind, value, bounds);
   if (!boundaryOK || !satisfies) {
     return { value, accepted: false, rejection: rawRejectHardBoundary };
   }
@@ -2591,9 +2617,23 @@ export function snapCandidate(
   bounds: ResolvedBounds,
 ): SnappedCandidate {
   const notAccepted: SnappedCandidate = { value: { negative: false, mantissa: 0, scale: 0 }, stepExp: 0, accepted: false };
-  const step = snapTablesView.snapping.kind_steps[kind];
-  if (step === undefined) {
+  const stepEntry = snapTablesView.snapping.kind_steps[kind];
+  if (stepEntry === undefined) {
     return notAccepted;
+  }
+  // The step is a local copy: a fractional-count policy may lower
+  // min_step_exp and the generated table row must never be mutated.
+  const step: SnapKindStep = { ...stepEntry };
+  const policy = bounds.numericPolicy;
+  if (policy !== undefined && policy.fractionalCount) {
+    // An approved fractional-count grid (quantum finer than 1) requires
+    // natural steps down to the display resolution; the generated
+    // integer-only min_step_exp would snap every candidate back to a whole
+    // number before the approved grid could apply.
+    const minExp = -policy.displayDecimalPlaces;
+    if (step.min_step_exp > minExp) {
+      step.min_step_exp = minExp;
+    }
   }
   const [magnitude, ok] = magnitudeScale(rawCandidate);
   if (!ok) {
@@ -2603,9 +2643,27 @@ export function snapCandidate(
   for (const ref of snapRefinementsInOrder(snapTablesView.snapping)) {
     const rawExp = snapRefinementExp(ref.id, magnitude, step, snapTablesView.snapping);
     const exp = snapClampExp(rawExp, magnitude, step);
-    const [snapped, okSnap] = snapMantissaToExp(rawCandidate, exp);
+    let [snapped, okSnap] = snapMantissaToExp(rawCandidate, exp);
     if (!okSnap) {
       continue;
+    }
+    if (policy !== undefined) {
+      // Under a resolved numeric policy the natural step snaps onto the
+      // approved quantum grid first, then the full constrained gate (side,
+      // display, boundary, credible interval, separation, bounds, landmark,
+      // magnitude) decides acceptance.
+      if (policy.quantum !== undefined) {
+        const [q, qok] = snapToConstraintQuantum(snapped, policy.quantum);
+        snapped = q;
+        okSnap = qok;
+        if (!okSnap) {
+          continue;
+        }
+      }
+      if (evaluateConstrainedGate(kind, snapped, trueNumber, side, bounds) !== gateReasonNone) {
+        continue;
+      }
+      return { value: snapped, stepExp: exp, accepted: true };
     }
     if (snapCandidatePasses(kind, snapped, side, trueNumber, bounds)) {
       return { value: snapped, stepExp: exp, accepted: true };
@@ -2701,6 +2759,14 @@ export function evaluateGiveawayGate(
   side: CandidateSide,
   bounds: ResolvedBounds,
 ): GateReason {
+  // A resolved strict numerical policy (input carried numeric_constraints)
+  // selects the qualified gate: the same ordered contract evaluated on the
+  // actual value AND its displayed value under the approved precision,
+  // quantum, separation, and credible interval. The legacy ordered rules
+  // below run only when no policy resolved.
+  if (bounds.numericPolicy !== undefined) {
+    return evaluateConstrainedGate(kind, candidate, trueNumber, side, bounds);
+  }
   // Rule 1 — representability / shared exact envelope (Requirement 5.4).
   const [normCandidate, ok] = normalizeFixed(candidate);
   if (!ok || !magInEnvelope(normCandidate.mantissa)) {
@@ -3002,6 +3068,670 @@ function gateAbs(v: FixedPointValue): FixedPointValue {
 }
 
 // ===========================================================================
+// Strict numeric constraints
+// (port of agent-go/derivation_constraints.go, Task 5)
+//
+// A present numeric_constraints member on the input selects qualified
+// numerical semantics: exact-token ingest, a declared-closed-set kind, exact
+// display precision, an approved quantum grid, minimum separation, a
+// truth-inclusive credible interval, and complete explicit bounds. A malformed
+// or unresolvable policy abstains INVALID_NUMERIC_CONSTRAINTS rather than
+// degrading to legacy semantics.
+// ===========================================================================
+
+// ResolvedNumericConstraints mirrors the Go resolvedNumericConstraints: the
+// effective policy every constrained gate checks. It is runtime-only; the
+// serialized payload carries the canonical NumericConstraints instead.
+export interface ResolvedNumericConstraints {
+  displayDecimalPlaces: number;
+  quantum?: FixedPointValue;
+  minSeparation: FixedPointValue;
+  credibleMin: FixedPointValue;
+  credibleMax: FixedPointValue;
+  fractionalCount: boolean;
+}
+
+// exactConstraintToken parses a constraint/bound token under the strict
+// qualified grammar: no rounding (the represented value must fit the fixed
+// scale exactly), no negative zero, and no underflow-to-zero. It refuses the
+// token entirely rather than approximating it.
+export function exactConstraintToken(token: string): [FixedPointValue, boolean] {
+  const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
+  token = token.trim();
+  const split = splitNumericToken(token);
+  if (!split.ok) {
+    return fail;
+  }
+  const [exp, expOK] = parseBoundedExponent(split.expStr);
+  if (!expOK) {
+    return fail;
+  }
+  const coefficient = stripLeadingZeroes(split.intDigits + split.fracDigits);
+  if (coefficient === "0") {
+    if (split.neg) {
+      return fail;
+    }
+    return [{ negative: false, mantissa: 0, scale: 0 }, true];
+  }
+  let trailing = 0;
+  while (trailing < coefficient.length - 1 && coefficient[coefficient.length - 1 - trailing] === "0") {
+    trailing++;
+  }
+  if (split.fracDigits.length - exp - trailing > FixedScaleMax) {
+    return fail;
+  }
+  const diag = numericIngest(token);
+  if (
+    diag.fixedPointValue === undefined ||
+    diag.ingestReason !== undefined ||
+    diag.fixedPointValue.mantissa === 0
+  ) {
+    return fail;
+  }
+  return [diag.fixedPointValue, true];
+}
+
+// fixedOnQuantum reports whether value lands exactly on the quantum grid: its
+// magnitude is a whole multiple of the quantum at a shared scale.
+function fixedOnQuantum(value: FixedPointValue, quantum: FixedPointValue): boolean {
+  const [vm, qm] = alignFixed(gateAbs(value), quantum);
+  return qm > 0 && vm % qm === 0;
+}
+
+// snapToConstraintQuantum rounds a snapped candidate onto the approved quantum
+// grid (half away from zero on the magnitude, sign preserved). ok=false when
+// the quantum or the rounded product leaves the envelope.
+export function snapToConstraintQuantum(
+  value: FixedPointValue,
+  quantum: FixedPointValue,
+): [FixedPointValue, boolean] {
+  const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
+  const [vm, qm, scale, ok] = alignFixed(gateAbs(value), quantum);
+  if (!ok || qm <= 0) {
+    return fail;
+  }
+  const [n, nok] = divideMagnitudeHalfAway(vm, qm);
+  if (!nok) {
+    return fail;
+  }
+  const [mantissa, mok] = guardedMulMag(n, qm);
+  if (!mok) {
+    return fail;
+  }
+  return normalizeFixed({ negative: value.negative, mantissa, scale });
+}
+
+// largerConstraintValue returns the larger of two fixed-point values (a on
+// equality). ok=false when the comparison cannot be made.
+function largerConstraintValue(a: FixedPointValue, b: FixedPointValue): [FixedPointValue, boolean] {
+  const [cmp, ok] = compareFixed(a, b);
+  if (!ok) {
+    return [a, false];
+  }
+  if (cmp >= 0) {
+    return [a, true];
+  }
+  return [b, true];
+}
+
+// resolveNumericConstraints resolves the declared policy against the closed-set
+// kind and the exact truth: display precision (table default, raised to the
+// truth scale, or the declared override), the quantum grid (declared, or the
+// count/year integer default), the minimum separation floor, and the
+// truth-inclusive credible interval. ok=false marks the policy unresolved so
+// the caller abstains INVALID_NUMERIC_CONSTRAINTS.
+export function resolveNumericConstraints(
+  raw: NumericConstraints | undefined,
+  kind: QuantityKind,
+  truth: FixedPointValue,
+): [ResolvedNumericConstraints | undefined, boolean] {
+  if (raw === undefined || raw.invalid === true) {
+    return [undefined, false];
+  }
+  const placesEntry = gateTablesView.display.decimal_places_by_kind[kind];
+  if (placesEntry === undefined) {
+    return [undefined, false];
+  }
+  let places = placesEntry;
+  if (truth.scale > places) {
+    places = truth.scale;
+  }
+  if (raw.displayDecimalPlaces !== undefined) {
+    places = raw.displayDecimalPlaces;
+  }
+  if (places < truth.scale || places < FixedScaleMin || places > FixedScaleMax) {
+    return [undefined, false];
+  }
+  const p: ResolvedNumericConstraints = {
+    displayDecimalPlaces: places,
+    minSeparation: { negative: false, mantissa: 1, scale: places },
+    credibleMin: truth,
+    credibleMax: truth,
+    fractionalCount: false,
+  };
+  if (raw.quantumToken !== undefined) {
+    const [q, valid] = exactConstraintToken(raw.quantumToken);
+    if (!valid || q.negative || q.mantissa === 0) {
+      return [undefined, false];
+    }
+    p.quantum = q;
+  } else if (kind === KindCount || kind === KindYear) {
+    p.quantum = intToFixed(1);
+  }
+  if (p.quantum !== undefined) {
+    if (p.quantum.scale > places) {
+      if (raw.displayDecimalPlaces !== undefined) {
+        return [undefined, false];
+      }
+      places = p.quantum.scale;
+      p.displayDecimalPlaces = places;
+      p.minSeparation = { negative: false, mantissa: 1, scale: places };
+    }
+    if (!fixedOnQuantum(truth, p.quantum)) {
+      return [undefined, false];
+    }
+    if (kind === KindYear) {
+      const [cmp, valid] = compareFixed(p.quantum, intToFixed(1));
+      if (!valid || cmp !== 0 || places !== 0) {
+        return [undefined, false];
+      }
+    }
+    p.fractionalCount = kind === KindCount && p.quantum.scale > 0;
+    const [minSep, sepOK] = largerConstraintValue(p.minSeparation, p.quantum);
+    if (!sepOK) {
+      return [undefined, false];
+    }
+    p.minSeparation = minSep;
+  }
+  if (raw.minSeparationToken !== undefined) {
+    const [minimum, valid] = exactConstraintToken(raw.minSeparationToken);
+    if (!valid || minimum.negative || minimum.mantissa === 0) {
+      return [undefined, false];
+    }
+    const [minSep, sepOK] = largerConstraintValue(p.minSeparation, minimum);
+    if (!sepOK) {
+      return [undefined, false];
+    }
+    p.minSeparation = minSep;
+  }
+  if ((raw.credibleMinToken === undefined) !== (raw.credibleMaxToken === undefined)) {
+    return [undefined, false];
+  }
+  if (raw.credibleMinToken !== undefined) {
+    const [lo, validLo] = exactConstraintToken(raw.credibleMinToken);
+    if (!validLo) {
+      return [undefined, false];
+    }
+    const [hi, validHi] = exactConstraintToken(raw.credibleMaxToken as string);
+    if (!validHi) {
+      return [undefined, false];
+    }
+    p.credibleMin = lo;
+    p.credibleMax = hi;
+  }
+  const [lo, validLo] = compareFixed(p.credibleMin, truth);
+  const [hi, validHi] = compareFixed(truth, p.credibleMax);
+  if (!validLo || !validHi || lo > 0 || hi > 0) {
+    return [undefined, false];
+  }
+  return [p, true];
+}
+
+// canonicalResolvedConstraints renders the resolved policy back to the wire
+// shape so consumers serialize and fingerprint the EFFECTIVE constraints, not
+// the declared spelling.
+export function canonicalResolvedConstraints(p: ResolvedNumericConstraints): NumericConstraints {
+  const out: NumericConstraints = {
+    displayDecimalPlaces: p.displayDecimalPlaces,
+    minSeparationToken: formatFixedCanonical(p.minSeparation),
+    credibleMinToken: formatFixedCanonical(p.credibleMin),
+    credibleMaxToken: formatFixedCanonical(p.credibleMax),
+  };
+  if (p.quantum !== undefined) {
+    out.quantumToken = formatFixedCanonical(p.quantum);
+  }
+  return out;
+}
+
+// numericPolicyKey is the authored structural determinants suffix appended to
+// the variation key only when a strict policy resolved.
+export function numericPolicyKey(p: ResolvedNumericConstraints): string {
+  let quantum = "-";
+  if (p.quantum !== undefined) {
+    quantum = formatFixedCanonical(p.quantum);
+  }
+  return [
+    "numeric-v2",
+    intToDigits(p.displayDecimalPlaces),
+    quantum,
+    formatFixedCanonical(p.minSeparation),
+    formatFixedCanonical(p.credibleMin),
+    formatFixedCanonical(p.credibleMax),
+  ].join("|");
+}
+
+// resolveConstrainedBounds resolves the qualified bound pair: complete, exact,
+// truth-inclusive FactBankBounds preferred over ModelBounds when the fact-bank
+// hint is absent, and never a generated default. The resolved policy attaches
+// to the bounds so every downstream gate shares it.
+function resolveConstrainedBounds(
+  input: DerivationInput,
+  truth: FixedPointValue,
+  policy: ResolvedNumericConstraints,
+): [ResolvedBounds, boolean] {
+  const hint = input.factBankBounds ?? input.modelBounds;
+  if (hint === undefined) {
+    return [{ min: truth, max: truth }, false];
+  }
+  const [lo, okLo] = exactConstraintToken(hint.minToken);
+  const [hi, okHi] = exactConstraintToken(hint.maxToken);
+  if (!okLo || !okHi) {
+    return [{ min: truth, max: truth }, false];
+  }
+  const bounds = coherentPair(lo, hi, truth);
+  if (bounds === undefined) {
+    return [{ min: truth, max: truth }, false];
+  }
+  bounds.numericPolicy = policy;
+  return [bounds, true];
+}
+
+// candidateSatisfiesNumericBoundary is the qualified hard-boundary check: an
+// approved fractional-count grid (quantum finer than 1) admits fractional count
+// representations while every other kind keeps the generated integer/min/max
+// domain unchanged.
+export function candidateSatisfiesNumericBoundary(
+  kind: QuantityKind,
+  value: FixedPointValue,
+  bounds: ResolvedBounds,
+): { satisfies: boolean; ok: boolean } {
+  const policy = bounds.numericPolicy;
+  if (policy === undefined || !policy.fractionalCount || kind !== KindCount) {
+    return candidateSatisfiesHardBoundary(kind, value);
+  }
+  // Fractional count representations require an explicitly approved grid.
+  // This changes representation, not the table's sign or magnitude domain.
+  const entry = hardBoundariesTable[kind];
+  const [n, valid] = normalizeFixed(value);
+  if (entry === undefined || !valid) {
+    return { satisfies: false, ok: false };
+  }
+  if (entry.min_inclusive !== null && entry.min_inclusive !== undefined) {
+    const [cmp, cmpOK] = compareFixed(n, intToFixed(entry.min_inclusive));
+    if (!cmpOK || cmp < 0) {
+      return { satisfies: false, ok: true };
+    }
+  }
+  if (entry.max_inclusive !== null && entry.max_inclusive !== undefined) {
+    const [cmp, cmpOK] = compareFixed(n, intToFixed(entry.max_inclusive));
+    if (!cmpOK || cmp > 0) {
+      return { satisfies: false, ok: true };
+    }
+  }
+  return { satisfies: true, ok: true };
+}
+
+// constraintRelativeHalfWidth computes the relative dead-zone floor under the
+// qualified policy: the generated half-width permille of |truth| rounded UP at
+// the finest supported scale. Quotient/remainder decomposition avoids an
+// overflowing intermediate product.
+function constraintRelativeHalfWidth(
+  kind: QuantityKind,
+  truth: FixedPointValue,
+): [FixedPointValue, boolean] {
+  const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
+  const table = gateTablesView.dead_zones;
+  const entry = table.kinds[kind];
+  if (entry === undefined || table.unit_factor <= 0 || entry.half_width_permille < 0) {
+    return fail;
+  }
+  const [m, mok] = scaleMantissaTo(truth.mantissa, truth.scale, FixedScaleMax);
+  if (!mok) {
+    return fail;
+  }
+  const factor = entry.half_width_permille;
+  const [qWhole, rWhole, divOK] = idivmod(m, table.unit_factor);
+  if (!divOK) {
+    return fail;
+  }
+  const [whole, wok] = guardedMulMag(qWhole, factor);
+  if (!wok) {
+    return fail;
+  }
+  const [fraction, fok] = guardedMulMag(rWhole, factor);
+  if (!fok) {
+    return fail;
+  }
+  const [qFrac, rFrac, fracOK] = idivmod(fraction, table.unit_factor);
+  if (!fracOK) {
+    return fail;
+  }
+  let extra = qFrac;
+  if (rFrac !== 0) {
+    const [e, eok] = guardedAddMag(extra, 1);
+    if (!eok) {
+      return fail;
+    }
+    extra = e;
+  }
+  const [width, widthOK] = guardedAddMag(whole, extra);
+  if (!widthOK) {
+    return fail;
+  }
+  return normalizeFixed({ negative: false, mantissa: width, scale: FixedScaleMax });
+}
+
+// constraintOutsideDeadZone reports whether value clears the qualified dead
+// zone: the LARGER of the relative floor and the resolved minimum separation.
+function constraintOutsideDeadZone(
+  kind: QuantityKind,
+  value: FixedPointValue,
+  truth: FixedPointValue,
+  policy: ResolvedNumericConstraints,
+): boolean {
+  const [w, wok] = constraintRelativeHalfWidth(kind, truth);
+  if (!wok) {
+    return false;
+  }
+  const [width, lok] = largerConstraintValue(w, policy.minSeparation);
+  if (!lok) {
+    return false;
+  }
+  const [difference, dok] = subtractFixed(value, truth);
+  if (!dok) {
+    return false;
+  }
+  const [cmp, cok] = compareFixed(gateAbs(difference), width);
+  return cok && cmp >= 0;
+}
+
+// constraintOutsideCredibleInterval reports whether value lies strictly outside
+// the credible endpoint on the candidate's side: a MORE candidate must sit
+// below credible_min, a LESS candidate above credible_max.
+function constraintOutsideCredibleInterval(
+  value: FixedPointValue,
+  side: CandidateSide,
+  policy: ResolvedNumericConstraints,
+): boolean {
+  switch (side) {
+    case SideMore: {
+      const [cmp, ok] = compareFixed(value, policy.credibleMin);
+      return ok && cmp < 0;
+    }
+    case SideLess: {
+      const [cmp, ok] = compareFixed(value, policy.credibleMax);
+      return ok && cmp > 0;
+    }
+    default:
+      return false;
+  }
+}
+
+// evaluateConstrainedGate is the qualified Giveaway Gate: the same ordered
+// contract evaluated on the ACTUAL snapped value AND its displayed value under
+// the approved precision, quantum, separation, and credible interval. No source
+// interpretation or publication permission enters this function.
+export function evaluateConstrainedGate(
+  kind: QuantityKind,
+  value: FixedPointValue,
+  truth: FixedPointValue,
+  side: CandidateSide,
+  bounds: ResolvedBounds,
+): GateReason {
+  const p = bounds.numericPolicy;
+  const [n, ok] = normalizeFixed(value);
+  if (p === undefined || !ok) {
+    return gateReasonNotRepresentable;
+  }
+  if (!candidateStrictlyOnSide(n, truth, side)) {
+    return gateReasonWrongSide;
+  }
+  const [displayed, dok] = gateRoundToDisplay(n, p.displayDecimalPlaces);
+  if (!dok || !candidateStrictlyOnSide(displayed, truth, side)) {
+    return gateReasonDisplayCollision;
+  }
+  if (p.quantum !== undefined && !fixedOnQuantum(n, p.quantum)) {
+    return gateReasonHardBoundary;
+  }
+  const { satisfies, ok: boundaryOK } = candidateSatisfiesNumericBoundary(kind, n, bounds);
+  if (!boundaryOK || !satisfies) {
+    return gateReasonHardBoundary;
+  }
+  if (
+    !constraintOutsideCredibleInterval(n, side, p) ||
+    !constraintOutsideCredibleInterval(displayed, side, p)
+  ) {
+    return gateReasonWrongSide;
+  }
+  if (!constraintOutsideDeadZone(kind, n, truth, p) || !constraintOutsideDeadZone(kind, displayed, truth, p)) {
+    return gateReasonDeadZone;
+  }
+  if (!candidateWithinBounds(n, bounds) || !candidateWithinBounds(displayed, bounds)) {
+    return gateReasonOutOfBounds;
+  }
+  if (!isFixedZero(truth)) {
+    const { giveaway, ok: lmOK } = gateIsLandmarkGiveaway(n, truth);
+    if (!lmOK || giveaway) {
+      return gateReasonLandmarkGiveaway;
+    }
+  }
+  const { tell, ok: omOK } = gateIsMagnitudeTell(n, truth);
+  if (!omOK || tell) {
+    return gateReasonMagnitudeTell;
+  }
+  return gateReasonNone;
+}
+
+// rawCandidatePrecheck is the pre-snap screen for pipeline paths that gate a
+// RAW candidate before the snapping walk (bound-derived enumeration and the
+// zero-value offsets). Under a resolved numeric policy it checks only what
+// snapping cannot repair (strict required side, the numeric hard boundary,
+// and the resolved bounds) because quantum grid, display collision, credible
+// interval, and dead-zone checks are evaluated on the SNAPPED and DISPLAYED
+// values. Without a policy the full ordered gate runs on the raw candidate,
+// preserving the legacy path byte-for-byte.
+function rawCandidatePrecheck(
+  kind: QuantityKind,
+  candidate: FixedPointValue,
+  trueNumber: FixedPointValue,
+  side: CandidateSide,
+  bounds: ResolvedBounds,
+): boolean {
+  if (bounds.numericPolicy === undefined) {
+    return gatePasses(kind, candidate, trueNumber, side, bounds);
+  }
+  const [n, ok] = normalizeFixed(candidate);
+  if (!ok || !magInEnvelope(n.mantissa)) {
+    return false;
+  }
+  if (!candidateStrictlyOnSide(n, trueNumber, side)) {
+    return false;
+  }
+  const { satisfies, ok: boundaryOK } = candidateSatisfiesNumericBoundary(kind, n, bounds);
+  if (!boundaryOK || !satisfies) {
+    return false;
+  }
+  return candidateWithinBounds(n, bounds);
+}
+
+// ===========================================================================
+// Qualified derivation-input fingerprint (port of foundry.go
+// DerivationInputFingerprint) — synchronous, pure SHA-256 over the exact
+// canonical parts so a stored v2 block can be bound to its minting input.
+// ===========================================================================
+
+// utf8Bytes encodes a string as UTF-8 bytes without any runtime helper.
+function utf8Bytes(s: string): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < s.length; i++) {
+    let cp = s.charCodeAt(i);
+    if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < s.length) {
+      const lo = s.charCodeAt(i + 1);
+      if (lo >= 0xdc00 && lo <= 0xdfff) {
+        cp = 0x10000 + ((cp - 0xd800) << 10) + (lo - 0xdc00);
+        i++;
+      }
+    }
+    if (cp < 0x80) {
+      out.push(cp);
+    } else if (cp < 0x800) {
+      out.push(0xc0 | (cp >>> 6), 0x80 | (cp & 0x3f));
+    } else if (cp < 0x10000) {
+      out.push(0xe0 | (cp >>> 12), 0x80 | ((cp >>> 6) & 0x3f), 0x80 | (cp & 0x3f));
+    } else {
+      out.push(
+        0xf0 | (cp >>> 18),
+        0x80 | ((cp >>> 12) & 0x3f),
+        0x80 | ((cp >>> 6) & 0x3f),
+        0x80 | (cp & 0x3f),
+      );
+    }
+  }
+  return out;
+}
+
+// sha256Round constants (fractional parts of cube roots of the first primes).
+const sha256K: readonly number[] = [
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+];
+
+// rotr is a 32-bit rotate-right on an unsigned word.
+function rotr(x: number, n: number): number {
+  return ((x >>> n) | (x << (32 - n))) >>> 0;
+}
+
+// sha256Hex computes the SHA-256 digest of a string as lowercase hex. All
+// arithmetic stays on unsigned 32-bit words via >>>0 coercion; every result is
+// deterministic and allocation-local (pure, no imports).
+function sha256Hex(s: string): string {
+  const bytes = utf8Bytes(s);
+  const bitLenHi = Math.floor(bytes.length / 0x20000000) >>> 0;
+  const bitLenLo = (bytes.length * 8) >>> 0;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) {
+    bytes.push(0);
+  }
+  bytes.push(
+    (bitLenHi >>> 24) & 0xff,
+    (bitLenHi >>> 16) & 0xff,
+    (bitLenHi >>> 8) & 0xff,
+    bitLenHi & 0xff,
+    (bitLenLo >>> 24) & 0xff,
+    (bitLenLo >>> 16) & 0xff,
+    (bitLenLo >>> 8) & 0xff,
+    bitLenLo & 0xff,
+  );
+  const h = [
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+  ];
+  const w = new Array<number>(64);
+  for (let off = 0; off < bytes.length; off += 64) {
+    for (let i = 0; i < 16; i++) {
+      const j = off + i * 4;
+      w[i] = ((bytes[j] << 24) | (bytes[j + 1] << 16) | (bytes[j + 2] << 8) | bytes[j + 3]) >>> 0;
+    }
+    for (let i = 16; i < 64; i++) {
+      const s0 = (rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3)) >>> 0;
+      const s1 = (rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10)) >>> 0;
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+    }
+    let a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
+    for (let i = 0; i < 64; i++) {
+      const s1 = (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) >>> 0;
+      const ch = ((e & f) ^ (~e & g)) >>> 0;
+      const t1 = (hh + s1 + ch + sha256K[i] + w[i]) >>> 0;
+      const s0 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) >>> 0;
+      const maj = ((a & b) ^ (a & c) ^ (b & c)) >>> 0;
+      const t2 = (s0 + maj) >>> 0;
+      hh = g; g = f; f = e; e = (d + t1) >>> 0;
+      d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    h[0] = (h[0] + a) >>> 0;
+    h[1] = (h[1] + b) >>> 0;
+    h[2] = (h[2] + c) >>> 0;
+    h[3] = (h[3] + d) >>> 0;
+    h[4] = (h[4] + e) >>> 0;
+    h[5] = (h[5] + f) >>> 0;
+    h[6] = (h[6] + g) >>> 0;
+    h[7] = (h[7] + hh) >>> 0;
+  }
+  let out = "";
+  for (const word of h) {
+    out += word.toString(16).padStart(8, "0");
+  }
+  return out;
+}
+
+// derivationInputFingerprint hashes the exact canonical parts a fact's
+// precompute block depends on: normalized unit, canonical true-number token,
+// kind hint, canonical bound tokens, canonical surprise, the model version,
+// and the DDM implementation revision (port of foundry.go
+// DerivationInputFingerprint). Qualified blocks pass their effective
+// numeric_constraints so the fingerprint binds the exact resolved policy; a
+// constraints value that cannot resolve hashes its canonical declared
+// spelling so it still binds distinctly. Callers that pass no constraints
+// produce the legacy fingerprint bytes.
+export function derivationInputFingerprint(
+  trueNumberToken: string,
+  unit: string,
+  kind: string,
+  plausibleMin: string,
+  plausibleMax: string,
+  canonicalSF: number,
+  constraints?: NumericConstraints,
+): string {
+  const canonicalToken = (tok: string): string => {
+    const t = tok.trim();
+    if (t === "") {
+      return "-";
+    }
+    const d = numericIngest(t);
+    if (d.fixedPointValue === undefined) {
+      return "!" + t;
+    }
+    return formatFixedCanonical(d.fixedPointValue);
+  };
+  const parts: string[] = [
+    DDMVersion,
+    DDM_IMPLEMENTATION_REVISION,
+    normalizeUnit(unit),
+    canonicalToken(trueNumberToken),
+    kind.trim().toLowerCase(),
+    canonicalToken(plausibleMin),
+    canonicalToken(plausibleMax),
+    String(canonicalizeSurprise(canonicalSF)),
+  ];
+  if (constraints !== undefined) {
+    let key = "";
+    const [truth, truthOK] = exactConstraintToken(trueNumberToken);
+    if (truthOK) {
+      const [p, resolved] = resolveNumericConstraints(
+        constraints,
+        kind.trim().toLowerCase() as QuantityKind,
+        truth,
+      );
+      if (resolved && p !== undefined) {
+        key = numericPolicyKey(p);
+      }
+    }
+    if (key === "") {
+      // Mirrors Go's "!" + json.Marshal(c): the canonical declared-object
+      // spelling still binds distinctly even when it cannot resolve.
+      key = "!" + serializeConstraintsJSON(constraints);
+    }
+    parts.push(key);
+  }
+  return sha256Hex(parts.join("|"));
+}
+
+// ===========================================================================
 // Table-driven Zero Value Strategy
 // (port of agent-go/derivation_zero.go, task 5.4)
 //
@@ -3202,7 +3932,7 @@ function zeroTryOffset(
   if (!candidateStrictlyOnSide(raw, trueNumber, side)) {
     return fail;
   }
-  if (!gatePasses(kind, raw, trueNumber, side, bounds)) {
+  if (!rawCandidatePrecheck(kind, raw, trueNumber, side, bounds)) {
     return fail;
   }
 
@@ -3359,7 +4089,29 @@ export function derive(input: DerivationInput): DerivationResult {
   const canonicalSurprise = canonicalizeSurprise(input.surpriseFactor);
 
   // --- Stage 3: resolve quantity_kind + normalized unit -----------------
-  const [kind, normalizedUnit] = classifyQuantityKind(input.quantityKind ?? "", input.unit, trueNumber);
+  // When numeric_constraints is present the input opts into strict qualified
+  // semantics: the declared kind must be a closed-set member (no classifier
+  // fallback retype), every numeric token must be exact, and the resolved
+  // policy and bounds attach to every downstream gate.
+  let kind: QuantityKind = "" as QuantityKind;
+  let normalizedUnit = "";
+  let bounds: ResolvedBounds;
+  if (input.numericConstraints !== undefined) {
+    normalizedUnit = normalizeUnit(input.unit);
+    const [k, resolved] = declaredQuantityKind(input.quantityKind ?? "");
+    if (resolved) {
+      kind = k;
+    }
+    if (input.numericConstraints.invalid === true || (kind as string) === "") {
+      return abstainResult(
+        invalidConstraintsAbstain(input, trueNumber, kind, normalizedUnit, canonicalSurprise),
+      );
+    }
+  } else {
+    const classed = classifyQuantityKind(input.quantityKind ?? "", input.unit, trueNumber);
+    kind = classed[0];
+    normalizedUnit = classed[1];
+  }
 
   // Year-zero abstention takes precedence over bounds resolution: a zero
   // true_number for the year kind is outside the calendar-year hard boundary
@@ -3381,12 +4133,28 @@ export function derive(input: DerivationInput): DerivationResult {
 
   // --- Stage 4: resolve plausibility bounds -----------------------------
   // A round with no coherent bounds pair abstains BOUNDS_INCOHERENT, carrying
-  // the diagnostics resolved so far (Requirement 2.10).
-  const boundsRes = resolveBounds(kind, normalizedUnit, trueNumber, input.factBankBounds, input.modelBounds);
-  if (!boundsRes.ok || boundsRes.bounds === undefined) {
-    return abstainResult(boundsIncoherentAbstain(input, trueNumber, kind, normalizedUnit, canonicalSurprise));
+  // the diagnostics resolved so far (Requirement 2.10). A constrained input
+  // instead resolves its exact qualified policy and bounds here: the truth
+  // token must be exact under the constraint grammar, the declared
+  // constraints must resolve against kind/truth, the bound pair must be
+  // complete and exact (never a generated default), and the truth itself
+  // must satisfy the numeric boundary (a bare fractional count or an
+  // out-of-domain proportion fails closed rather than being retyped).
+  if (input.numericConstraints !== undefined) {
+    const [constrainedBounds, resolved] = resolveConstrainedBoundsPrefix(input, kind, trueNumber);
+    if (!resolved || constrainedBounds === undefined) {
+      return abstainResult(
+        invalidConstraintsAbstain(input, trueNumber, kind, normalizedUnit, canonicalSurprise),
+      );
+    }
+    bounds = constrainedBounds;
+  } else {
+    const boundsRes = resolveBounds(kind, normalizedUnit, trueNumber, input.factBankBounds, input.modelBounds);
+    if (!boundsRes.ok || boundsRes.bounds === undefined) {
+      return abstainResult(boundsIncoherentAbstain(input, trueNumber, kind, normalizedUnit, canonicalSurprise));
+    }
+    bounds = boundsRes.bounds;
   }
-  const bounds = boundsRes.bounds;
 
   // --- Stage 5: magnitude_scale -----------------------------------------
   const [magnitude, magOK] = computeMagnitudeScale(trueNumber);
@@ -3557,6 +4325,31 @@ function tryPrecomputed(
   if (pre === undefined) {
     return { result: {}, decided: false };
   }
+  if (bounds.numericPolicy !== undefined) {
+    return tryPrecomputedConstrained(input, trueNumber, kind, normalizedUnit, canonicalSurprise, magnitude, trap, bounds, sides);
+  }
+  if (pre.candidatePolicy === candidatePolicyQualified) {
+    // A qualified v2 block can never re-gate a legacy (unconstrained) input:
+    // the contract requires the same strict constraints on the input the
+    // block was minted under. Fail closed rather than falling back to the
+    // loose legacy regate.
+    return {
+      result: abstainResult({
+        outcome: "abstain",
+        reason: AbstainInvalidNumericConstraints,
+        incomingNumericToken: input.incomingNumericToken,
+        fixedPointValue: trueNumber,
+        normalizedUnit,
+        quantityKind: kind,
+        surpriseFactor: canonicalSurprise,
+        magnitudeScale: magnitude,
+        trapDirection: trap,
+        plausibleMin: bounds.min,
+        plausibleMax: bounds.max,
+      }),
+      decided: true,
+    };
+  }
   if (pre.modelVersion !== DDMVersion) {
     return {
       result: abstainResult({
@@ -3615,6 +4408,171 @@ function tryPrecomputed(
   return { result: {}, decided: false };
 }
 
+// candidatePolicyQualified names the qualified candidate inventory policy
+// minted by PrecomputeQualifiedBlock: every entry carries best-usable-tier
+// provenance and the block binds implementation revision, canonical truth,
+// normalized unit, declared kind, resolved bounds, the effective constraints,
+// and the derivation-input fingerprint.
+const candidatePolicyQualified = "best_usable_tier_v2";
+
+// tryPrecomputedConstrained re-gates a qualified (best_usable_tier_v2)
+// precompute block under the same strict constraints the input resolved. A
+// model-version or implementation-revision mismatch invalidates the block
+// with TABLE_VERSION_MISMATCH; every other binding mismatch falls through to
+// live derivation under the SAME validated constraints (never a loosened
+// legacy path). A matching entry must carry provenance equal to the current
+// winning group's stage/tier and its value must be a member of that group's
+// re-enumerated inventory, so a stale lower-tier alternate cannot claim
+// primary status. A legitimately rotated member of the winning tier is
+// accepted without requiring derive()'s first winner.
+function tryPrecomputedConstrained(
+  input: DerivationInput,
+  trueNumber: FixedPointValue,
+  kind: QuantityKind,
+  normalizedUnit: string,
+  canonicalSurprise: number,
+  magnitude: number,
+  trap: TrapDirection,
+  bounds: ResolvedBounds,
+  sides: ResolvedCandidateSides,
+): PrecomputeOutcome {
+  const pre = input.precomputed;
+  if (
+    pre === undefined ||
+    pre.modelVersion !== DDMVersion ||
+    pre.implementationRevision !== DDM_IMPLEMENTATION_REVISION
+  ) {
+    return {
+      result: abstainResult({
+        outcome: "abstain",
+        reason: AbstainTableVersionMismatch,
+        incomingNumericToken: input.incomingNumericToken,
+        fixedPointValue: trueNumber,
+        normalizedUnit,
+        quantityKind: kind,
+        surpriseFactor: canonicalSurprise,
+        magnitudeScale: magnitude,
+        trapDirection: trap,
+        plausibleMin: bounds.min,
+        plausibleMax: bounds.max,
+      }),
+      decided: true,
+    };
+  }
+
+  // Every remaining binding is a fall-through: a block that was not minted
+  // for exactly this constrained input cannot decide the round, but live
+  // derivation still runs under the same resolved policy and bounds.
+  const live: PrecomputeOutcome = { result: {}, decided: false };
+  if (pre.candidatePolicy !== candidatePolicyQualified) {
+    return live;
+  }
+  if (pre.numericConstraints === undefined || pre.numericConstraints.invalid === true) {
+    return live;
+  }
+  const [blockPolicy, policyOK] = resolveNumericConstraints(pre.numericConstraints, kind, trueNumber);
+  if (
+    !policyOK ||
+    blockPolicy === undefined ||
+    bounds.numericPolicy === undefined ||
+    numericPolicyKey(blockPolicy) !== numericPolicyKey(bounds.numericPolicy)
+  ) {
+    return live;
+  }
+  if (
+    pre.trueNumberToken !== formatFixedCanonical(trueNumber) ||
+    pre.normalizedUnit !== normalizedUnit ||
+    pre.quantityKind !== kind ||
+    pre.plausibleMin !== formatFixedCanonical(bounds.min) ||
+    pre.plausibleMax !== formatFixedCanonical(bounds.max)
+  ) {
+    return live;
+  }
+  const fingerprint = derivationInputFingerprint(
+    pre.trueNumberToken,
+    normalizedUnit,
+    kind,
+    pre.plausibleMin,
+    pre.plausibleMax,
+    canonicalSurprise,
+    pre.numericConstraints,
+  );
+  if (pre.inputFingerprint !== fingerprint) {
+    return live;
+  }
+
+  const requiredSide = primarySide(sides);
+
+  // Recompute the current best-usable-tier group for this (surprise, side)
+  // with the precompute block cleared so membership reflects live
+  // derivation, never the stored inventory.
+  const sideInput: DerivationInput = { ...input, forcedSide: requiredSide, precomputed: undefined };
+  const { groups } = enumeratePlayableCandidateGroups(sideInput);
+  const group = groups.find(
+    (g) => g.side === requiredSide && g.surpriseFactor === canonicalSurprise,
+  );
+  if (group === undefined) {
+    return live;
+  }
+  const members = new Set<string>();
+  for (const c of group.candidates) {
+    members.add(formatFixedCanonical(c.value));
+  }
+
+  // A qualified block's provenance must be complete and accurate on every
+  // entry; a malformed inventory invalidates the block rather than skipping
+  // individual entries.
+  for (const d of pre.distractors) {
+    if (d.remedyStage === undefined || d.remedyStage === "" || d.calibrationTier === undefined) {
+      return live;
+    }
+    const [idx, idxOK] = auditStageIndex(d.remedyStage);
+    if (!idxOK || idx !== d.calibrationTier) {
+      return live;
+    }
+  }
+
+  for (const d of pre.distractors) {
+    if (d.surpriseFactor !== canonicalSurprise || d.side !== requiredSide) {
+      continue;
+    }
+    // The stored provenance must equal the current winning group's; a stale
+    // lower-tier entry can never claim primary status.
+    if (d.remedyStage !== group.remedyStage || d.calibrationTier !== group.calibrationTier) {
+      continue;
+    }
+    const pdiag = numericIngest(d.presentedNumber);
+    if (pdiag.fixedPointValue === undefined) {
+      continue;
+    }
+    const candidate = pdiag.fixedPointValue;
+    if (!members.has(formatFixedCanonical(candidate))) {
+      continue;
+    }
+    if (evaluateConstrainedGate(kind, candidate, trueNumber, requiredSide, bounds) !== gateReasonNone) {
+      continue;
+    }
+    const [direction, dok] = finalDirection(candidate, trueNumber);
+    if (!dok) {
+      continue;
+    }
+    const success: LadderSuccess = {
+      presented: candidate,
+      direction,
+      source: SourcePrecomputed,
+      remedyStage: group.remedyStage,
+    };
+    return {
+      result: successResult(
+        finalizeSuccess(success, trueNumber, normalizedUnit, kind, canonicalSurprise, magnitude, trap, bounds),
+      ),
+      decided: true,
+    };
+  }
+
+  return live;
+}
+
 // --- Finite remedy ladder ----------------------------------------------------
 
 // LadderSuccess is the internal result of a winning candidate before the
@@ -3667,6 +4625,7 @@ function runRemedyLadder(
     trapDirection: trap,
     plausibleMin: bounds.min,
     plausibleMax: bounds.max,
+    numericPolicyKey: policyKey(bounds),
   });
   if (!ok) {
     return fail;
@@ -3804,17 +4763,21 @@ function enumerateBoundDerived(
   const bound = candidateAboveTruth(side) ? bounds.max : bounds.min;
 
   for (const slot of slots) {
-    const [candidate, ok] = kindIntegerOnly(kind)
+    const [candidate, ok] = kindIntegerOnly(kind) &&
+      (bounds.numericPolicy === undefined || !bounds.numericPolicy.fractionalCount)
       ? boundDerivedIntegerCandidate(trueNumber, bound, slot)
       : boundDerivedCandidate(trueNumber, bound, slot);
     if (!ok) {
       continue;
     }
     // Pre-snap strict side + raw gate, then snap, then post-snap gate.
+    // Under a numeric policy the raw precheck only covers what snapping
+    // cannot repair (side, boundary, bounds); the full constrained gate
+    // runs on the snapped value.
     if (!candidateStrictlyOnSide(candidate, trueNumber, side)) {
       continue;
     }
-    if (!gatePasses(kind, candidate, trueNumber, side, bounds)) {
+    if (!rawCandidatePrecheck(kind, candidate, trueNumber, side, bounds)) {
       continue;
     }
     const out = gateAndSnap(stageID, kind, candidate, side, trueNumber, bounds, source);
@@ -4155,7 +5118,8 @@ function collectBoundDerived(
   const bound = candidateAboveTruth(side) ? bounds.max : bounds.min;
   const out: FixedPointValue[] = [];
   for (const slot of slots) {
-    const [candidate, ok] = kindIntegerOnly(kind)
+    const [candidate, ok] = kindIntegerOnly(kind) &&
+      (bounds.numericPolicy === undefined || !bounds.numericPolicy.fractionalCount)
       ? boundDerivedIntegerCandidate(trueNumber, bound, slot)
       : boundDerivedCandidate(trueNumber, bound, slot);
     if (!ok) {
@@ -4164,7 +5128,7 @@ function collectBoundDerived(
     if (!candidateStrictlyOnSide(candidate, trueNumber, side)) {
       continue;
     }
-    if (!gatePasses(kind, candidate, trueNumber, side, bounds)) {
+    if (!rawCandidatePrecheck(kind, candidate, trueNumber, side, bounds)) {
       continue;
     }
     const snapped = snapCandidate(kind, candidate, side, trueNumber, bounds);
@@ -4218,6 +5182,18 @@ function playableGroupForSuccess(
     return undefined;
   }
 
+  const bounds: ResolvedBounds = { min: s.plausibleMin, max: s.plausibleMax };
+  if (s.numericConstraints !== undefined) {
+    // The success carries the canonical effective constraints; re-resolve
+    // them so the re-enumeration runs under the same strict policy the
+    // winning derive() used.
+    const [policy, resolved] = resolveNumericConstraints(s.numericConstraints, s.quantityKind, s.trueNumber);
+    if (!resolved || policy === undefined) {
+      return undefined;
+    }
+    bounds.numericPolicy = policy;
+  }
+
   const [slots, slotsOK] = variationSlotSequence({
     trueNumber: s.trueNumber,
     normalizedUnit: s.normalizedUnit,
@@ -4226,12 +5202,12 @@ function playableGroupForSuccess(
     trapDirection: s.trapDirection,
     plausibleMin: s.plausibleMin,
     plausibleMax: s.plausibleMax,
+    numericPolicyKey: policyKey(bounds),
   });
   if (!slotsOK) {
     return undefined;
   }
 
-  const bounds: ResolvedBounds = { min: s.plausibleMin, max: s.plausibleMax };
   const raw = enumerateStageAll(
     stage,
     s.quantityKind,
@@ -4382,7 +5358,7 @@ function finalizeSuccess(
   trap: TrapDirection,
   bounds: ResolvedBounds,
 ): DerivationSuccess {
-  return {
+  const s: DerivationSuccess = {
     outcome: "success",
     fixedPointValue: success.presented,
     trueNumber,
@@ -4398,6 +5374,120 @@ function finalizeSuccess(
     source: success.source,
     remedyStage: success.remedyStage,
   };
+  // Stamp the qualified-semantics fields only when a strict numeric policy
+  // resolved: the effective display precision, the implementation revision,
+  // the canonical effective constraints, and the winning stage's generated
+  // calibration tier (zero_value binds 0). Legacy results stay unchanged.
+  const p = bounds.numericPolicy;
+  if (p !== undefined) {
+    s.displayDecimalPlaces = p.displayDecimalPlaces;
+    s.implementationRevision = DDM_IMPLEMENTATION_REVISION;
+    s.numericConstraints = canonicalResolvedConstraints(p);
+    const [tier, tierOK] = auditStageIndex(success.remedyStage);
+    if (tierOK) {
+      s.calibrationTier = tier;
+    }
+  }
+  return s;
+}
+
+// auditStageIndex returns the generated remedy row index for a declared
+// candidate provenance stage (port of the Go helper shared by the audit and
+// qualified-success paths). Crossing stages and unknown ids fail closed; the
+// synthesized zero_value group (never a remedy-table row) binds tier 0.
+export function auditStageIndex(stage: string): [number, boolean] {
+  if (stage === remedyStageZeroValue) {
+    return [0, true];
+  }
+  for (const row of remedyStagesInOrder()) {
+    if (row.id === stage) {
+      if (row.crosses_side) {
+        return [0, false];
+      }
+      return [row.index, true];
+    }
+  }
+  return [0, false];
+}
+
+// declaredQuantityKind resolves the caller-declared quantity_kind under strict
+// qualified semantics: trimmed/lowercased closed-set membership only, with NO
+// coherence-based fallback to classifier inference. ok=false for an absent,
+// empty, or out-of-set declaration so a constrained input fails closed with
+// INVALID_NUMERIC_CONSTRAINTS instead of being silently retyped.
+function declaredQuantityKind(hint: string): [QuantityKind, boolean] {
+  const normalized = lowerASCII(hint.trim());
+  if (normalized === "" || !containsString(unitTablesView.quantity_kinds, normalized)) {
+    return ["" as QuantityKind, false];
+  }
+  return [normalized as QuantityKind, true];
+}
+
+// resolveConstrainedBoundsPrefix resolves the strict numeric policy and the
+// exact qualified bounds for a constrained input: the truth token must be
+// exact under the constraint grammar (raw ingest failures keep their own
+// reasons upstream), the declared constraints must resolve against kind and
+// truth, the bound pair must be complete and exact with no generated default
+// fallback, and the truth itself must satisfy its numeric boundary (a bare
+// fractional count or an out-of-domain proportion fails closed rather than
+// being retyped). resolved=false means the input abstains
+// INVALID_NUMERIC_CONSTRAINTS.
+function resolveConstrainedBoundsPrefix(
+  input: DerivationInput,
+  kind: QuantityKind,
+  trueNumber: FixedPointValue,
+): [ResolvedBounds | undefined, boolean] {
+  const [, exact] = exactConstraintToken(input.incomingNumericToken);
+  if (!exact) {
+    return [undefined, false];
+  }
+  const [policy, resolved] = resolveNumericConstraints(input.numericConstraints, kind, trueNumber);
+  if (!resolved || policy === undefined) {
+    return [undefined, false];
+  }
+  const [bounds, ok] = resolveConstrainedBounds(input, trueNumber, policy);
+  if (!ok) {
+    return [undefined, false];
+  }
+  const { satisfies, ok: boundaryOK } = candidateSatisfiesNumericBoundary(kind, trueNumber, bounds);
+  if (!boundaryOK || !satisfies) {
+    return [undefined, false];
+  }
+  return [bounds, true];
+}
+
+// invalidConstraintsAbstain builds the INVALID_NUMERIC_CONSTRAINTS abstain
+// diagnostic. A present-but-malformed constraints object, a non-exact truth
+// token, an unresolved or incoherent policy, missing/inexact qualified bounds,
+// or a truth that violates its own numeric boundary all land here rather than
+// silently falling back to legacy semantics.
+function invalidConstraintsAbstain(
+  input: DerivationInput,
+  trueNumber: FixedPointValue,
+  kind: QuantityKind,
+  normalizedUnit: string,
+  canonicalSurprise: number,
+): DerivationAbstain {
+  const a: DerivationAbstain = {
+    outcome: "abstain",
+    reason: AbstainInvalidNumericConstraints,
+    incomingNumericToken: input.incomingNumericToken,
+    fixedPointValue: trueNumber,
+    normalizedUnit,
+    quantityKind: kind,
+    surpriseFactor: canonicalSurprise,
+  };
+  return a;
+}
+
+// policyKey returns the authored numericPolicyKey determinants suffix when the
+// resolved bounds carry a strict numeric policy, else "" so legacy variation
+// keys stay byte-identical.
+function policyKey(bounds: ResolvedBounds): string {
+  if (bounds.numericPolicy === undefined) {
+    return "";
+  }
+  return numericPolicyKey(bounds.numericPolicy);
 }
 
 // boundsIncoherentAbstain builds the BOUNDS_INCOHERENT abstain diagnostic with
@@ -4541,6 +5631,43 @@ function serializeSuccess(s: DerivationSuccess): string {
   parts.push(`"correct_direction":${jsonString(s.correctDirection)}`);
   parts.push(`"source":${jsonString(s.source)}`);
   parts.push(`"remedy_stage":${jsonString(s.remedyStage)}`);
+  // Qualified-semantics fields (Go omitempty): emitted only when present so a
+  // legacy success stays byte-identical.
+  if (s.displayDecimalPlaces !== undefined) {
+    parts.push(`"display_decimal_places":${jsonInt(s.displayDecimalPlaces)}`);
+  }
+  if (s.implementationRevision !== undefined && s.implementationRevision !== "") {
+    parts.push(`"implementation_revision":${jsonString(s.implementationRevision)}`);
+  }
+  if (s.numericConstraints !== undefined) {
+    parts.push(`"numeric_constraints":${serializeConstraintsJSON(s.numericConstraints)}`);
+  }
+  if (s.calibrationTier !== undefined) {
+    parts.push(`"calibration_tier":${jsonInt(s.calibrationTier)}`);
+  }
+  return "{" + parts.join(",") + "}";
+}
+
+// serializeConstraintsJSON encodes a NumericConstraints object byte-identically
+// to Go's json.Marshal of the struct: pointer fields in declaration order,
+// omitted when absent (omitempty), and the private invalid flag never emitted.
+function serializeConstraintsJSON(c: NumericConstraints): string {
+  const parts: string[] = [];
+  if (c.displayDecimalPlaces !== undefined) {
+    parts.push(`"display_decimal_places":${jsonInt(c.displayDecimalPlaces)}`);
+  }
+  if (c.quantumToken !== undefined) {
+    parts.push(`"quantum_token":${jsonString(c.quantumToken)}`);
+  }
+  if (c.minSeparationToken !== undefined) {
+    parts.push(`"min_separation_token":${jsonString(c.minSeparationToken)}`);
+  }
+  if (c.credibleMinToken !== undefined) {
+    parts.push(`"credible_min_token":${jsonString(c.credibleMinToken)}`);
+  }
+  if (c.credibleMaxToken !== undefined) {
+    parts.push(`"credible_max_token":${jsonString(c.credibleMaxToken)}`);
+  }
   return "{" + parts.join(",") + "}";
 }
 
