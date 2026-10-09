@@ -106,11 +106,11 @@
     "agent-go/enqueue.go": "56c5369b9e5ba988651bc8a604968fedfe08acaeb44dd454a30a8fc5bd5845da",
     "agent-go/factlint.go": "6d7ffa71b93d86a3f6d15103deb1422699d9c75fbc3c44a4e07ee0b79d435a96",
     "agent-go/factlint_rules.go": "e5e442ed9407defaa877552d05ae76c46a33666361abc352f24523e2f0964b0f",
-    "agent-go/factquality.go": "26f7af7e68cff528f4d731e54150965282864701453a62965e75552e85c33cc1",
+    "agent-go/factquality.go": "f3154a7daad97838c360b573bc253064e99a7e6b6d0c5ba7c5aa2787b9d1006e",
     "agent-go/factquality_audit.go": "a4e4d7731e41ad87d3cc091bb6d3cab76c0968c30bfe0595ef34e0dfc27bc112",
     "agent-go/factquality_audit_store.go": "b5235cd0ec0bb57ba3b0e44e106096ce170bb2d3ea7a22df9bce5df415523c64",
     "agent-go/factquality_constraints.go": "ba3edb016901e594bc64b1a69cff4f41334bbd9913b09ceb9cfef4d5e90a6603",
-    "agent-go/factquality_evidence.go": "5f92bbbd2a43a9b4d3bc51c85def3e251a0415a6e4693dd9865f83bac52fcdcb",
+    "agent-go/factquality_evidence.go": "a50b41c4db6889d54b2a9eeafa7acf00888ff3e560799ea563366474096a501b",
     "agent-go/factquality_fetch.go": "b0908ad00dc05565d46e1798037f4315e74c2d1816a4325eaa343f6f350dccab",
     "agent-go/factquality_numeric.go": "0d74ecfde38ce7770d55c137731dbc399d6c86f4a809dce9a1e73679bd913d67",
     "agent-go/factquality_units_gen.go": "f8e282cbf1a5b3f8afae4af4501bab6344eb2667af0010ef6b8767ec185097e7",
@@ -130,7 +130,7 @@
     "scripts/gen_derivation_tables.mjs": "a47ef8a411f7c8c44e87a25a5edf99e91685af7e49f04cf52cc3253ad2b80ed6",
     "scripts/gen_fact_quality_units.mjs": "c93a9234f664b91bf7c250bfce2c0b05f19d11bf96f41062999bf0b56eb0ab7a",
     "shared/fact-lifecycle-contract.gen.ts": "7b3067892070b05487df24387c99763137dbe46e96f1304fb20e47b83a2dfca3",
-    "shared/fact-lint-catalog.gen.ts": "26e82e46a8490a29e31e93e6f0c079257489cd199a3ffa658c4aba4ac0496992",
+    "shared/fact-lint-catalog.gen.ts": "a9b124cc7cdbed03734e2aa1c59600bf94a643a80025613a69b388779bd7444c",
     "shared/fact-quality-units.gen.ts": "81a2305200b74198a930ecf337acfd8561a2e756ca92ba4adf0ce221b6a729b9",
     "src/ddm_implementation_gen.ts": "7afe91d367327b7813851406080d0c2b331ab75c1a43596e794b9102bcca3839",
     "src/derivation.ts": "87ef33cd0358030fd9b14388ee0a58d80fe14f7a9b50be6117dd16f17364e1c7",
@@ -154,5 +154,5 @@
     "tests/fixtures/unit_tables.json": "c5e2ac4d7c92b150c20ba8223a10e2bca23e7ad649f16feee59aca0e19a72846"
   },
   "sourceRepository": "snaptapp/more-or-less",
-  "treeHash": "3c991434fabc659d5bb0197e4fe47f1ed57b392ab1d23c7f5c98a8c317958658"
+  "treeHash": "cb3e6300b18c20324b5bc197e9e9eea89451e0408307ca0c9e435a0f70446cb0"
 }

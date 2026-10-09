@@ -4,11 +4,11 @@
 //
 // Source of truth:
 //   agent-go/factlint_rules.go  (canonical lint rule registry)
-//   rules_revision 4915f5c76b01d84fcd1f6f0d2737afde7333d71d9f7d7328b38b1d102f1d7fad
+//   rules_revision b720efc31914df7afaa9c4ccaf2019fb191eab7cbd8ac93d2afa07ae21a542c8
 //   emitted from: agent-go via `agent-go lint-catalog`
 
 export const LINT_CATALOG_SCHEMA_VERSION = 1;
-export const LINT_RULES_REVISION = "4915f5c76b01d84fcd1f6f0d2737afde7333d71d9f7d7328b38b1d102f1d7fad";
+export const LINT_RULES_REVISION = "b720efc31914df7afaa9c4ccaf2019fb191eab7cbd8ac93d2afa07ae21a542c8";
 
 export const LINT_SEVERITIES = ["severe", "review", "warn"] as const;
 export type LintSeverity = (typeof LINT_SEVERITIES)[number];
@@ -103,7 +103,7 @@ export const LINT_RULES: readonly LintRuleDefinition[] = [
     severity: "review",
     enforcement: "review_required",
     fields: ["source_evidence"],
-    check: "A source assertion is missing required fields, names an unresolvable unit, or carries a value with no finite decimal spelling (including non-terminating base conversions), so it was excluded from evaluation rather than silently retyped.",
+    check: "A source assertion is missing required fields, names an unresolvable unit, or carries an invalid numeric token or evidence role, so it was excluded from evaluation rather than silently retyped. Exact non-terminating rational base conversions remain valid evidence.",
     remediation: "Correct the assertion's descriptor and value token, or replace it with evidence that can be normalized exactly.",
     overridable: true,
   },
@@ -243,9 +243,9 @@ export const LINT_RULES: readonly LintRuleDefinition[] = [
     severity: "severe",
     enforcement: "block",
     fields: ["true_number", "derivation", "precomputed_derivation"],
-    check: "The stored block contains MORE or LESS distractors only (the canonical zero-truth single-side case is exempt), so the fact can never ask its missing direction.",
-    remediation: "Check whether the fact is a legitimate boundary case (zero count, 100%) and record that justification, or fix the bounds and regenerate the block so a permitted direction exists.",
-    overridable: true,
+    check: "A qualified block lacks the validated inventory for a canonical surprise and side that its independent domain permits. A reviewed hard-domain or credible-interval boundary can legitimately make one side unavailable; editorial bounds and DDM defaults cannot establish that proof. Legacy blocks retain their original zero-only compatibility check.",
+    remediation: "Review independent domain and uncertainty evidence, then regenerate and re-audit the exact inventory. Do not widen a verified domain, erase an uncertainty interval, count invalid labels, or invent the opposite direction.",
+    overridable: false,
   },
   {
     id: "prompt_not_statement",
