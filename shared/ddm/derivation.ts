@@ -1451,7 +1451,7 @@ class JSONNumberLexer {
 // magnitude token through a JavaScript number.
 
 // skipJSONWS returns the first index at/after i that is not JSON whitespace.
-function skipJSONWS(s: string, i: number): number {
+export function skipJSONWS(s: string, i: number): number {
   while (i < s.length) {
     const c = s[i];
     if (c !== " " && c !== "\t" && c !== "\n" && c !== "\r") {
@@ -1468,7 +1468,7 @@ function skipJSONWS(s: string, i: number): number {
 // numbers, literals, and balanced objects/arrays), mirroring Go's
 // json.Decoder RawMessage capture: a malformed value is a decode error, not a
 // truncated span.
-function rawJSONValueEnd(s: string, i: number): number {
+export function rawJSONValueEnd(s: string, i: number): number {
   i = skipJSONWS(s, i);
   if (i >= s.length) {
     return -1;
@@ -1587,7 +1587,7 @@ function rawJSONValueEnd(s: string, i: number): number {
 // closing '}', or undefined when the scan fails. Duplicate names are kept in
 // order so the caller can flag them (Go records the duplicate then marks the
 // policy invalid) and member values keep their exact raw bytes.
-function rawJSONObjectMembers(
+export function rawJSONObjectMembers(
   s: string,
   i: number,
 ): { members: [string, string][]; end: number } | undefined {
@@ -1644,7 +1644,7 @@ function rawJSONObjectMembers(
 // named key in the JSON object raw (Go's encoding/json last-writer-wins), or
 // undefined when the document is not an object or the member is absent. Used
 // to capture numeric_constraints verbatim without float-parsing its contents.
-function extractTopLevelMemberRaw(raw: string, key: string): string | undefined {
+export function extractTopLevelMemberRaw(raw: string, key: string): string | undefined {
   const obj = rawJSONObjectMembers(raw, 0);
   if (obj === undefined) {
     return undefined;
@@ -1667,7 +1667,7 @@ function extractTopLevelMemberRaw(raw: string, key: string): string | undefined 
 // Go's json.Unmarshal into *int: a non-integer literal, an out-of-range
 // magnitude, a quoted string, or any non-number value fails. The check is done
 // on the raw token so no intermediate float ever touches the value.
-function decodeJSONInt64(raw: string): [number, boolean] {
+export function decodeJSONInt64(raw: string): [number, boolean] {
   if (!/^-?(0|[1-9][0-9]*)$/.test(raw)) {
     return [0, false];
   }
@@ -1691,7 +1691,7 @@ function decodeJSONInt64(raw: string): [number, boolean] {
 
 // decodeJSONString decodes raw as a JSON string, mirroring Go's json.Unmarshal
 // into *string. Any non-string JSON value fails.
-function decodeJSONString(raw: string): [string, boolean] {
+export function decodeJSONString(raw: string): [string, boolean] {
   try {
     const v: unknown = JSON.parse(raw);
     if (typeof v === "string") {

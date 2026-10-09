@@ -1187,7 +1187,7 @@ export function validateResolvedBoundsHint(
 // finite [min, max] pair and returns the normalized ResolvedBounds when both
 // hold. It enforces min <= true <= max (Requirement 2.2). undefined when any
 // comparison cannot be made within the exact envelope or a condition fails.
-function coherentPair(
+export function coherentPair(
   minV: FixedPointValue,
   maxV: FixedPointValue,
   trueValue: FixedPointValue,
@@ -2871,7 +2871,7 @@ function gateDisplayCollides(
 // rule. When the value is already at or below the requested scale it is returned
 // canonical. ok=false when the value is out of contract or rounding leaves the
 // envelope.
-function gateRoundToDisplay(v: FixedPointValue, places: number): [FixedPointValue, boolean] {
+export function gateRoundToDisplay(v: FixedPointValue, places: number): [FixedPointValue, boolean] {
   const fail: [FixedPointValue, boolean] = [{ negative: false, mantissa: 0, scale: 0 }, false];
   if (places < FixedScaleMin || places > FixedScaleMax) {
     return fail;
@@ -3058,7 +3058,7 @@ function gateIsMagnitudeTell(
 
 // gateAbs returns the canonical absolute value (magnitude) of a fixed-point
 // value: the same magnitude with the sign cleared.
-function gateAbs(v: FixedPointValue): FixedPointValue {
+export function gateAbs(v: FixedPointValue): FixedPointValue {
   const [n, ok] = normalizeFixed(v);
   if (!ok) {
     return { negative: false, mantissa: 0, scale: 0 };
@@ -3610,7 +3610,7 @@ function rotr(x: number, n: number): number {
 // sha256Hex computes the SHA-256 digest of a string as lowercase hex. All
 // arithmetic stays on unsigned 32-bit words via >>>0 coercion; every result is
 // deterministic and allocation-local (pure, no imports).
-function sha256Hex(s: string): string {
+export function sha256Hex(s: string): string {
   const bytes = utf8Bytes(s);
   const bitLenHi = Math.floor(bytes.length / 0x20000000) >>> 0;
   const bitLenLo = (bytes.length * 8) >>> 0;
@@ -5415,7 +5415,7 @@ export function auditStageIndex(stage: string): [number, boolean] {
 // coherence-based fallback to classifier inference. ok=false for an absent,
 // empty, or out-of-set declaration so a constrained input fails closed with
 // INVALID_NUMERIC_CONSTRAINTS instead of being silently retyped.
-function declaredQuantityKind(hint: string): [QuantityKind, boolean] {
+export function declaredQuantityKind(hint: string): [QuantityKind, boolean] {
   const normalized = lowerASCII(hint.trim());
   if (normalized === "" || !containsString(unitTablesView.quantity_kinds, normalized)) {
     return ["" as QuantityKind, false];
@@ -5432,7 +5432,7 @@ function declaredQuantityKind(hint: string): [QuantityKind, boolean] {
 // fractional count or an out-of-domain proportion fails closed rather than
 // being retyped). resolved=false means the input abstains
 // INVALID_NUMERIC_CONSTRAINTS.
-function resolveConstrainedBoundsPrefix(
+export function resolveConstrainedBoundsPrefix(
   input: DerivationInput,
   kind: QuantityKind,
   trueNumber: FixedPointValue,

@@ -51,13 +51,21 @@
             "true_number": 5,
             "unit": "meters",
             "correct_direction": "MORE",
-            "explanation": "No number in the claim to rewrite.",
+            "explanation": "The answer is 5 meters.",
             "surprise_factor": 3,
             "quantity_kind": "physical_measure",
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 0.5,
             "plausible_max": 50,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "1.8",
+              "true_number_token": "5"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 1
@@ -76,7 +84,7 @@
             "true_number": 5,
             "unit": "meters",
             "correct_direction": "LESS",
-            "explanation": "No number in the claim to rewrite.",
+            "explanation": "The answer is 5 meters.",
             "surprise_factor": 9,
             "difficulty": "casual"
           }
@@ -110,7 +118,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 10,
             "plausible_max": 800,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "290",
+              "true_number_token": "100"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -126,7 +142,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 9.5,
             "plausible_max": 950,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 2,
+              "presented_number_token": "40",
+              "true_number_token": "95"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -203,7 +227,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 0,
             "plausible_max": 40,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "13",
+              "true_number_token": "5"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -219,7 +251,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 10,
             "plausible_max": 1000,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "56",
+              "true_number_token": "100"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -296,7 +336,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 4,
             "plausible_max": 400,
-            "difficulty": "hard"
+            "difficulty": "hard",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "100",
+              "true_number_token": "40"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -312,7 +360,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 7,
             "plausible_max": 560,
-            "difficulty": "hard"
+            "difficulty": "hard",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "38",
+              "true_number_token": "70"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -378,7 +434,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 18,
             "plausible_max": 1800,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "450",
+              "true_number_token": "180"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -394,7 +458,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 15,
             "plausible_max": 1500,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "48",
+              "true_number_token": "150"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -449,36 +521,28 @@
             "round_number": 1,
             "topic": "Bolt temperature",
             "claim_statement": "A lightning bolt heats the air to a fixed temperature in degrees Celsius.",
-            "presented_number": 88000,
+            "presented_number": 11000,
             "true_number": 30000,
             "unit": "degrees Celsius",
-            "correct_direction": "LESS",
+            "correct_direction": "MORE",
             "explanation": "Lightning heats surrounding air to roughly 30,000 degrees Celsius.",
             "surprise_factor": 3,
             "quantity_kind": "count",
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 3000,
             "plausible_max": 240000,
-            "difficulty": "medium"
-          },
-          {
-            "round_number": 2,
-            "topic": "Bolt length",
-            "claim_statement": "A typical lightning bolt spans a fixed length in meters.",
-            "presented_number": 140,
-            "true_number": 300,
-            "unit": "meters",
-            "correct_direction": "MORE",
-            "explanation": "Typical in-cloud bolts span a few hundred meters.",
-            "surprise_factor": 2,
-            "quantity_kind": "physical_measure",
-            "trap_direction": "UNDERESTIMATE",
-            "plausible_min": 30,
-            "plausible_max": 3000,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "11000",
+              "true_number_token": "30000"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
-        "total_rounds": 2
+        "total_rounds": 1
       },
       "input": {
         "is_valid": true,
@@ -552,7 +616,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 0.3,
             "plausible_max": 30,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 2,
+              "presented_number_token": "1.3",
+              "true_number_token": "3"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 1
@@ -605,7 +677,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 50,
             "plausible_max": 4000,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "1400",
+              "true_number_token": "500"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -621,26 +701,18 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 0.3,
             "plausible_max": 30,
-            "difficulty": "casual"
-          },
-          {
-            "round_number": 3,
-            "topic": "Blood color",
-            "claim_statement": "Octopus blood is rated on a blueness scale.",
-            "presented_number": 0,
-            "true_number": 1,
-            "unit": "blueness scale",
-            "correct_direction": "MORE",
-            "explanation": "Copper-based hemocyanin makes octopus blood blue.",
-            "surprise_factor": 0,
-            "quantity_kind": "count",
-            "trap_direction": "UNDERESTIMATE",
-            "plausible_min": 0,
-            "plausible_max": 8,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 2,
+              "presented_number_token": "2.5",
+              "true_number_token": "3"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
-        "total_rounds": 3
+        "total_rounds": 2
       },
       "input": {
         "is_valid": true,
@@ -725,26 +797,18 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 28200,
             "plausible_max": 2256000,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "950000",
+              "true_number_token": "282000"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
-            "topic": "Moons",
-            "claim_statement": "Saturn has a counted number of moons.",
-            "presented_number": 55,
-            "true_number": 146,
-            "unit": "moons",
-            "correct_direction": "MORE",
-            "explanation": "Saturn's confirmed moon count has passed 140.",
-            "surprise_factor": 3,
-            "quantity_kind": "count",
-            "trap_direction": "UNDERESTIMATE",
-            "plausible_min": 14,
-            "plausible_max": 1168,
-            "difficulty": "medium"
-          },
-          {
-            "round_number": 3,
             "topic": "Day length",
             "claim_statement": "Saturn's day lasts a fixed number of hours.",
             "presented_number": 2.7,
@@ -757,10 +821,18 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 1.07,
             "plausible_max": 107,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 2,
+              "presented_number_token": "2.7",
+              "true_number_token": "10.7"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
-        "total_rounds": 3
+        "total_rounds": 2
       },
       "input": {
         "is_valid": true,
@@ -858,7 +930,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 730,
             "plausible_max": 73000,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "3100",
+              "true_number_token": "7300"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -923,7 +1003,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 0,
             "plausible_max": 56,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "25",
+              "true_number_token": "7"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -939,7 +1027,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 0.2,
             "plausible_max": 20,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 2,
+              "presented_number_token": "0.43",
+              "true_number_token": "2"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -1004,7 +1100,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 20,
             "plausible_max": 1648,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "70",
+              "true_number_token": "206"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 1
@@ -1063,13 +1167,21 @@
             "true_number": 250,
             "unit": "beats per second",
             "correct_direction": "MORE",
-            "explanation": "Hummingbird hearts can exceed 1,200 beats per minute in flight.",
+            "explanation": "Hummingbird hearts beat about 250 times per second in flight.",
             "surprise_factor": 3,
             "quantity_kind": "physical_measure",
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 25,
             "plausible_max": 2500,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "63",
+              "true_number_token": "250"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 1
@@ -1088,7 +1200,7 @@
             "true_number": 250,
             "unit": "beats per second",
             "correct_direction": "MORE",
-            "explanation": "Hummingbird hearts can exceed 1,200 beats per minute in flight.",
+            "explanation": "Hummingbird hearts beat about 250 times per second in flight.",
             "surprise_factor": 9,
             "difficulty": "casual"
           },
@@ -1100,7 +1212,7 @@
             "true_number": 250,
             "unit": "beats per second",
             "correct_direction": "MORE",
-            "explanation": "Duplicate angle dropped after the nudged round wins dedupe.",
+            "explanation": "The reference reading is 250 beats per second; this duplicate angle must lose to the earlier valid round.",
             "surprise_factor": 8,
             "difficulty": "casual"
           }
@@ -1134,7 +1246,15 @@
             "trap_direction": "OVERESTIMATE",
             "plausible_min": 1747,
             "plausible_max": 2026,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "1908",
+              "true_number_token": "1897"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -1150,7 +1270,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 2,
             "plausible_max": 216,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "19",
+              "true_number_token": "27"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -1215,7 +1343,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 0,
             "plausible_max": 64,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "5",
+              "true_number_token": "8"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 1
@@ -1280,7 +1416,15 @@
             "trap_direction": "OVERESTIMATE",
             "plausible_min": 1747,
             "plausible_max": 2026,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "1908",
+              "true_number_token": "1897"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -1296,7 +1440,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 2,
             "plausible_max": 216,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "19",
+              "true_number_token": "27"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -1361,7 +1513,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 0,
             "plausible_max": 64,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "5",
+              "true_number_token": "8"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 1
@@ -1439,7 +1599,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 10,
             "plausible_max": 1000,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "56",
+              "true_number_token": "100"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -1505,7 +1673,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 4,
             "plausible_max": 400,
-            "difficulty": "hard"
+            "difficulty": "hard",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "89",
+              "true_number_token": "40"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -1521,7 +1697,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 7,
             "plausible_max": 560,
-            "difficulty": "hard"
+            "difficulty": "hard",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "38",
+              "true_number_token": "70"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -1587,7 +1771,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 10,
             "plausible_max": 800,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "47",
+              "true_number_token": "100"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 1
@@ -1641,7 +1833,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 10,
             "plausible_max": 800,
-            "difficulty": "hard"
+            "difficulty": "hard",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "47",
+              "true_number_token": "100"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 1
@@ -1695,7 +1895,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 0,
             "plausible_max": 100,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "8",
+              "true_number_token": "0"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "zero_value"
           }
         ],
         "total_rounds": 1
@@ -1749,7 +1957,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 30,
             "plausible_max": 2400,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "110",
+              "true_number_token": "300"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 1
@@ -1865,7 +2081,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 0.34,
             "plausible_max": 34,
-            "difficulty": "casual"
+            "difficulty": "casual",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 2,
+              "presented_number_token": "2.5",
+              "true_number_token": "3.4"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 1
@@ -1912,13 +2136,21 @@
             "true_number": 300,
             "unit": "meters",
             "correct_direction": "LESS",
-            "explanation": "Wide rivers can span hundreds of meters.",
+            "explanation": "The river spans 300 meters.",
             "surprise_factor": 2,
             "quantity_kind": "physical_measure",
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 30,
             "plausible_max": 3000,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "630",
+              "true_number_token": "300"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -1928,13 +2160,21 @@
             "true_number": 400,
             "unit": "entries",
             "correct_direction": "MORE",
-            "explanation": "Same presented, clean claim.",
+            "explanation": "The ledger contains 400 entries.",
             "surprise_factor": 2,
             "quantity_kind": "count",
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 40,
             "plausible_max": 3200,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "190",
+              "true_number_token": "400"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -1954,7 +2194,7 @@
             "true_number": 300,
             "unit": "meters",
             "correct_direction": "MORE",
-            "explanation": "Wide rivers can span hundreds of meters.",
+            "explanation": "The river spans 300 meters.",
             "surprise_factor": 6,
             "difficulty": "medium"
           },
@@ -1966,7 +2206,7 @@
             "true_number": 300,
             "unit": "entries",
             "correct_direction": "MORE",
-            "explanation": "A bookkeeping edge case.",
+            "explanation": "The ledger contains 300 entries.",
             "surprise_factor": 6,
             "difficulty": "medium"
           },
@@ -1978,7 +2218,7 @@
             "true_number": 400,
             "unit": "entries",
             "correct_direction": "MORE",
-            "explanation": "Same presented, clean claim.",
+            "explanation": "The ledger contains 400 entries.",
             "surprise_factor": 6,
             "difficulty": "medium"
           }
@@ -2006,13 +2246,21 @@
             "true_number": 300,
             "unit": "meters",
             "correct_direction": "LESS",
-            "explanation": "Wide rivers can span hundreds of meters.",
+            "explanation": "The river spans 300 meters.",
             "surprise_factor": 2,
             "quantity_kind": "physical_measure",
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 30,
             "plausible_max": 3000,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "630",
+              "true_number_token": "300"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -2022,13 +2270,21 @@
             "true_number": 500,
             "unit": "records",
             "correct_direction": "MORE",
-            "explanation": "An archival edge case.",
+            "explanation": "The archive holds 500 records.",
             "surprise_factor": 2,
             "quantity_kind": "count",
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 50,
             "plausible_max": 4000,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "220",
+              "true_number_token": "500"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -2048,7 +2304,7 @@
             "true_number": 300,
             "unit": "meters",
             "correct_direction": "MORE",
-            "explanation": "Wide rivers can span hundreds of meters.",
+            "explanation": "The river spans 300 meters.",
             "surprise_factor": 6,
             "difficulty": "medium"
           },
@@ -2060,7 +2316,7 @@
             "true_number": 500,
             "unit": "records",
             "correct_direction": "LESS",
-            "explanation": "An archival edge case.",
+            "explanation": "The archive holds 500 records.",
             "surprise_factor": 6,
             "difficulty": "medium"
           }
@@ -2088,13 +2344,21 @@
             "true_number": 300,
             "unit": "meters",
             "correct_direction": "LESS",
-            "explanation": "Wide rivers can span hundreds of meters.",
+            "explanation": "The river spans 300 meters.",
             "surprise_factor": 2,
             "quantity_kind": "physical_measure",
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 30,
             "plausible_max": 3000,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "630",
+              "true_number_token": "300"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -2104,13 +2368,21 @@
             "true_number": 6000,
             "unit": "millimeters",
             "correct_direction": "MORE",
-            "explanation": "Same presented, clean claim.",
+            "explanation": "The gauge reading is 6000 millimeters.",
             "surprise_factor": 2,
             "quantity_kind": "count",
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 600,
             "plausible_max": 48000,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "2800",
+              "true_number_token": "6000"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -2130,7 +2402,7 @@
             "true_number": 300,
             "unit": "meters",
             "correct_direction": "MORE",
-            "explanation": "Wide rivers can span hundreds of meters.",
+            "explanation": "The river spans 300 meters.",
             "surprise_factor": 6,
             "difficulty": "medium"
           },
@@ -2142,7 +2414,7 @@
             "true_number": 5000,
             "unit": "millimeters",
             "correct_direction": "LESS",
-            "explanation": "A metrology edge case.",
+            "explanation": "The gauge reading is 5000 millimeters.",
             "surprise_factor": 6,
             "difficulty": "medium"
           },
@@ -2154,7 +2426,7 @@
             "true_number": 6000,
             "unit": "millimeters",
             "correct_direction": "LESS",
-            "explanation": "Same presented, clean claim.",
+            "explanation": "The gauge reading is 6000 millimeters.",
             "surprise_factor": 6,
             "difficulty": "medium"
           }
@@ -2182,13 +2454,21 @@
             "true_number": 300,
             "unit": "meters",
             "correct_direction": "LESS",
-            "explanation": "Wide rivers can span hundreds of meters.",
+            "explanation": "The river spans 300 meters.",
             "surprise_factor": 2,
             "quantity_kind": "physical_measure",
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 30,
             "plausible_max": 3000,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 1,
+              "presented_number_token": "630",
+              "true_number_token": "300"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           },
           {
             "round_number": 2,
@@ -2198,13 +2478,21 @@
             "true_number": 5000,
             "unit": "millimeters",
             "correct_direction": "MORE",
-            "explanation": "A metrology edge case.",
+            "explanation": "The gauge reading is 5000 millimeters.",
             "surprise_factor": 2,
             "quantity_kind": "count",
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 500,
             "plausible_max": 40000,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "2600",
+              "true_number_token": "5000"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 2
@@ -2224,7 +2512,7 @@
             "true_number": 300,
             "unit": "meters",
             "correct_direction": "MORE",
-            "explanation": "Wide rivers can span hundreds of meters.",
+            "explanation": "The river spans 300 meters.",
             "surprise_factor": 6,
             "difficulty": "medium"
           },
@@ -2236,7 +2524,7 @@
             "true_number": 5000,
             "unit": "millimeters",
             "correct_direction": "LESS",
-            "explanation": "A metrology edge case.",
+            "explanation": "The gauge reading is 5000 millimeters.",
             "surprise_factor": 6,
             "difficulty": "medium"
           }
@@ -2294,7 +2582,15 @@
             "trap_direction": "UNDERESTIMATE",
             "plausible_min": 0,
             "plausible_max": 16,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "numeric_format": {
+              "version": 2,
+              "display_decimal_places": 0,
+              "presented_number_token": "4",
+              "true_number_token": "2"
+            },
+            "ddm_implementation_revision": "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00",
+            "remedy_stage": "preferred_side"
           }
         ],
         "total_rounds": 3

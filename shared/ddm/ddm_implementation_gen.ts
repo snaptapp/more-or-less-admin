@@ -7,7 +7,7 @@
 
 export const DDM_IMPLEMENTATION_SCHEMA = "ddm-implementation/1";
 export const DDM_IMPLEMENTATION_MODEL_VERSION = "ddm-4";
-export const DDM_IMPLEMENTATION_REVISION = "101feb122f1413d4c81e17a303a56dffef3e0191dfaaf6b33707f2413298cd23";
+export const DDM_IMPLEMENTATION_REVISION = "1bfc20a2fe0aafbb187cb785384a528eae19acae2170c563d88fd3064d548c00";
 export const DDM_IMPLEMENTATION_INPUTS = {
   "agent-go/derivation.go": "fb8f1edc057b3c2eb336083886854e987063c9ec8b156608bf987bdf84c7fcfe",
   "agent-go/derivation_bounds.go": "d5eb24934cc4dcdb214af29d80a59f71915663d7e6ff90e64e31cb44c43789f7",
@@ -32,9 +32,15 @@ export const DDM_IMPLEMENTATION_INPUTS = {
   "agent-go/derivation_trap.go": "676a1f5135da83d66446a02d0d8d2d7d16b581ed80177fb7cf2f42fbcf9773ed",
   "agent-go/derivation_variation.go": "2809f0a3bacbddf3aff4affa2948af41e15df25e243e7145bcc2634f8f53a8b6",
   "agent-go/derivation_zero.go": "1806df8c78512785a56596b9d08c82d69f2256a0cc619fb072c9c026f2a3ceea",
-  "scripts/ddm-port-source/derivation.ts": "46c04b89c0d756fc3f5495ac14bc4e76f2a40b717ee1ee61780451e73045d176",
-  "scripts/ddm-port-source/derivation_resolve.ts": "b4bfdc12493264e6f168aa31dc035da7f2bf16501fb9e2d991375780e3ed7427",
+  "agent-go/factlint.go": "6d7ffa71b93d86a3f6d15103deb1422699d9c75fbc3c44a4e07ee0b79d435a96",
+  "agent-go/factlint_rules.go": "e5e442ed9407defaa877552d05ae76c46a33666361abc352f24523e2f0964b0f",
+  "agent-go/factquality_round.go": "8e6cf7317aed4d0696d0885b16581586d5e146e72216078e003fe0c34136aef4",
+  "agent-go/factquality_round_numeric.go": "e2d8d881763ab548535d3d53152b695c1d62cbb1c5bfb42c04e89f375f0365d4",
+  "agent-go/guardrails.go": "510cc010425a0164cce6481ee5c571591632b883e2095b54e956d56bee5fca51",
+  "scripts/ddm-port-source/derivation.ts": "3fed4ec5403946e43809bd5e8fe480e87ac1cbf26afe4d882933e2634e49d07a",
+  "scripts/ddm-port-source/derivation_resolve.ts": "1036f87e9e75c87fdbe10b6e6dc3a31b1d4381a1a57b241a4c714d171f2f4c37",
   "scripts/ddm-port-source/derivation_statement.ts": "3ada419137e5f5a95957d8f288053b76714a1d314f851241a70e249586f96d34",
+  "scripts/ddm-port-source/factquality_round.ts": "2994cccecf838372ce27c4d4f3c6554955392a0d3d70fa752466e2edccbf2dfb",
   "tests/fixtures/derivation_tables.json": "330d88557023e63dd0cce893ab866625c7f94e1c7e37735dac9fb7cb97ea921d",
   "tests/fixtures/unit_tables.json": "c5e2ac4d7c92b150c20ba8223a10e2bca23e7ad649f16feee59aca0e19a72846"
 } as const;
