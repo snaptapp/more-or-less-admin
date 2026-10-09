@@ -199,7 +199,7 @@ export function CopilotPanel({
             </meter>
           </label>
           <details>
-            <summary style={{ cursor: "pointer", fontSize: "0.85em" }}>Why this score ({review.policy.score}/100)</summary>
+            <summary style={{ cursor: "pointer", fontSize: "0.85em" }}>Why this score ({review.policy.score}/100, advisory)</summary>
             <table className="admin-table admin-card-table admin-card-table--confidence" style={{ marginTop: 6, fontSize: "0.85em" }}>
               <thead>
                 <tr><th>Factor</th><th>Points</th><th>Evidence</th></tr>
@@ -270,7 +270,7 @@ export function CopilotPanel({
                   <li key={src.url} style={{ fontSize: "0.9em" }}>
                     <a href={src.url} target="_blank" rel="noreferrer">{src.title}</a>
                     {src.value !== undefined ? <> <Badge>{String(src.value)}</Badge></> : null}
-                    {src.conflicting ? <> <Badge tone="red">Conflicts</Badge></> : src.stance === "supports" ? <> <Badge tone="lime">Supports</Badge></> : null}
+                    {src.conflicting ? <> <Badge tone="red">Conflicts</Badge></> : src.incomparable ? <> <Badge tone="amber">Not comparable</Badge></> : src.stance === "supports" ? <> <Badge tone="lime">Supports</Badge></> : null}
                     {src.excerpts.map((ex, i) => (
                       <blockquote
                         key={i}
@@ -352,6 +352,7 @@ function ReportAuditTrail({ reportId }: { reportId: string }) {
                     <li key={String(src["url"])}>
                       <a href={String(src["url"])} target="_blank" rel="noreferrer">{String(src["title"] ?? src["url"])}</a>
                       {src["conflicting"] ? <> <Badge tone="red">Conflicts</Badge></> : null}
+                      {src["incomparable"] ? <> <Badge tone="amber">Not comparable</Badge></> : null}
                     </li>
                   ))}
                 </ul>

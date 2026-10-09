@@ -150,6 +150,13 @@ const EXPECTED_DEFAULTS: FactRecord = {
   content_rating: "standard",
   status: "active",
   number_pinned: false,
+  disputed_at: null,
+  lint_findings: [],
+  lint_rules_revision: null,
+  content_fingerprint: "",
+  quality_receipt: null,
+  quality_hold: null,
+  quality_reviews: [],
   updateTime: undefined,
 };
 

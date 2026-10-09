@@ -677,7 +677,8 @@ async function runScenario(scenario: MutationScenario): Promise<void> {
     scenario.mutation === "updateFact" ||
     scenario.mutation === "setFactStatus" ||
     scenario.mutation === "importFactsBatch" ||
-    scenario.mutation === "bulkUpdateFacts";
+    scenario.mutation === "bulkUpdateFacts" ||
+    scenario.mutation === "resolveReport";
   const entries = transactional ? transactionalAuditEntries() : auditDouble().entries();
   const expectedCount =
     scenario.mutation === "importFactsBatch"

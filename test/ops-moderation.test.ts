@@ -166,7 +166,7 @@ describe("ops moderation queue", () => {
       {
         verdict: "unclear",
         suggested: {},
-        policy: { needsReview: true, reasons: ["No sources"], modelConfidence: "low", score: 10, factors: [] },
+        policy: { needsReview: true, reasons: ["No sources"], modelConfidence: "low", score: 10, factors: [], uncalibrated: true },
       },
       [{ action: "reject", label: "Reject report" }],
     );

@@ -395,13 +395,14 @@ export const actOnReport = createServerFn({ method: "POST" }).middleware([authMi
     const caller = context.user;
     const { PENDING_ADMISSION_COPY, resolveReport } = await import("./content.server");
     const { copilot, ...resolveInput } = data;
-    const result = await resolveReport(resolveInput);
-    const { logAdminAction } = await import("@/lib/firebase/audit.server");
+    const { buildAuditEntry } = await import("@/lib/firebase/audit.server");
     const details =
       data.action === "add_to_bank"
         ? `Report action: add_to_bank — ${PENDING_ADMISSION_COPY}`
         : `Report action: ${data.action}`;
-    await logAdminAction(caller, {
+    // The audit entry is staged inside the report-resolution transaction: the
+    // moderation mutation and its audit record commit or roll back together.
+    const audit = buildAuditEntry(caller, {
       action: `report.${data.action}`,
       targetType: "report",
       targetId: data.reportId,
@@ -410,9 +411,13 @@ export const actOnReport = createServerFn({ method: "POST" }).middleware([authMi
           ? ` | copilot ${copilot.verdict} (${copilot.confidence}, ${copilot.score})${copilot.prefilled ? ", prefilled" : ""}`
           : " | no copilot review"
       }`,
-      after: { ...resolveInput, copilot: copilot ?? null } as Record<string, unknown>,
     });
-    return result;
+    return resolveReport({
+      ...resolveInput,
+      admin: caller,
+      audit,
+      auditAfter: { ...resolveInput, copilot: copilot ?? null } as Record<string, unknown>,
+    });
   });
 
 export const flushReports = createServerFn({ method: "POST" })
