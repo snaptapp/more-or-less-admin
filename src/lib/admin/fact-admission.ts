@@ -651,6 +651,12 @@ function validateQuantitySpec(
       if (typeof mode !== "string" || !FACT_QUALITY_REGISTRY.temporal_modes.includes(mode)) {
         issue(issues, "quantity_spec.temporal.mode", "closed_set", "must be a registry mode");
       }
+      for (const bound of ["start", "end", "observed_at"] as const) {
+        const member = temporal[bound];
+        if (member !== undefined && typeof member !== "string") {
+          issue(issues, `quantity_spec.temporal.${bound}`, "type", "must be a string");
+        }
+      }
     }
   }
   const places = spec["display_decimal_places"];

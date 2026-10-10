@@ -145,6 +145,8 @@ export interface CopilotInput {
     status?: string;
     quantity_kind?: string;
     surprise_factor?: number;
+    /** Measurement/edition year the fact's true_number covers. */
+    as_of_year?: number | null;
   } | null;
   duplicateFacts?: CopilotFactCandidate[];
 }
@@ -426,6 +428,7 @@ export async function reviewReportWithCopilot(input: CopilotInput): Promise<Copi
   const targetNumber = suggested.true_number ?? targetFact?.true_number ?? input.trueNumber;
   const policy = applySourcePolicy(sources, targetNumber, confidence, {
     unit: suggested.unit ?? targetFact?.unit ?? input.unit,
+    period: targetFact?.as_of_year != null ? String(targetFact.as_of_year) : undefined,
   });
 
   let finalVerdict = verdict;
@@ -501,16 +504,32 @@ export function applySourcePolicy(
     let hasConflict = s.stance === "contradicts";
     let hasIncomparable = false;
     if (ref) {
+      let targetDecided = false;
       if (targetRef) {
         const vs = compareSourceValues(ref, targetRef);
-        if (vs === "conflict") hasConflict = true;
-        if (vs === "incomparable") hasIncomparable = true;
+        // The source's own comparison against the recommendation is
+        // authoritative for its status: an agreeing source stays supporting
+        // even when another row conflicts or cannot be reconciled.
+        if (vs === "conflict") {
+          hasConflict = true;
+          targetDecided = true;
+        } else if (vs === "agree") {
+          targetDecided = true;
+        }
       }
-      for (let j = 0; j < sources.length; j++) {
-        if (j === i || !refs[j]) continue;
-        const vs = compareSourceValues(ref, refs[j]!);
-        if (vs === "conflict") hasConflict = true;
-        if (vs === "incomparable") hasIncomparable = true;
+      if (!targetDecided) {
+        // Only when the target cannot place this source (no numeric target,
+        // or the target's own unit/period fails to reconcile) do peer rows
+        // decide: a peer conflict flags it, peer agreement reconciles it, and
+        // otherwise it is incomparable.
+        let reconciledByPeer = false;
+        for (let j = 0; j < sources.length; j++) {
+          if (j === i || !refs[j]) continue;
+          const vs = compareSourceValues(ref, refs[j]!);
+          if (vs === "conflict") hasConflict = true;
+          else if (vs === "agree") reconciledByPeer = true;
+        }
+        if (!hasConflict && !reconciledByPeer) hasIncomparable = true;
       }
     }
     s.conflicting = hasConflict;

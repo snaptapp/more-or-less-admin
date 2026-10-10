@@ -132,6 +132,38 @@ describe("Fact Foundry lint findings", () => {
     expect(html).toContain("No catalog entry is registered");
   });
 
+  it("shows severity and enforcement as separate values", () => {
+    // evidence_value_conflict is severe but only review_required: the badge
+    // must expose the severity, not collapse to the enforcement wording.
+    const html = renderFindings(["evidence_value_conflict"]);
+
+    expect(html).toContain("Severe · human decision required");
+  });
+
+  it("keeps producer-authored detail and docIds for unknown structured findings", () => {
+    const html = renderFindings(
+      [],
+      undefined,
+      [
+        {
+          id: "future_structured_rule",
+          severity: "severe",
+          enforcement: "review_required",
+          detail: "source reports 1989 debut but archive shows 1956",
+          docIds: ["doc-a", "doc-b"],
+        },
+      ],
+    );
+
+    expect(html).toContain("future_structured_rule");
+    expect(html).toContain("Unrecognized quality flag");
+    expect(html).toContain("Severe · human decision required");
+    expect(html).toContain("source reports 1989 debut but archive shows 1956");
+    expect(html).toContain("Related fact IDs");
+    expect(html).toContain("doc-a");
+    expect(html).toContain("doc-b");
+  });
+
   it("has a catalog entry for every rule ID the catalog declares", () => {
     const html = renderFindings(LINT_RULES.map((rule) => rule.id));
 

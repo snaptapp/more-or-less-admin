@@ -92,7 +92,14 @@ export interface QualityReviewRecord {
   lint_rules_revision: string;
   /** Stored `content_fingerprint` of the reviewed revision; "" when absent. */
   content_fingerprint: string;
-  /** Firestore `updateTime` of the reviewed revision, read inside the tx. */
+  /**
+   * Firestore `updateTime` of the revision read inside the tx, kept as
+   * provenance for which snapshot was evaluated. The write that appends this
+   * record necessarily gives the doc a new updateTime, so nothing may match
+   * on this field afterward: the suppression match binds content_fingerprint
+   * and lint_rules_revision, and a legacy fact with no fingerprint matches
+   * nothing (fails closed).
+   */
   update_time: string;
   created_at: string;
 }
@@ -103,7 +110,11 @@ let reviewCounter = 0;
  * Build an append-only review record bound to the fact revision that was
  * read inside the current transaction. `doc` must be the same transaction
  * snapshot the mutation is applied to, so the bound update time can never
- * describe a different revision than the one reviewed.
+ * describe a different revision than the one reviewed. The recorded
+ * `update_time` is pre-write by necessity and names the evaluated revision
+ * as provenance; the match guarantee for suppression lives in
+ * `content_fingerprint` + `lint_rules_revision`, which this write never
+ * changes on a finding_accepted/source_interpretation review.
  */
 export function buildQualityReview(input: {
   factId: string;

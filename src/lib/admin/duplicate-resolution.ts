@@ -14,6 +14,8 @@ export interface DuplicateFactCandidate {
   status?: string;
   quantity_kind?: string | null;
   surprise_factor?: number | null;
+  /** Measurement/edition year the true_number covers; bounds source comparison periods. */
+  as_of_year?: number | null;
 }
 
 export interface CandidateQualityScore {

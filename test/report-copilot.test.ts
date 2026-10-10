@@ -46,6 +46,137 @@ describe("report-copilot", () => {
     expect(result.policy.score).toBeGreaterThan(90);
   });
 
+  it("keeps an agreeing source supporting when a peer conflicts with the target", () => {
+    const sources: CopilotSource[] = [
+      {
+        url: "https://example.com/1",
+        title: "Source 1",
+        excerpts: ["7 seconds."],
+        value: 7,
+        unit: "seconds",
+        stance: "supports",
+        conflicting: false,
+      },
+      {
+        url: "https://example.com/2",
+        title: "Source 2",
+        excerpts: ["9 seconds."],
+        value: 9,
+        unit: "seconds",
+        stance: "unclear",
+        conflicting: false,
+      },
+    ];
+
+    applySourcePolicy(sources, 7, "high", { unit: "seconds" });
+    // Source 1 agrees with the recommendation; the conflicting peer is the
+    // outlier and must not taint it.
+    expect(sources[0].conflicting).toBe(false);
+    expect(sources[0].incomparable).toBeFalsy();
+    expect(sources[1].conflicting).toBe(true);
+  });
+
+  it("keeps an agreeing source supporting when a peer is unit-incomparable", () => {
+    const sources: CopilotSource[] = [
+      {
+        url: "https://example.com/1",
+        title: "Source 1",
+        excerpts: ["7 seconds."],
+        value: 7,
+        unit: "seconds",
+        stance: "supports",
+        conflicting: false,
+      },
+      {
+        url: "https://example.com/2",
+        title: "Source 2",
+        excerpts: ["7 meters."],
+        value: 7,
+        unit: "meters",
+        stance: "supports",
+        conflicting: false,
+      },
+    ];
+
+    applySourcePolicy(sources, 7, "high", { unit: "seconds" });
+    expect(sources[0].incomparable).toBeFalsy();
+    expect(sources[0].conflicting).toBe(false);
+    // The meter row cannot be reconciled with a seconds target or its peer.
+    expect(sources[1].incomparable).toBe(true);
+  });
+
+  it("uses peer agreement only when the target cannot decide a source", () => {
+    const sources: CopilotSource[] = [
+      {
+        url: "https://example.com/1",
+        title: "Source 1",
+        excerpts: ["7 seconds in 1989."],
+        value: 7,
+        unit: "seconds",
+        period: "1989",
+        stance: "supports",
+        conflicting: false,
+      },
+      {
+        url: "https://example.com/2",
+        title: "Source 2",
+        excerpts: ["7 seconds in 1990."],
+        value: 7,
+        unit: "seconds",
+        period: "1990",
+        stance: "supports",
+        conflicting: false,
+      },
+      {
+        url: "https://example.com/3",
+        title: "Source 3",
+        excerpts: ["7 seconds, also 1990."],
+        value: 7,
+        unit: "seconds",
+        period: "1990",
+        stance: "supports",
+        conflicting: false,
+      },
+    ];
+
+    applySourcePolicy(sources, 7, "high", { unit: "seconds", period: "1989" });
+    expect(sources[0].incomparable).toBeFalsy();
+    // The 1990 rows cannot be compared to the 1989 target, but they agree
+    // with each other, so they are reconciled rather than discarded.
+    expect(sources[1].incomparable).toBeFalsy();
+    expect(sources[2].incomparable).toBeFalsy();
+  });
+
+  it("marks a source incomparable when its period differs from the target and every peer", () => {
+    const sources: CopilotSource[] = [
+      {
+        url: "https://example.com/1",
+        title: "Source 1",
+        excerpts: ["7 seconds in 1989."],
+        value: 7,
+        unit: "seconds",
+        period: "1989",
+        stance: "supports",
+        conflicting: false,
+      },
+      {
+        url: "https://example.com/2",
+        title: "Source 2",
+        excerpts: ["9 seconds in 1990."],
+        value: 9,
+        unit: "seconds",
+        period: "1990",
+        stance: "unclear",
+        conflicting: false,
+      },
+    ];
+
+    applySourcePolicy(sources, 7, "high", { unit: "seconds", period: "1989" });
+    expect(sources[0].incomparable).toBeFalsy();
+    expect(sources[1].incomparable).toBe(true);
+    expect(sources[1].conflicting).toBe(false);
+  });
+
   it("handles duplicate fact candidates and parses duplicate_resolution", async () => {
     const mockResponse = {
       candidates: [
@@ -504,5 +635,80 @@ describe("report-copilot", () => {
     expect(review.suggested.subject).toBe("Deepest Lake");
     expect(review.suggested.true_number).toBe(1642);
     expect(review.suggested.quantity_kind).toBe("length");
+  });
+
+  it("threads the fact's as_of_year into the target so same-period sources stay comparable", async () => {
+    const mockResponse = {
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                text: JSON.stringify({
+                  verdict: "uphold_fact",
+                  confidence: "high",
+                  rationale: "Sources confirm the 1989 figure.",
+                  suggested: { true_number: 7 },
+                  sources: [
+                    {
+                      url: "https://example.com/a",
+                      title: "Same-year source",
+                      excerpt: "The 1989 figure was 7 seconds.",
+                      value: 7,
+                      value_token: "7",
+                      unit: "seconds",
+                      period: "1989",
+                      stance: "supports",
+                    },
+                    {
+                      url: "https://example.com/b",
+                      title: "Other-year source",
+                      excerpt: "The 1990 figure was 9 seconds.",
+                      value: 9,
+                      value_token: "9",
+                      unit: "seconds",
+                      period: "1990",
+                      stance: "unclear",
+                    },
+                  ],
+                }),
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      return { ok: true, status: 200, json: async () => mockResponse } as Response;
+    });
+
+    const review = await reviewReportWithCopilot({
+      topic: "Timing",
+      claimStatement: "It took 7 seconds in 1989.",
+      presentedNumber: 8,
+      trueNumber: 7,
+      unit: "seconds",
+      reason: "player_report",
+      feedbackText: "",
+      fact: {
+        id: "fact_1",
+        subject: "Timing",
+        angle: "Duration",
+        question: "Duration in seconds",
+        claim_template: "It took {n} seconds.",
+        true_number: 7,
+        unit: "seconds",
+        context: "",
+        source_urls: [],
+        as_of_year: 1989,
+      },
+    });
+
+    // The same-period source must compare against the target's 1989 period,
+    // not be discarded as incomparable for carrying any period at all.
+    expect(review.sources[0].incomparable).toBeFalsy();
+    expect(review.sources[0].conflicting).toBe(false);
+    expect(review.sources[1].incomparable).toBe(true);
   });
 });

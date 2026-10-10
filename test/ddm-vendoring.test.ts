@@ -105,6 +105,24 @@ function makeDriftFixture(): { adminRoot: string; upstreamRoot: string } {
   const adminRoot = path.join(parent, "admin");
   const upstreamRoot = path.join(parent, "main");
 
+  // The checker requires these coverage-only producers to be covered by every
+  // manifest; fixtures must satisfy the same contract as the real handoff.
+  const requiredCoverage = [
+    ".github/scripts/open-hydration-pr.sh",
+    ".github/scripts/verify-fact-bank-publication.mjs",
+    ".github/workflows/fact-foundry.yml",
+    "agent-go/factlint.go",
+    "agent-go/factlint_rules.go",
+    "agent-go/factquality_review.go",
+    "scripts/export_eligible_coverage.mjs",
+    "scripts/export_fact_bank.mjs",
+    "scripts/frozen_bank_export.mjs",
+    "scripts/gen_derivation_tables.mjs",
+    "scripts/gen_fact_lint_catalog.mjs",
+    "scripts/gen_fact_quality_units.mjs",
+    "scripts/gen_shared_contract.mjs",
+    "scripts/write_bank_pair.mjs",
+  ];
   const manifest: ArtifactManifest = {
     sourceRepository: "snaptapp/more-or-less",
     contractVersion: 2,
@@ -112,16 +130,23 @@ function makeDriftFixture(): { adminRoot: string; upstreamRoot: string } {
     coveredSourcePaths: [
       "shared/fact-lifecycle-contract.gen.ts",
       "src/derivation.ts",
+      ...requiredCoverage,
     ],
     files: {
       "shared/fact-lifecycle-contract.gen.ts": sha256(FIXTURE_CONTRACT),
       "src/derivation.ts": sha256(FIXTURE_DDM),
+      ...Object.fromEntries(
+        requiredCoverage.map((p) => [p, sha256(`// ${p}\n`)]),
+      ),
     },
   };
   const manifestBytes = `${JSON.stringify(manifest, null, 2)}\n`;
 
   writeAt(upstreamRoot, "shared/fact-lifecycle-contract.gen.ts", FIXTURE_CONTRACT);
   writeAt(upstreamRoot, "src/derivation.ts", FIXTURE_DDM);
+  for (const covered of requiredCoverage) {
+    writeAt(upstreamRoot, covered, `// ${covered}\n`);
+  }
   writeAt(upstreamRoot, "shared/artifact-manifest.gen.json", manifestBytes);
 
   writeAt(adminRoot, "contract/published/fact-lifecycle-contract.gen.ts", FIXTURE_CONTRACT);

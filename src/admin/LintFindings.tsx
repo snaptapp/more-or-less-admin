@@ -62,10 +62,16 @@ const FIELD_LABELS: Record<string, string> = {
   as_of_year: "as_of_year",
 };
 
+const SEVERITY_LABELS: Record<LintSeverity, string> = {
+  severe: "Severe",
+  review: "Review",
+  warn: "Warning",
+};
+
 const ENFORCEMENT_LABELS: Record<LintEnforcement, string> = {
-  block: "Severe · export blocker",
-  review_required: "Review · human decision required",
-  advisory: "Warning · does not quarantine by itself",
+  block: "export blocker",
+  review_required: "human decision required",
+  advisory: "does not quarantine by itself",
 };
 
 const SEVERITY_TONES: Record<LintSeverity, "red" | "amber"> = {
@@ -73,6 +79,22 @@ const SEVERITY_TONES: Record<LintSeverity, "red" | "amber"> = {
   review: "amber",
   warn: "amber",
 };
+
+/**
+ * Severity and enforcement are orthogonal axes: a severe finding can be
+ * review_required and a review finding can block. The badge renders both as
+ * separate textual values so a severe/review_required rule still exposes
+ * "Severe" instead of only the enforcement label.
+ */
+function severityEnforcementLabel(
+  severity: LintSeverity | undefined,
+  enforcement: LintEnforcement | undefined,
+): string {
+  const parts: string[] = [];
+  if (severity !== undefined) parts.push(SEVERITY_LABELS[severity] ?? severity);
+  if (enforcement !== undefined) parts.push(ENFORCEMENT_LABELS[enforcement] ?? enforcement);
+  return parts.length > 0 ? parts.join(" · ") : "Severity unknown";
+}
 
 function fieldLabel(field: string): string {
   return FIELD_LABELS[field] ?? field;
@@ -152,30 +174,31 @@ export function LintFindings({
                   <code>{finding.id}</code>
                 </div>
                 <Badge tone={severity ? SEVERITY_TONES[severity] : "neutral"}>
-                  {enforcement ? ENFORCEMENT_LABELS[enforcement] : "Severity unknown"}
+                  {severityEnforcementLabel(severity, enforcement)}
                 </Badge>
               </header>
 
+              {finding.detail ? (
+                <div className="admin-lint-finding__copy">
+                  <div>
+                    <strong>What the linter found</strong>
+                    <p>{finding.detail}</p>
+                  </div>
+                </div>
+              ) : null}
+              {finding.docIds && finding.docIds.length > 0 ? (
+                <div className="admin-lint-finding__fields">
+                  <strong>Related fact IDs</strong>
+                  <div>
+                    {finding.docIds.map((docId) => (
+                      <code key={docId}>{docId}</code>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {rule ? (
                 <>
-                  {finding.detail ? (
-                    <div className="admin-lint-finding__copy">
-                      <div>
-                        <strong>What the linter found</strong>
-                        <p>{finding.detail}</p>
-                      </div>
-                    </div>
-                  ) : null}
-                  {finding.docIds && finding.docIds.length > 0 ? (
-                    <div className="admin-lint-finding__fields">
-                      <strong>Related fact IDs</strong>
-                      <div>
-                        {finding.docIds.map((docId) => (
-                          <code key={docId}>{docId}</code>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
                   <div className="admin-lint-finding__fields">
                     <strong>Fields to inspect</strong>
                     <div>

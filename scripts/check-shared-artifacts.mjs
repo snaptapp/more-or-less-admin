@@ -482,14 +482,50 @@ function isCoverageOnly(sourcePath) {
 }
 
 /**
+ * Producers whose freshness the handoff contract promises to gate: the
+ * hydration workflow and publication pipeline, the review/write authority,
+ * and the lint/contract generators. These must actually appear in
+ * `coveredSourcePaths` — a manifest that omits one is rejected rather than
+ * silently ungating freshness for that producer, which is exactly the gap
+ * COVERAGE_ONLY_SOURCE_FILES alone cannot catch.
+ */
+const REQUIRED_COVERED_SOURCE_FILES = new Set([
+  ".github/scripts/open-hydration-pr.sh",
+  ".github/scripts/verify-fact-bank-publication.mjs",
+  ".github/workflows/fact-foundry.yml",
+  "agent-go/factlint.go",
+  "agent-go/factlint_rules.go",
+  "agent-go/factquality_review.go",
+  "scripts/export_eligible_coverage.mjs",
+  "scripts/export_fact_bank.mjs",
+  "scripts/frozen_bank_export.mjs",
+  "scripts/gen_derivation_tables.mjs",
+  "scripts/gen_fact_lint_catalog.mjs",
+  "scripts/gen_fact_quality_units.mjs",
+  "scripts/gen_shared_contract.mjs",
+  "scripts/write_bank_pair.mjs",
+]);
+
+/**
  * Build the declared handoff operations from a manifest. Coverage-only source
  * paths are deliberately omitted. A source that is neither a known coverage
  * path nor a known handoff path is rejected rather than silently ignored.
+ * Every REQUIRED_COVERED producer must be present in coveredSourcePaths:
+ * the requirement binds the manifest, not just the allowlist.
  */
 export function getHandoffEntries(manifest) {
   const explicit = manifest.destinations ?? null;
   const entries = [];
   const destinationOwners = new Map();
+
+  const covered = new Set(manifest.coveredSourcePaths);
+  for (const required of REQUIRED_COVERED_SOURCE_FILES) {
+    if (!covered.has(required)) {
+      throw new ArtifactConfigError(
+        `Manifest does not cover required producer ${required}.`,
+      );
+    }
+  }
 
   for (const sourcePath of manifest.coveredSourcePaths) {
     const declared = explicit?.[sourcePath];

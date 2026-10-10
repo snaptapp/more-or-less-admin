@@ -361,6 +361,26 @@ describe("pending fact admission: exact-token and quality-spec fields", () => {
     ).toContain("quantity_spec.temporal.mode");
   });
 
+  it("rejects non-string temporal bound members", () => {
+    const bad = (temporal: Record<string, unknown>) =>
+      issueFields({
+        ...buildPendingFact(input({ quantity_spec: SPEC }), TIMESTAMP),
+        quantity_spec: { ...SPEC, temporal },
+      });
+    expect(bad({ mode: "historical_event", observed_at: 123 })).toContain(
+      "quantity_spec.temporal.observed_at",
+    );
+    expect(bad({ mode: "historical_event", start: 1900 })).toContain(
+      "quantity_spec.temporal.start",
+    );
+    expect(bad({ mode: "historical_event", end: null })).toContain(
+      "quantity_spec.temporal.end",
+    );
+    // String bounds still validate.
+    const fact = buildPendingFact(input({ quantity_spec: SPEC }), TIMESTAMP);
+    expect(validatePendingFact(fact).ok).toBe(true);
+  });
+
   it("rejects a spec whose measure cannot describe the unit's base quantity", () => {
     const spec = {
       ...SPEC,

@@ -113,6 +113,7 @@ describe("Task 7 revision-safe moderation", () => {
       quality_flags: ["wrong_number"],
       disputed_reason: "fact_lint: wrong_number",
       disputed_at: "2026-01-01T00:00:00.000Z",
+      true_number_token: "7",
       content_fingerprint: "fp_old",
       quality_receipt: { audit_id: "a1", content_fingerprint: "fp_old" },
       quality_hold: { reason: "legacy" },
@@ -132,6 +133,9 @@ describe("Task 7 revision-safe moderation", () => {
     for (const gone of [
       "quality_receipt",
       "content_fingerprint",
+      // The stale canonical token must die atomically with the number
+      // change; leaving "7" behind would trip true_number_token_mismatch.
+      "true_number_token",
       "lint_findings",
       "lint_rules_revision",
       "disputed_reason",

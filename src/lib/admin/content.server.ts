@@ -1033,7 +1033,9 @@ function buildFactEditPlan(
   }
 
   // Changing the value preserves the old one for the reveal-diff history.
-  if (input.true_number !== undefined && input.true_number !== existing.true_number) {
+  const trueNumberChanged =
+    input.true_number !== undefined && input.true_number !== existing.true_number;
+  if (trueNumberChanged) {
     patch["previous_true_number"] = existing.true_number;
     patch["number_changed_at"] = now;
     patch["number_change_source"] = "admin_portal";
@@ -1075,6 +1077,13 @@ function buildFactEditPlan(
   const deletePaths: string[] = semanticChanged
     ? ["derivation", "precomputed_derivation", "derivation_input_fingerprint"]
     : [];
+  if (trueNumberChanged) {
+    // The canonical token is a projection of the value, stamped by the
+    // Foundry decode path. A raw-number correction cannot restamp it, so the
+    // stale token is deleted atomically with the write rather than left to
+    // trip true_number_token_mismatch on the next lint pass.
+    deletePaths.push("true_number_token");
+  }
   if (materialChanged) {
     deletePaths.push(...MATERIAL_INVALIDATION_PATHS);
     patch["quality_hold"] = materialEditHold({
