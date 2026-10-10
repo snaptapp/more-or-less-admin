@@ -1370,11 +1370,11 @@ export async function flagQuestionTelemetry(input: { days: 7 | 30 | 90; question
   const factId = parseTelemetryFactId(input.questionId);
 
   // The report create, the active -> disputed transition, and the report's
-  // bound `fact_update_time` revision are one transaction: the report is
-  // re-checked inside (the earlier getDoc is only an early-out), a fact that
-  // changed state between the read and the write aborts rather than being
-  // overwritten by stale telemetry, and the report can never exist without
-  // its dispute write committing.
+  // bound revision are one transaction: the report is re-checked inside (the
+  // earlier getDoc is only an early-out), a fact that changed state between
+  // the read and the write aborts rather than being overwritten by stale
+  // telemetry, and the report can never exist without its dispute write
+  // committing.
   const reportPath = `trivia_reports/${reportId}`;
   const outcome = await runTransaction(async (tx) => {
     const existingReport = await tx.get(reportPath);
@@ -1383,23 +1383,30 @@ export async function flagQuestionTelemetry(input: { days: 7 | 30 | 90; question
     }
     let factPreviousStatus: string | null = null;
     let factUpdateTime: string | null = null;
+    let factDisputedAt: string | null = null;
     if (factId) {
       const factDoc = await tx.get(`fact_bank/${factId}`);
       if (factDoc) {
         const currentStatus =
           typeof factDoc.data["status"] === "string" ? factDoc.data["status"] : "";
         factPreviousStatus = currentStatus || null;
-        factUpdateTime = factDoc.updateTime ?? null;
         if (currentStatus === STATUS.active && factDoc.updateTime) {
+          // The pre-dispute updateTime is invalidated by this transaction's
+          // own write (commit assigns a fresh updateTime), so the report binds
+          // the disputed_at stamp it wrote instead. Only an untouched fact
+          // keeps updateTime as its revision bound.
+          factDisputedAt = new Date().toISOString();
           tx.update(
             `fact_bank/${factId}`,
             {
               status: STATUS.disputed,
-              disputed_at: new Date().toISOString(),
+              disputed_at: factDisputedAt,
               disputed_reason: "round_telemetry",
             },
             { updateTime: factDoc.updateTime },
           );
+        } else {
+          factUpdateTime = factDoc.updateTime ?? null;
         }
       }
     }
@@ -1409,7 +1416,11 @@ export async function flagQuestionTelemetry(input: { days: 7 | 30 | 90; question
         status: "pending_review", reportSource: "round_telemetry", questionId: input.questionId,
         ...(factId ? { factId } : {}),
         ...(factPreviousStatus ? { factPreviousStatus } : {}),
-        ...(factUpdateTime ? { fact_update_time: factUpdateTime } : {}),
+        ...(factDisputedAt
+          ? { fact_disputed_at: factDisputedAt }
+          : factUpdateTime
+            ? { fact_update_time: factUpdateTime }
+            : {}),
         topic: telemetry?.topic ?? "", claimStatement: telemetry?.claim ?? "", unit: telemetry?.unit ?? "",
         category: telemetry?.category ?? "", kind: telemetry?.kind ?? "",
         telemetryDays: input.days, telemetryAnswered: telemetry?.answered ?? 0,

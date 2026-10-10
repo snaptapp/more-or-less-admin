@@ -2260,7 +2260,10 @@ export async function findDuplicateFactsForReport(
  *    revoke the stored approval via `buildFactEditPlan`: receipt and content
  *    fingerprint are deleted, lint evidence cleared, and `quality_hold` marks
  *    the revision as awaiting a fresh audit. `verified_at`/`verifier_model`
- *    stay auditor-owned.
+ *    stay auditor-owned. A fact reinstated to `active` here is still not
+ *    playable: publication is bound to the Go export's `ready_ids` and the
+ *    deployed manifest row, which require a current-revision receipt, not the
+ *    lifecycle status. The hold clears only when a fresh audit mints one.
  *  - Clearing flag findings appends an append-only `quality_reviews` record
  *    bound to the revision reviewed (stored fingerprint + update time +
  *    lint rules revision). `resolve_as_is` and lint-report rejections record
@@ -2353,6 +2356,14 @@ export async function resolveReport(input: {
     };
 
     const reportBoundRevisionStale = (factDoc: FirestoreDoc): boolean => {
+      // A telemetry report that wrote its own dispute binds the `disputed_at`
+      // stamp it produced: the pre-write updateTime is invalidated by that
+      // very commit. Lint and untouched-fact telemetry reports bind the
+      // fact's updateTime revision directly.
+      const boundDispute = reportData["fact_disputed_at"];
+      if (typeof boundDispute === "string" && boundDispute.length > 0) {
+        return factDoc.data["disputed_at"] !== boundDispute;
+      }
       const bound = reportData["fact_update_time"];
       return typeof bound === "string" && bound.length > 0 && bound !== factDoc.updateTime;
     };

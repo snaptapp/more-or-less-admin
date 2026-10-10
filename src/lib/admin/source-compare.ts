@@ -44,9 +44,14 @@ function parseDecimalRational(token: string): Rational | null {
   let num = BigInt(intPart + (fracPart ?? ""));
   let den = 10n ** BigInt((fracPart ?? "").length);
   if (expPart !== undefined) {
-    const exp = BigInt(expPart);
-    if (exp >= 0n) num *= 10n ** exp;
-    else den *= 10n ** -exp;
+    const exp = Number(expPart);
+    // Bound the exponent before BigInt exponentiation: a syntactically valid
+    // token like 1e999999999 would otherwise allocate a multi-gigabit integer
+    // and stall the request. |exp| <= 1000 already exceeds every representable
+    // real-world quantity, so out-of-range tokens are incomparable.
+    if (!Number.isSafeInteger(exp) || Math.abs(exp) > 1000) return null;
+    if (exp >= 0) num *= 10n ** BigInt(exp);
+    else den *= 10n ** BigInt(-exp);
   }
   if (sign === "-") num = -num;
   return { num, den };

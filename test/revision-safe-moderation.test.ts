@@ -180,7 +180,6 @@ describe("Task 7 telemetry flag atomicity", () => {
   it("disputes the fact and creates the bound report in one transaction", async () => {
     const { flagQuestionTelemetry } = await import("@/lib/admin/ops.server");
     seedFact("f_tel", { status: STATUS.active });
-    const bound = factUpdateTime("f_tel");
 
     const result = await flagQuestionTelemetry({ days: 30, questionId: "fact:f_tel" }, {
       uid: "a", email: "a@x", name: "a", isClaimAdmin: true,
@@ -195,10 +194,34 @@ describe("Task 7 telemetry flag atomicity", () => {
     expect(report.data["status"]).toBe("pending_review");
     expect(report.data["reportSource"]).toBe("round_telemetry");
     expect(report.data["factId"]).toBe("f_tel");
-    expect(report.data["fact_update_time"]).toBe(bound);
+    // The transaction's own dispute write invalidates the pre-read updateTime,
+    // so the report binds the disputed_at stamp it wrote instead.
+    expect(report.data["fact_disputed_at"]).toBe(fact.data["disputed_at"]);
+    expect(report.data["fact_update_time"]).toBeUndefined();
     // Fact dispute + report create committed together, and every fact write is CAS'd.
     const txWrites = firestoreDouble().writes().filter((w) => w.transaction);
     expect(txWrites.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("a rejected telemetry report reinstates the fact it disputed", async () => {
+    const { flagQuestionTelemetry } = await import("@/lib/admin/ops.server");
+    const { resolveReport } = await import("@/lib/admin/content.server");
+    seedFact("f_tel_rt", { status: STATUS.active });
+
+    const flagged = await flagQuestionTelemetry({ days: 30, questionId: "fact:f_tel_rt" }, {
+      uid: "a", email: "a@x", name: "a", isClaimAdmin: true,
+    });
+    expect(firestoreDouble().document("fact_bank/f_tel_rt")!.data["status"]).toBe(STATUS.disputed);
+
+    await resolveReport({ reportId: flagged.reportId, action: "reject" });
+
+    // The bound disputed_at stamp survives the transaction's own dispute
+    // write, so reject recognizes the revision and restores the fact.
+    const fact = firestoreDouble().document("fact_bank/f_tel_rt")!;
+    expect(fact.data["status"]).toBe(STATUS.active);
+    expect(fact.data["disputed_at"]).toBeUndefined();
+    const reviews = fact.data["quality_reviews"] as Array<Record<string, unknown>>;
+    expect(reviews[0]["kind"]).toBe("finding_accepted");
   });
 
   it("does not overwrite an already-disputed fact but still files the bound report", async () => {
@@ -229,6 +252,12 @@ describe("Task 7 copilot exact source comparison", () => {
         { token: "4650000000", unit: "meters" },
       ),
     ).toBe("agree");
+    // A syntactically valid token with an extreme exponent is incomparable,
+    // never exponentiated into a multi-gigabit BigInt.
+    expect(
+      compareSourceValues({ token: "1e999999999" }, { token: "1e999999999" }),
+    ).toBe("incomparable");
+    expect(compareSourceValues({ token: "1e-5000" }, { token: "1e-5000" })).toBe("incomparable");
     // A stated unit the registry does not know is incomparable, never a match.
     expect(
       compareSourceValues({ token: "5", unit: "smoots" }, { token: "5", unit: "smoots" }),
