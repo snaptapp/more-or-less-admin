@@ -17,6 +17,7 @@ import {
   type QueryFilter,
 } from "../firebase/firestore.server";
 import { type PreparedAuditEntry } from "../firebase/audit.server";
+import { type AdminUser } from "../firebase/verify.server";
 import { GENRES } from "./taxonomy";
 import { QK } from "./contract";
 import { parseDerivationBlock, type FactDerivationBlock } from "./daily-blitz";
@@ -29,9 +30,11 @@ import {
 import {
   buildPendingFact,
   PENDING_FACT_ORIGINS,
+  parseQuantitySpec,
   type PendingFact,
   type PendingFactInput,
   type PendingFactOrigin,
+  type QuantitySpec,
 } from "./fact-admission";
 import {
   FACT_STATUSES as CONTRACT_FACT_STATUSES,
@@ -40,6 +43,24 @@ import {
   type FactStatus,
   type QuantityKind,
 } from "../../../shared/fact-lifecycle-contract.gen";
+import {
+  LINT_ENFORCEMENTS,
+  LINT_SEVERITIES,
+  type LintEnforcement,
+  type LintSeverity,
+} from "../../../shared/fact-lint-catalog.gen";
+import {
+  appendQualityReview,
+  buildQualityReview,
+  currentFindingIds,
+  DISPUTE_CLEAR_PATHS,
+  MATERIAL_EDIT_KEYS,
+  MATERIAL_INVALIDATION_PATHS,
+  materialEditHold,
+  QUALITY_REVIEW_KINDS,
+  QUALITY_REVIEW_SCHEMA,
+  type QualityReviewRecord,
+} from "./quality-review";
 
 // Derived from the shared contract (Requirement 9.1): the canonical status set
 // is owned by Main_Repository and consumed here, so no hand-written literal list
@@ -236,8 +257,24 @@ export interface FactRecord {
   quantity_kind: string;
   plausible_min: string | null;
   plausible_max: string | null;
+  number_token: string;
+  /** Canonical exact decimal truth token stamped by the Foundry decode path. */
+  true_number_token: string;
+  /** Proposed or approved quantity spec; the auditor owns its approval. */
+  quantity_spec: QuantitySpec | null;
+  as_of_year: number | null;
   quality_flags: string[];
   disputed_reason: string | null;
+  disputed_at: string | null;
+  lint_findings: Json[];
+  lint_rules_revision: string | null;
+  /** Stored content fingerprint stamped by a Go pipeline write; "" when absent. */
+  content_fingerprint: string;
+  /** Auditor-owned approval bound to a specific revision; revoked on material edits. */
+  quality_receipt: { audit_id: string; content_fingerprint: string } | null;
+  /** Present when the stored approval was revoked pending a fresh audit. */
+  quality_hold: { audit_id: string; checked_at: string; reason: string } | null;
+  quality_reviews: QualityReviewRecord[];
   number_pinned: boolean;
   pinned_reason: string | null;
   updateTime?: string;
@@ -313,10 +350,45 @@ export function toFact(doc: FirestoreDoc): FactRecord {
     quantity_kind: str(d["quantity_kind"]),
     plausible_min: typeof d["plausible_min"] === "string" ? d["plausible_min"] : null,
     plausible_max: typeof d["plausible_max"] === "string" ? d["plausible_max"] : null,
+    number_token: str(d["number_token"]),
+    true_number_token: str(d["true_number_token"]),
+    quantity_spec: parseQuantitySpec(d["quantity_spec"]),
+    as_of_year: num(d["as_of_year"]),
     quality_flags: Array.isArray(d["quality_flags"])
       ? (d["quality_flags"] as Json[]).filter((v): v is string => typeof v === "string")
       : [],
     disputed_reason: typeof d["disputed_reason"] === "string" ? d["disputed_reason"] : null,
+    disputed_at:
+      typeof d["disputed_at"] === "string"
+        ? d["disputed_at"]
+        : typeof d["disputedAt"] === "string"
+          ? (d["disputedAt"] as string)
+          : null,
+    lint_findings: Array.isArray(d["lint_findings"]) ? (d["lint_findings"] as Json[]) : [],
+    lint_rules_revision:
+      typeof d["lint_rules_revision"] === "string" ? d["lint_rules_revision"] : null,
+    content_fingerprint:
+      typeof d["content_fingerprint"] === "string" ? d["content_fingerprint"] : "",
+    quality_receipt:
+      d["quality_receipt"] && typeof d["quality_receipt"] === "object"
+        ? {
+            audit_id: str((d["quality_receipt"] as Record<string, Json>)["audit_id"]),
+            content_fingerprint: str(
+              (d["quality_receipt"] as Record<string, Json>)["content_fingerprint"],
+            ),
+          }
+        : null,
+    quality_hold:
+      d["quality_hold"] && typeof d["quality_hold"] === "object"
+        ? {
+            audit_id: str((d["quality_hold"] as Record<string, Json>)["audit_id"]),
+            checked_at: str((d["quality_hold"] as Record<string, Json>)["checked_at"]),
+            reason: str((d["quality_hold"] as Record<string, Json>)["reason"]),
+          }
+        : null,
+    quality_reviews: Array.isArray(d["quality_reviews"])
+      ? d["quality_reviews"].flatMap((entry) => (isQualityReviewRecord(entry) ? [entry] : []))
+      : [],
     number_pinned: asBool(d["number_pinned"]) ?? false,
     pinned_reason: typeof d["pinned_reason"] === "string" ? d["pinned_reason"] : null,
     updateTime: doc.updateTime,
@@ -827,10 +899,43 @@ function asJson(value: unknown): Json {
   return null;
 }
 
-function asJsonRecord(value: Record<string, unknown>): Record<string, Json> {
+function asJsonRecord(value: object): Record<string, Json> {
   const output: Record<string, Json> = {};
   for (const [key, entry] of Object.entries(value)) output[key] = asJson(entry);
   return output;
+}
+
+/** Spread a typed object into a plain record without asserting its shape:
+ *  preserves entries verbatim (including absent optional fields left
+ *  undefined) so Firestore writes see exactly the original object. */
+function asPlainRecord(value: object): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value));
+}
+
+function isQualityReviewRecord(value: unknown): value is QualityReviewRecord {
+  if (value === null || typeof value !== "object") return false;
+  const r = value as Record<string, unknown>;
+  if (r["schema_version"] !== QUALITY_REVIEW_SCHEMA) return false;
+  for (const key of [
+    "review_id",
+    "fact_id",
+    "actor",
+    "actor_role",
+    "reason",
+    "lint_rules_revision",
+    "content_fingerprint",
+    "update_time",
+    "created_at",
+  ]) {
+    if (typeof r[key] !== "string") return false;
+  }
+  const isStringArray = (entry: unknown): entry is string[] =>
+    Array.isArray(entry) && entry.every((item) => typeof item === "string");
+  return (
+    QUALITY_REVIEW_KINDS.some((kind) => kind === r["kind"]) &&
+    isStringArray(r["reviewed_fields"]) &&
+    isStringArray(r["finding_ids"])
+  );
 }
 
 function mergedFactDoc(
@@ -876,6 +981,127 @@ function stagePreparedAudit(
 }
 
 /**
+ * Build the patch + invalidation for one fact edit against the transaction's
+ * current snapshot. Shared by `updateFact` and the report-resolution edit
+ * actions so a fix carried through moderation invalidates readiness exactly
+ * like a direct portal edit.
+ *
+ * Material edits (any fingerprinted field) atomically revoke the approval
+ * minted for the old revision: `quality_receipt` and the stored
+ * `content_fingerprint` are deleted, stale lint evidence is cleared, and a
+ * `quality_hold` records that the current revision awaits a fresh audit.
+ * `verified_at`/`verifier_model` are never written and are left as historical
+ * auditor metadata; the receipt, not the timestamp, is the live approval.
+ * `quality_hold` is never deleted here: only a new receipt clears it.
+ */
+function buildFactEditPlan(
+  currentDoc: FirestoreDoc,
+  input: FactEditInput,
+  now: string,
+): {
+  patch: Record<string, unknown>;
+  deletePaths: string[] | undefined;
+  semanticChanged: boolean;
+  materialChanged: boolean;
+} {
+  const existing = toFact(currentDoc);
+  const patch: Record<string, unknown> = {};
+  // Subject and angle are deliberately absent: even an exact-value payload is
+  // a no-op, and the persisted canonical keys/document id remain untouched.
+  if (input.explanation !== undefined) {
+    patch["explanation"] = input.explanation;
+  } else if (input.context !== undefined) {
+    patch["context"] = input.context;
+    patch["explanation"] = input.context;
+  }
+  const assignable: (keyof FactEditInput)[] = [
+    "category",
+    "unit",
+    "claim_template",
+    "context",
+    "question",
+    "surprise_factor",
+    "difficulty_hint",
+    "content_rating",
+    "source_urls",
+    "quantity_kind",
+    "plausible_min",
+    "plausible_max",
+  ];
+  for (const key of assignable) {
+    if (input[key] !== undefined) patch[key] = input[key];
+  }
+
+  // Changing the value preserves the old one for the reveal-diff history.
+  const trueNumberChanged =
+    input.true_number !== undefined && input.true_number !== existing.true_number;
+  if (trueNumberChanged) {
+    patch["previous_true_number"] = existing.true_number;
+    patch["number_changed_at"] = now;
+    patch["number_change_source"] = "admin_portal";
+    patch["true_number"] = input.true_number;
+  }
+
+  // Semantic edits invalidate the stored derivation: delete the precomputed
+  // blocks and input fingerprint so the next backfill regenerates under the
+  // corrected semantics instead of exporting a stale block.
+  const semanticChanged = SEMANTIC_EDIT_KEYS.some((key) => {
+    if (input[key] === undefined) return false;
+    const next = input[key];
+    const prev = existing[key as keyof FactRecord];
+    return String(next ?? "") !== String(prev ?? "");
+  });
+
+  // Material edits (any fingerprinted field) revoke the approval bound to
+  // the old revision. `context` and `explanation` are the same canonical
+  // field; comparing the written value against the stored explanation keeps
+  // the legacy alias from slipping past the check.
+  const materialChanged = MATERIAL_EDIT_KEYS.some((key) => {
+    const written =
+      key === "explanation"
+        ? (patch["explanation"] ?? (key in input ? input[key] : undefined))
+        : key === "context"
+          ? patch["explanation"]
+          : patch[key];
+    if (written === undefined) return false;
+    const prev =
+      key === "explanation" || key === "context"
+        ? existing.context
+        : (existing[key as keyof FactRecord] as unknown);
+    if (Array.isArray(written) || Array.isArray(prev)) {
+      return JSON.stringify(written ?? null) !== JSON.stringify(prev ?? null);
+    }
+    return String(written ?? "") !== String(prev ?? "");
+  });
+
+  const deletePaths: string[] = semanticChanged
+    ? ["derivation", "precomputed_derivation", "derivation_input_fingerprint"]
+    : [];
+  if (trueNumberChanged) {
+    // The canonical token is a projection of the value, stamped by the
+    // Foundry decode path. A raw-number correction cannot restamp it, so the
+    // stale token is deleted atomically with the write rather than left to
+    // trip true_number_token_mismatch on the next lint pass.
+    deletePaths.push("true_number_token");
+  }
+  if (materialChanged) {
+    deletePaths.push(...MATERIAL_INVALIDATION_PATHS);
+    patch["quality_hold"] = materialEditHold({
+      auditId: "admin_edit",
+      reason: "Material fact edit: stored approval revoked pending a fresh audit",
+      now,
+    });
+  }
+
+  return {
+    patch,
+    deletePaths: deletePaths.length > 0 ? deletePaths : undefined,
+    semanticChanged,
+    materialChanged,
+  };
+}
+
+/**
  * Apply one ordinary fact edit under an exact transaction CAS.
  * `auditInput`, when supplied, is staged in the same transaction and must be
  * prepared before the call so its identity survives transaction retries.
@@ -886,7 +1112,6 @@ export async function updateFact(
 ): Promise<FactRecord> {
   const audit = resolveAuditEntry(auditInput);
   const updatedAt = new Date().toISOString();
-  const numberChangedAt = updatedAt;
 
   return runTransaction(async (tx) => {
     // The fact read is inside the transaction callback. A contention retry
@@ -896,53 +1121,7 @@ export async function updateFact(
     const existing = toFact(currentDoc);
     assertFactIdentityUnchanged(input, existing);
 
-    const patch: Record<string, unknown> = {};
-    // Subject and angle are deliberately absent: even an exact-value payload is
-    // a no-op, and the persisted canonical keys/document id remain untouched.
-    if (input.explanation !== undefined) {
-      patch["explanation"] = input.explanation;
-    } else if (input.context !== undefined) {
-      patch["context"] = input.context;
-      patch["explanation"] = input.context;
-    }
-    const assignable: (keyof FactEditInput)[] = [
-      "category",
-      "unit",
-      "claim_template",
-      "context",
-      "question",
-      "surprise_factor",
-      "difficulty_hint",
-      "content_rating",
-      "source_urls",
-      "quantity_kind",
-      "plausible_min",
-      "plausible_max",
-    ];
-    for (const key of assignable) {
-      if (input[key] !== undefined) patch[key] = input[key];
-    }
-
-    // Changing the value preserves the old one for the reveal-diff history.
-    if (input.true_number !== undefined && input.true_number !== existing.true_number) {
-      patch["previous_true_number"] = existing.true_number;
-      patch["number_changed_at"] = numberChangedAt;
-      patch["number_change_source"] = "admin_portal";
-      patch["true_number"] = input.true_number;
-    }
-
-    // Semantic edits invalidate the stored derivation: delete the precomputed
-    // blocks and input fingerprint so the next backfill regenerates under the
-    // corrected semantics instead of exporting a stale block.
-    const semanticChanged = SEMANTIC_EDIT_KEYS.some((key) => {
-      if (input[key] === undefined) return false;
-      const next = input[key];
-      const prev = existing[key as keyof FactRecord];
-      return String(next ?? "") !== String(prev ?? "");
-    });
-    const deletePaths = semanticChanged
-      ? ["derivation", "precomputed_derivation", "derivation_input_fingerprint"]
-      : undefined;
+    const { patch, deletePaths } = buildFactEditPlan(currentDoc, input, updatedAt);
 
     // Read the taxonomy document before queueing any write. This keeps the
     // subject-side linkage in the same transaction as the fact mutation when a
@@ -1221,7 +1400,7 @@ export class FactStatusTransitionError extends Error {
 /**
  * Whether the shared contract marks the current→requested status change as one
  * an admin may write. A pair the contract does not declare, or declares with
- * `adminAuthorized: false`, is not authorized — so a status with no
+ * `adminAuthorized: false`, is not authorized; a status with no
  * admin-authorized outgoing target is displayable and filterable but has no
  * valid transition to offer and can never be written to (Requirement 9.8).
  */
@@ -1259,6 +1438,38 @@ function reinstatementTargetFor(from: string): FactStatus | null {
 }
 
 /**
+ * The status patch for one contract-authorized transition, re-validated
+ * against the current snapshot every call. Shared by `setFactStatus` and the
+ * report-resolution paths so a reinstatement written inside a moderation
+ * transaction is gated by exactly the same rules as a standalone transition.
+ * Throws `FactStatusTransitionError` before any write when the contract does
+ * not authorize the move; moderation can never write `pending` or `retired`
+ * sources back to `active` through a stored prior status.
+ */
+function statusTransitionPatch(
+  factIdValue: string,
+  currentStatus: string,
+  target: FactStatus,
+  reason: string | undefined,
+  now: string,
+): Record<string, unknown> {
+  if (!isAdminAuthorizedTransition(currentStatus, target)) {
+    throw new FactStatusTransitionError(factIdValue, currentStatus, target);
+  }
+  const patch: Record<string, unknown> = { status: target, updated_at: now };
+  if (target === STATUS.retired) {
+    patch["retired_reason"] = reason ?? "Retired from admin portal";
+  }
+  if (target === STATUS.active) {
+    // Reinstating a disputed fact clears only retirement state. Verification
+    // timestamps/models are owned by the banked-fact auditor, never by this
+    // admin transition path.
+    patch["retired_reason"] = null;
+  }
+  return patch;
+}
+
+/**
  * Apply one contract-authorized lifecycle transition under an exact
  * transaction CAS. The optional prepared audit is committed with the fact and
  * is never used to grant verification authority.
@@ -1282,23 +1493,13 @@ export async function setFactStatus(
     const currentDoc = await tx.get(`fact_bank/${input.id}`);
     if (!currentDoc) throw new Error(`Fact ${input.id} not found`);
     const existing = toFact(currentDoc);
-    if (!isAdminAuthorizedTransition(existing.status, input.status)) {
-      throw new FactStatusTransitionError(input.id, existing.status, input.status);
-    }
-
-    const patch: Record<string, unknown> = {
-      status: input.status,
-      updated_at: updatedAt,
-    };
-    if (input.status === STATUS.retired) {
-      patch["retired_reason"] = input.reason ?? "Retired from admin portal";
-    }
-    if (input.status === STATUS.active) {
-      // Reinstating a disputed fact clears only retirement state. Verification
-      // timestamps/models are owned by the banked-fact auditor, never by this
-      // admin transition path.
-      patch["retired_reason"] = null;
-    }
+    const patch = statusTransitionPatch(
+      input.id,
+      String(existing.status),
+      input.status,
+      input.reason,
+      updatedAt,
+    );
 
     tx.update(`fact_bank/${input.id}`, patch, {
       updateTime: requireUpdateTime(currentDoc),
@@ -1499,34 +1700,48 @@ export const replaceFact = createCorrectedReplacement;
 export async function createFact(input: ImportFactInput): Promise<FactRecord> {
   const pendingFact = buildAdmissionFact(input, input.origin ?? PENDING_FACT_ORIGINS[0]);
   const id = await factId(pendingFact.subject_key, pendingFact.angle_key);
-  if (await getDoc(`fact_bank/${id}`)) {
-    throw new Error("A fact with this subject and angle already exists");
-  }
-  const doc = await createDoc("fact_bank", id, pendingFact);
+  const factPath = `fact_bank/${id}`;
+  const subjectPath = pendingFact.category
+    ? `fact_subjects/${pendingFact.subject_key}`
+    : null;
 
-  if (pendingFact.category) {
-    const subjectKey = pendingFact.subject_key;
-    const existingSubject = await getDoc(`fact_subjects/${subjectKey}`);
-    if (existingSubject) {
-      await patchDoc(`fact_subjects/${subjectKey}`, {
-        category: pendingFact.category,
-        ...(pendingFact.sub_category ? { sub_category: pendingFact.sub_category } : {}),
-      });
-    } else {
-      await createDoc("fact_subjects", subjectKey, {
-        subject: pendingFact.subject,
-        subject_key: subjectKey,
-        category: pendingFact.category,
-        ...(pendingFact.sub_category ? { sub_category: pendingFact.sub_category } : {}),
-        aliases: [],
-        playlist_ids: [],
-        // Coverage is maintained by the reconciler, not by admission.
-        createdAt: pendingFact.created_at,
-      });
+  return runTransaction(async (tx) => {
+    // The existence check and the create are one transaction: the
+    // `exists: false` precondition is the atomic create, so a concurrent
+    // import can no longer slip a second document past a stale read.
+    if (await tx.get(factPath)) {
+      throw new Error("A fact with this subject and angle already exists");
     }
-  }
+    const subjectDoc = subjectPath ? await tx.get(subjectPath) : null;
 
-  return toFact(doc);
+    tx.update(factPath, asPlainRecord(pendingFact), { exists: false });
+
+    if (subjectPath) {
+      const subjectPatch: Record<string, unknown> = { category: pendingFact.category };
+      if (pendingFact.sub_category) subjectPatch["sub_category"] = pendingFact.sub_category;
+      if (subjectDoc) {
+        tx.update(subjectPath, subjectPatch, {
+          ...(subjectDoc.updateTime ? { updateTime: subjectDoc.updateTime } : {}),
+        });
+      } else {
+        tx.set(subjectPath, {
+          subject: pendingFact.subject,
+          subject_key: pendingFact.subject_key,
+          ...subjectPatch,
+          aliases: [],
+          playlist_ids: [],
+          // Coverage is maintained by the reconciler, not by admission.
+          createdAt: pendingFact.created_at,
+        });
+      }
+    }
+
+    return toFact({
+      id,
+      path: factPath,
+      data: asJsonRecord(pendingFact),
+    });
+  });
 }
 
 /* ---------------------------------- reports --------------------------------- */
@@ -1559,6 +1774,14 @@ export interface ReportRecord {
   ombudsmanSources: string[];
   ombudsmanArbiter?: "gemini" | "edge_worker" | "unspecified";
   qualityFlags?: string[];
+  lintFindings?: {
+    id: string;
+    severity?: LintSeverity;
+    enforcement?: LintEnforcement;
+    detail?: string;
+    docIds?: string[];
+  }[];
+  lintRulesRevision?: string;
   duplicateFactIds?: string[];
 }
 
@@ -1596,6 +1819,35 @@ function asSources(value: Json | undefined): string[] {
       return "";
     })
     .filter(Boolean);
+}
+
+/**
+ * Parse the structured lint findings persisted by `foundry -lint-apply`.
+ * Entries missing a non-empty `id` are dropped; everything else is passed
+ * through verbatim because the producer owns finding semantics.
+ */
+function asLintFindings(value: Json | undefined): ReportRecord["lintFindings"] {
+  if (!Array.isArray(value)) return undefined;
+  const severities = new Set<string>(LINT_SEVERITIES);
+  const enforcements = new Set<string>(LINT_ENFORCEMENTS);
+  const findings: NonNullable<ReportRecord["lintFindings"]> = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, Json>;
+    const id = typeof row["id"] === "string" ? row["id"].trim() : "";
+    if (!id) continue;
+    const docIds = Array.isArray(row["docIds"])
+      ? row["docIds"].filter((v): v is string => typeof v === "string" && v.trim() !== "")
+      : undefined;
+    findings.push({
+      id,
+      severity: severities.has(row["severity"] as string) ? (row["severity"] as LintSeverity) : undefined,
+      enforcement: enforcements.has(row["enforcement"] as string) ? (row["enforcement"] as LintEnforcement) : undefined,
+      detail: typeof row["detail"] === "string" ? row["detail"] : undefined,
+      docIds: docIds && docIds.length ? docIds : undefined,
+    });
+  }
+  return findings.length ? findings : undefined;
 }
 
 function toReport(doc: FirestoreDoc): ReportRecord {
@@ -1668,6 +1920,13 @@ function toReport(doc: FirestoreDoc): ReportRecord {
     qualityFlags: asSources(d["qualityFlags"]).length
       ? asSources(d["qualityFlags"])
       : asSources(d["quality_flags"]),
+    lintFindings: asLintFindings(d["lintFindings"] ?? d["lint_findings"]),
+    lintRulesRevision:
+      typeof d["lintRulesRevision"] === "string"
+        ? d["lintRulesRevision"]
+        : typeof d["lint_rules_revision"] === "string"
+          ? d["lint_rules_revision"]
+          : undefined,
     duplicateFactIds: asSources(d["duplicateFactIds"]).length
       ? asSources(d["duplicateFactIds"])
       : asSources(d["duplicate_fact_ids"]),
@@ -1994,6 +2253,34 @@ export async function findDuplicateFactsForReport(
   return Array.from(duplicates.values());
 }
 
+/**
+ * Apply one moderation action as a single transaction: the report, the fact
+ * documents it touches, any counterpart lint reports, and the staged audit
+ * entry all commit together, each guarded by the update time read inside the
+ * transaction. A concurrent edit therefore aborts and retries the whole
+ * resolution rather than letting a stale flag list or status slip through.
+ *
+ * Lifecycle rules enforced here (contract-derived, never restated):
+ *  - Status moves go through `statusTransitionPatch`, which re-checks the
+ *    shared contract inside the transaction. Nothing restores a stored
+ *    `factPreviousStatus` verbatim; `pending` and `retired` facts can never
+ *    be reinstated by rejecting or resolving a report.
+ *  - Material edits (`fix_number`, `edit_fact`, duplicate `correctedNumber`)
+ *    revoke the stored approval via `buildFactEditPlan`: receipt and content
+ *    fingerprint are deleted, lint evidence cleared, and `quality_hold` marks
+ *    the revision as awaiting a fresh audit. `verified_at`/`verifier_model`
+ *    stay auditor-owned. A fact reinstated to `active` here is still not
+ *    playable: publication is bound to the Go export's `ready_ids` and the
+ *    deployed manifest row, which require a current-revision receipt, not the
+ *    lifecycle status. The hold clears only when a fresh audit mints one.
+ *  - Clearing flag findings appends an append-only `quality_reviews` record
+ *    bound to the revision reviewed (stored fingerprint + update time +
+ *    lint rules revision). `resolve_as_is` and lint-report rejections record
+ *    `finding_accepted`; corrections record `finding_cleared`.
+ *  - A lint report that carries `fact_update_time` only restores a fact whose
+ *    revision still matches; a stale binding resolves the report but leaves
+ *    the fact untouched.
+ */
 export async function resolveReport(input: {
   reportId: string;
   action:
@@ -2015,365 +2302,608 @@ export async function resolveReport(input: {
   keepFactId?: string;
   retireFactId?: string;
   retireFactIds?: string[];
+  /** Moderator performing the action; recorded on review records. */
+  admin?: AdminUser;
+  /** Prepared audit entry staged into the same transaction. */
+  audit?: PreparedAuditEntry;
+  /** Caller-supplied payload recorded as the staged audit's `after`. */
+  auditAfter?: Record<string, unknown>;
 }): Promise<{ ok: true }> {
   const now = new Date().toISOString();
+  const actor = input.admin?.email ?? input.admin?.uid ?? "system";
 
-  if (input.action === "resolve_duplicate") {
-    const keepId = input.keepFactId?.trim();
-    const retireIds = [
-      ...(input.retireFactId ? [input.retireFactId.trim()] : []),
-      ...(input.retireFactIds ? input.retireFactIds.map((id) => id.trim()) : []),
-    ].filter((id) => id && id !== keepId);
+  // The add_to_bank fact is built inside the transaction, after the report is
+  // read, so its explanation is the report's canonical explanation rather than
+  // a moderator note. `factId` is a pure hash, safe on transaction retries.
 
-    for (const retireId of retireIds) {
-      await setFactStatus({
-        id: retireId,
-        status: STATUS.retired,
-        reason: input.note ?? (keepId ? `Retired in favor of duplicate fact ${keepId}` : "Retired as duplicate fact"),
+  const result = await runTransaction<{ ok: true }>(async (tx) => {
+    const reportPath = `trivia_reports/${input.reportId}`;
+    const reportDoc = await tx.get(reportPath);
+    if (!reportDoc) throw new Error(`Report ${input.reportId} not found`);
+    const reportData = reportDoc.data;
+    const resolveReportDoc = (note: string, extra?: Record<string, unknown>, deletes?: string[]) => {
+      tx.update(
+        reportPath,
+        { status: "resolved", resolutionNote: note, resolved_at: now, ...extra },
+        { updateTime: requireUpdateTime(reportDoc), ...(deletes?.length ? { deletePaths: deletes } : {}) },
+      );
+    };
+    const stageAudit = (after: unknown, before: FirestoreDoc | null = null) => {
+      if (input.audit) {
+        const payload =
+          input.auditAfter === undefined
+            ? after
+            : {
+                ...(typeof after === "object" && after !== null
+                  ? (after as Record<string, unknown>)
+                  : { result: after }),
+                ...input.auditAfter,
+              };
+        stagePreparedAudit(tx, auditAt(input.audit, before ?? reportDoc, payload));
+      }
+    };
+
+    const clearDisputeWithReview = (
+      factDoc: FirestoreDoc,
+      kind: "finding_accepted" | "finding_cleared",
+      reason: string,
+      extraDeletes: string[] = [],
+    ): { patch: Record<string, unknown>; deletePaths: string[] } => {
+      const findingIds = currentFindingIds(factDoc.data);
+      const patch: Record<string, unknown> = {};
+      const review = buildQualityReview({
+        factId: factDoc.id,
+        kind,
+        actor,
+        reason,
+        findingIds,
+        doc: factDoc,
+        now,
+      });
+      patch["quality_reviews"] = appendQualityReview(factDoc.data["quality_reviews"], review);
+      return { patch, deletePaths: [...DISPUTE_CLEAR_PATHS, ...extraDeletes] };
+    };
+
+    const reportBoundRevisionStale = (factDoc: FirestoreDoc): boolean => {
+      // A telemetry report that wrote its own dispute binds the `disputed_at`
+      // stamp it produced: the pre-write updateTime is invalidated by that
+      // very commit. Lint and untouched-fact telemetry reports bind the
+      // fact's updateTime revision directly.
+      const boundDispute = reportData["fact_disputed_at"];
+      if (typeof boundDispute === "string" && boundDispute.length > 0) {
+        return factDoc.data["disputed_at"] !== boundDispute;
+      }
+      const bound = reportData["fact_update_time"];
+      return typeof bound === "string" && bound.length > 0 && bound !== factDoc.updateTime;
+    };
+
+    // ------------------------------------------------------------------
+    if (input.action === "resolve_duplicate") {
+      const keepId = input.keepFactId?.trim() || null;
+      const retireIds = [
+        ...(input.retireFactId ? [input.retireFactId.trim()] : []),
+        ...(input.retireFactIds ? input.retireFactIds.map((id) => id.trim()) : []),
+      ].filter((id) => id && id !== keepId);
+
+      const loserDocs: FirestoreDoc[] = [];
+      const loserReports: (FirestoreDoc | null)[] = [];
+      for (const retireId of retireIds) {
+        const doc = await tx.get(`fact_bank/${retireId}`);
+        if (!doc) throw new Error(`Fact ${retireId} not found`);
+        loserDocs.push(doc);
+        loserReports.push(await tx.get(`trivia_reports/lint_${retireId}`));
+      }
+      const keepDoc = keepId ? await tx.get(`fact_bank/${keepId}`) : null;
+      const keepReportDoc =
+        keepId && `lint_${keepId}` !== input.reportId
+          ? await tx.get(`trivia_reports/lint_${keepId}`)
+          : null;
+
+      for (const doc of loserDocs) {
+        const loser = toFact(doc);
+        tx.update(
+          `fact_bank/${doc.id}`,
+          statusTransitionPatch(
+            doc.id,
+            String(loser.status),
+            STATUS.retired,
+            input.note ?? (keepId ? `Retired in favor of duplicate fact ${keepId}` : "Retired as duplicate fact"),
+            now,
+          ),
+          { updateTime: requireUpdateTime(doc) },
+        );
+      }
+      loserReports.forEach((loserReport, i) => {
+        if (loserReport && loserReport.data["status"] === "pending_review") {
+          tx.update(
+            `trivia_reports/lint_${retireIds[i]}`,
+            {
+              status: "resolved",
+              resolutionNote: `Auto-resolved: duplicate resolved via ${input.reportId}`,
+              resolved_at: now,
+            },
+            { updateTime: requireUpdateTime(loserReport) },
+          );
+        }
       });
 
-      // Auto-resolve counterpart pending report if one exists
-      const otherReportDoc = await getDoc(`trivia_reports/lint_${retireId}`);
-      if (otherReportDoc && otherReportDoc.data["status"] === "pending_review") {
-        await patchDoc(`trivia_reports/lint_${retireId}`, {
-          status: "resolved",
-          resolutionNote: `Auto-resolved: duplicate resolved via ${input.reportId}`,
-          resolved_at: now,
-        });
-      }
-    }
-
-    let remainingFlags: string[] = [];
-    if (keepId) {
-      if (input.correctedNumber !== undefined) {
-        await updateFact({ id: keepId, true_number: input.correctedNumber });
-      }
-
-      const keepDoc = await getFact(keepId);
+      let remainingFlags: string[] = [];
       if (keepDoc) {
-        const currentFlags = Array.isArray(keepDoc.quality_flags) ? keepDoc.quality_flags : [];
+        const keepFact = toFact(keepDoc);
+        let patch: Record<string, unknown> = {};
+        let deletePaths: string[] = [];
+        if (input.correctedNumber !== undefined) {
+          const plan = buildFactEditPlan(
+            keepDoc,
+            { id: keepDoc.id, true_number: input.correctedNumber },
+            now,
+          );
+          patch = { ...patch, ...plan.patch };
+          deletePaths = [...deletePaths, ...(plan.deletePaths ?? [])];
+        }
+        const currentFlags = keepFact.quality_flags;
         remainingFlags = currentFlags.filter(isNonDuplicateFlag);
-
         if (remainingFlags.length === 0) {
-          if (keepDoc.status === STATUS.disputed) {
-            await setFactStatus({
-              id: keepId,
-              status: STATUS.active,
-              reason: input.note ?? "Reinstated duplicate winner via moderation",
-            });
-            await patchDoc(`fact_bank/${keepId}`, {}, ["quality_flags", "disputed_reason", "disputed_at"]);
+          const cleared = clearDisputeWithReview(
+            keepDoc,
+            "finding_cleared",
+            input.note ?? "Duplicate resolved; remaining findings cleared",
+          );
+          patch = { ...patch, ...cleared.patch };
+          deletePaths = [...deletePaths, ...cleared.deletePaths];
+          if (String(keepFact.status) === STATUS.disputed) {
+            patch = {
+              ...patch,
+              ...statusTransitionPatch(
+                keepDoc.id,
+                STATUS.disputed,
+                STATUS.active,
+                input.note ?? "Reinstated duplicate winner via moderation",
+                now,
+              ),
+            };
           }
         } else {
-          // Fact still carries other linter warnings (e.g. bounds_chart_position).
-          // Keep remaining flags and dispute reason so the fact remains properly quarantined until fixed.
-          await patchDoc(`fact_bank/${keepId}`, {
-            quality_flags: remainingFlags,
-            disputed_reason: `fact_lint: ${remainingFlags.join(",")}`,
-          });
+          patch["quality_flags"] = remainingFlags;
+          patch["disputed_reason"] = `fact_lint: ${remainingFlags.join(",")}`;
+        }
+        patch["updated_at"] = now;
+        tx.update(`fact_bank/${keepDoc.id}`, patch, {
+          updateTime: requireUpdateTime(keepDoc),
+          deletePaths,
+        });
+
+        if (keepReportDoc && keepReportDoc.data["status"] === "pending_review") {
+          tx.update(
+            `trivia_reports/lint_${keepId}`,
+            remainingFlags.length === 0
+              ? {
+                  status: "resolved",
+                  resolutionNote: `Auto-resolved: duplicate resolved via ${input.reportId}`,
+                  resolved_at: now,
+                }
+              : {
+                  qualityFlags: remainingFlags,
+                  resolutionNote: `Duplicate resolved via ${input.reportId}; remaining flags: ${remainingFlags.join(", ")}`,
+                },
+            { updateTime: requireUpdateTime(keepReportDoc) },
+          );
         }
       }
 
-      const keepReportDoc = await getDoc(`trivia_reports/lint_${keepId}`);
-      if (keepReportDoc && keepReportDoc.data["status"] === "pending_review" && keepReportDoc.id !== input.reportId) {
-        if (remainingFlags.length === 0) {
-          await patchDoc(`trivia_reports/lint_${keepId}`, {
-            status: "resolved",
-            resolutionNote: `Auto-resolved: duplicate resolved via ${input.reportId}`,
-            resolved_at: now,
+      const defaultNote =
+        remainingFlags.length > 0
+          ? `Kept ${keepId} (retired ${retireIds.join(", ") || "duplicates"}; remaining flags: ${remainingFlags.join(", ")})`
+          : `Kept ${keepId ?? "chosen fact"}, retired duplicate ${retireIds.join(", ") || "other"}`;
+      const isKeptFactReport = Boolean(
+        keepId && (input.reportId === `lint_${keepId}` || input.factId === keepId),
+      );
+      if (isKeptFactReport && remainingFlags.length > 0) {
+        tx.update(
+          reportPath,
+          {
+            qualityFlags: remainingFlags,
+            reason: `fact_lint: ${remainingFlags.join(",")}`,
+            resolutionNote: input.note ?? defaultNote,
+          },
+          {
+            updateTime: requireUpdateTime(reportDoc),
+            deletePaths: ["duplicateFactIds", "duplicate_fact_ids"],
+          },
+        );
+      } else {
+        resolveReportDoc(input.note ?? defaultNote);
+      }
+      stageAudit({ action: input.action, keepFactId: keepId, retireFactIds: retireIds });
+      return { ok: true };
+    }
+
+    // ------------------------------------------------------------------
+    if (input.action === "retire_fact") {
+      const factDoc = input.factId ? await tx.get(`fact_bank/${input.factId}`) : null;
+      if (factDoc) {
+        const existing = toFact(factDoc);
+        tx.update(
+          `fact_bank/${factDoc.id}`,
+          statusTransitionPatch(
+            factDoc.id,
+            String(existing.status),
+            STATUS.retired,
+            input.note ?? "Retired via player report",
+            now,
+          ),
+          { updateTime: requireUpdateTime(factDoc) },
+        );
+      }
+      resolveReportDoc(input.note ?? (input.factId ? "Fact retired" : "Report accepted"));
+      stageAudit({ action: input.action });
+      return { ok: true };
+    }
+
+    // ------------------------------------------------------------------
+    if (input.action === "fix_number" || input.action === "edit_fact") {
+      const factDoc = input.factId ? await tx.get(`fact_bank/${input.factId}`) : null;
+      const editInput: FactEditInput | null =
+        input.action === "fix_number"
+          ? input.correctedNumber !== undefined
+            ? { id: input.factId ?? "", true_number: input.correctedNumber }
+            : null
+          : input.factUpdates
+            ? { id: input.factId ?? "", ...input.factUpdates }
+            : null;
+      if (factDoc && editInput) {
+        const existing = toFact(factDoc);
+        assertFactIdentityUnchanged(editInput, existing);
+        const plan = buildFactEditPlan(factDoc, editInput, now);
+        const cleared = clearDisputeWithReview(
+          factDoc,
+          "finding_cleared",
+          input.note ?? "Fact corrected via moderation",
+          plan.deletePaths ?? [],
+        );
+        let patch = { ...plan.patch, ...cleared.patch };
+        const reinstateTarget = reinstatementTargetFor(String(existing.status));
+        if (reinstateTarget !== null) {
+          patch = {
+            ...patch,
+            ...statusTransitionPatch(
+              factDoc.id,
+              String(existing.status),
+              reinstateTarget,
+              input.note ?? "Fact updated and reinstated via moderation",
+              now,
+            ),
+          };
+        }
+        patch["updated_at"] = now;
+        tx.update(`fact_bank/${factDoc.id}`, patch, {
+          updateTime: requireUpdateTime(factDoc),
+          deletePaths: cleared.deletePaths,
+        });
+      }
+      resolveReportDoc(
+        input.note ??
+          (input.correctedNumber !== undefined
+            ? `Corrected to ${input.correctedNumber}`
+            : input.action === "fix_number"
+              ? "Report accepted"
+              : "Fact updated and resolved via moderation"),
+      );
+      stageAudit({ action: input.action, edit: editInput ?? null });
+      return { ok: true };
+    }
+
+    // ------------------------------------------------------------------
+    if (input.action === "resolve_as_is") {
+      const factDoc = input.factId ? await tx.get(`fact_bank/${input.factId}`) : null;
+      if (factDoc) {
+        const existing = toFact(factDoc);
+        const cleared = clearDisputeWithReview(
+          factDoc,
+          "finding_accepted",
+          input.note ?? "Accepted fact as-is via moderation",
+        );
+        let patch = cleared.patch;
+        const reinstateTarget = reinstatementTargetFor(String(existing.status));
+        if (reinstateTarget !== null) {
+          patch = {
+            ...patch,
+            ...statusTransitionPatch(
+              factDoc.id,
+              String(existing.status),
+              reinstateTarget,
+              input.note ?? "Accepted fact as-is via moderation",
+              now,
+            ),
+          };
+        }
+        patch["updated_at"] = now;
+        tx.update(`fact_bank/${factDoc.id}`, patch, {
+          updateTime: requireUpdateTime(factDoc),
+          deletePaths: cleared.deletePaths,
+        });
+      }
+      resolveReportDoc(input.note ?? "Report accepted: fact verified as-is");
+      stageAudit({ action: input.action });
+      return { ok: true };
+    }
+
+    // ------------------------------------------------------------------
+    if (input.action === "add_to_bank") {
+      const addToBankFact = buildAddToBankFact({
+        ...input,
+        reportExplanation: canonicalExplanation(reportData) || undefined,
+      });
+      const addToBankId = await factId(addToBankFact.subject_key, addToBankFact.angle_key);
+      const factPath = `fact_bank/${addToBankId}`;
+      const existingFact = await tx.get(factPath);
+      if (existingFact) throw new Error("A fact with this subject and angle already exists");
+      let subjectDoc: FirestoreDoc | null = null;
+      const subjectPath = addToBankFact.category
+        ? `fact_subjects/${addToBankFact.subject_key}`
+        : null;
+      if (subjectPath) subjectDoc = await tx.get(subjectPath);
+
+      tx.update(factPath, asPlainRecord(addToBankFact), { exists: false });
+      if (subjectPath) {
+        const subjectPatch: Record<string, unknown> = { category: addToBankFact.category };
+        if (addToBankFact.sub_category) subjectPatch["sub_category"] = addToBankFact.sub_category;
+        if (subjectDoc) {
+          tx.update(subjectPath, subjectPatch, {
+            ...(subjectDoc.updateTime ? { updateTime: subjectDoc.updateTime } : {}),
           });
         } else {
-          await patchDoc(`trivia_reports/lint_${keepId}`, {
-            qualityFlags: remainingFlags,
-            resolutionNote: `Duplicate resolved via ${input.reportId}; remaining flags: ${remainingFlags.join(", ")}`,
+          tx.set(subjectPath, {
+            subject: addToBankFact.subject,
+            subject_key: addToBankFact.subject_key,
+            ...subjectPatch,
+            aliases: [],
+            playlist_ids: [],
+            createdAt: addToBankFact.created_at,
           });
+        }
+      }
+      const note = input.note?.trim();
+      resolveReportDoc(note ? `${note} — ${PENDING_ADMISSION_COPY}` : PENDING_ADMISSION_COPY);
+      stageAudit({ action: input.action, createdFactId: addToBankId });
+      return { ok: true };
+    }
+
+    // ------------------------------------------------------------------
+    if (input.action === "resolve_only") {
+      resolveReportDoc(input.note ?? "Report accepted");
+      stageAudit({ action: input.action });
+      return { ok: true };
+    }
+
+    // ------------------------------------------------------------------
+    // Reject: restore a fact auto-disputed by signed telemetry or fact lint,
+    // but only along a contract-authorized transition. `factPreviousStatus`
+    // on the report is never written back: it is metadata recorded for
+    // context, and only `disputed -> active` is reachable from here, so a
+    // `pending`/`retired` fact can never be reinstated through a stale or
+    // forged report field.
+    const storedFactId =
+      typeof reportData["factId"] === "string" && reportData["factId"].trim()
+        ? (reportData["factId"] as string).trim()
+        : typeof reportData["questionId"] === "string" && (reportData["questionId"] as string).startsWith("fact:")
+          ? ((reportData["questionId"] as string).slice("fact:".length).trim() || null)
+          : null;
+    const isLintSource = reportData["reportSource"] === "fact_lint";
+    const isTelemetrySource = reportData["reportSource"] === "round_telemetry";
+    let remainingFlags: string[] = [];
+    if (storedFactId && (isLintSource || isTelemetrySource)) {
+      // Read phase: every document this action may touch is read before any
+      // write is queued, so the transaction applies reads-before-writes and
+      // retries stay legal.
+      const factDoc = await tx.get(`fact_bank/${storedFactId}`);
+      const duplicateIds = isLintSource
+        ? asSources(reportData["duplicateFactIds"] ?? reportData["duplicate_fact_ids"])
+        : [];
+      const dupDocs: (FirestoreDoc | null)[] = [];
+      const dupReports: (FirestoreDoc | null)[] = [];
+      for (const dupId of duplicateIds) {
+        if (!dupId || dupId === storedFactId) {
+          dupDocs.push(null);
+          dupReports.push(null);
+          continue;
+        }
+        dupDocs.push(await tx.get(`fact_bank/${dupId}`));
+        dupReports.push(await tx.get(`trivia_reports/lint_${dupId}`));
+      }
+
+      // Write phase.
+      const recordedReason = factDoc ? String(factDoc.data["disputed_reason"] ?? "") : "";
+      const disputeOwnedBySource = factDoc
+        ? isLintSource
+          // Legacy disputes predate `disputed_reason`; a fact_lint report still
+          // owns the dispute when no other owner is recorded.
+          ? !recordedReason || recordedReason.startsWith("fact_lint:")
+          // Symmetric guard: a telemetry report rejection cannot clear a
+          // lint-owned dispute.
+          : !recordedReason || recordedReason.startsWith("round_telemetry")
+        : false;
+      if (
+        factDoc &&
+        factDoc.data["status"] === STATUS.disputed &&
+        disputeOwnedBySource &&
+        !reportBoundRevisionStale(factDoc)
+      ) {
+        const currentFlags = Array.isArray(factDoc.data["quality_flags"])
+          ? (factDoc.data["quality_flags"] as string[])
+          : [];
+        remainingFlags = isLintSource ? currentFlags.filter(isNonDuplicateFlag) : [];
+        if (remainingFlags.length === 0) {
+          const cleared = clearDisputeWithReview(
+            factDoc,
+            "finding_accepted",
+            input.note ?? "Report rejected; findings dismissed",
+          );
+          const patch = {
+            ...cleared.patch,
+            ...statusTransitionPatch(
+              factDoc.id,
+              STATUS.disputed,
+              STATUS.active,
+              input.note ?? "Reinstated after rejected report",
+              now,
+            ),
+          };
+          tx.update(`fact_bank/${factDoc.id}`, patch, {
+            updateTime: requireUpdateTime(factDoc),
+            deletePaths: cleared.deletePaths,
+          });
+        } else {
+          tx.update(
+            `fact_bank/${factDoc.id}`,
+            {
+              quality_flags: remainingFlags,
+              disputed_reason: `fact_lint: ${remainingFlags.join(",")}`,
+              updated_at: now,
+            },
+            { updateTime: requireUpdateTime(factDoc) },
+          );
+        }
+      }
+
+      for (let i = 0; i < duplicateIds.length; i++) {
+        const dupDoc = dupDocs[i];
+        const dupReport = dupReports[i];
+        if (!dupDoc) continue;
+        let dupRemaining: string[] = [];
+        if (dupDoc.data["status"] === STATUS.disputed) {
+          const currentFlags = Array.isArray(dupDoc.data["quality_flags"])
+            ? (dupDoc.data["quality_flags"] as string[])
+            : [];
+          dupRemaining = currentFlags.filter(isNonDuplicateFlag);
+          if (dupRemaining.length === 0) {
+            const cleared = clearDisputeWithReview(
+              dupDoc,
+              "finding_accepted",
+              `Counterpart report ${input.reportId} rejected; findings dismissed`,
+            );
+            const patch = {
+              ...cleared.patch,
+              ...statusTransitionPatch(
+                dupDoc.id,
+                STATUS.disputed,
+                STATUS.active,
+                input.note ?? "Reinstated duplicate counterpart via moderation",
+                now,
+              ),
+            };
+            tx.update(`fact_bank/${dupDoc.id}`, patch, {
+              updateTime: requireUpdateTime(dupDoc),
+              deletePaths: cleared.deletePaths,
+            });
+          } else {
+            tx.update(
+              `fact_bank/${dupDoc.id}`,
+              {
+                quality_flags: dupRemaining,
+                disputed_reason: `fact_lint: ${dupRemaining.join(",")}`,
+                updated_at: now,
+              },
+              { updateTime: requireUpdateTime(dupDoc) },
+            );
+          }
+        }
+        if (dupReport && dupReport.data["status"] === "pending_review") {
+          tx.update(
+            `trivia_reports/lint_${duplicateIds[i]}`,
+            dupRemaining.length === 0
+              ? {
+                  status: "rejected",
+                  resolutionNote: input.note ?? `Auto-rejected: counterpart report ${input.reportId} rejected`,
+                  resolved_at: now,
+                }
+              : {
+                  qualityFlags: dupRemaining,
+                  reason: `fact_lint: ${dupRemaining.join(",")}`,
+                  resolutionNote: `Duplicate dismissed via ${input.reportId}; remaining flags: ${dupRemaining.join(", ")}`,
+                },
+            {
+              updateTime: requireUpdateTime(dupReport),
+              ...(dupRemaining.length > 0
+                ? { deletePaths: ["duplicateFactIds", "duplicate_fact_ids"] }
+                : {}),
+            },
+          );
         }
       }
     }
 
-    const defaultNote =
-      remainingFlags.length > 0
-        ? `Kept ${keepId} (retired ${retireIds.join(", ") || "duplicates"}; remaining flags: ${remainingFlags.join(", ")})`
-        : `Kept ${keepId ?? "chosen fact"}, retired duplicate ${retireIds.join(", ") || "other"}`;
-
-    const isKeptFactReport =
-      Boolean(keepId && (input.reportId === `lint_${keepId}` || (input.factId && input.factId === keepId)));
-
-    if (isKeptFactReport && remainingFlags.length > 0) {
-      // Kept fact still has other violations (e.g. bounds_chart_position). Keep report in pending_review
-      // so moderators can review and fix the remaining issue, but clear duplicate relationships.
-      await patchDoc(
-        `trivia_reports/${input.reportId}`,
+    if (remainingFlags.length > 0) {
+      tx.update(
+        reportPath,
         {
           qualityFlags: remainingFlags,
           reason: `fact_lint: ${remainingFlags.join(",")}`,
-          resolutionNote: input.note ?? defaultNote,
+          resolutionNote: input.note ?? `Duplicate dismissed; remaining flags: ${remainingFlags.join(", ")}`,
         },
-        ["duplicateFactIds", "duplicate_fact_ids"],
+        {
+          updateTime: requireUpdateTime(reportDoc),
+          deletePaths: ["duplicateFactIds", "duplicate_fact_ids"],
+        },
       );
     } else {
-      await patchDoc(`trivia_reports/${input.reportId}`, {
-        status: "resolved",
-        resolutionNote: input.note ?? defaultNote,
-        resolved_at: now,
-      });
-    }
-    return { ok: true };
-  }
-
-  if (input.action === "retire_fact") {
-    if (input.factId) {
-      await setFactStatus({
-        id: input.factId,
-        status: STATUS.retired,
-        reason: input.note ?? "Retired via player report",
-      });
-    }
-    await patchDoc(`trivia_reports/${input.reportId}`, {
-      status: "resolved",
-      resolutionNote: input.note ?? (input.factId ? "Fact retired" : "Report accepted"),
-      resolved_at: now,
-    });
-    return { ok: true };
-  }
-
-  if (input.action === "fix_number") {
-    if (input.factId && input.correctedNumber !== undefined) {
-      const corrected = await updateFact({ id: input.factId, true_number: input.correctedNumber });
-      // Re-activate only along a contract-authorized transition (Requirements
-      // 9.3, 9.4). The reinstatement target and its authorization both come
-      // from the shared contract, never a restated literal: fixing the number
-      // of a disputed fact reinstates it, while a fact already in that status
-      // has no self-transition and is left as-is rather than forced through
-      // the guard.
-      const reinstateTarget = reinstatementTargetFor(corrected.status);
-      if (reinstateTarget !== null) {
-        await setFactStatus({ id: input.factId, status: reinstateTarget });
-      }
-    }
-    await patchDoc(`trivia_reports/${input.reportId}`, {
-      status: "resolved",
-      resolutionNote: input.note ?? (input.correctedNumber !== undefined ? `Corrected to ${input.correctedNumber}` : "Report accepted"),
-      resolved_at: now,
-    });
-    return { ok: true };
-  }
-
-  if (input.action === "edit_fact") {
-    if (input.factId && input.factUpdates) {
-      await updateFact({ id: input.factId, ...input.factUpdates });
-      await patchDoc(
-        `fact_bank/${input.factId}`,
-        {},
-        ["quality_flags", "disputed_reason", "disputed_at"],
+      tx.update(
+        reportPath,
+        {
+          status: "rejected",
+          resolutionNote: input.note ?? "Report rejected",
+          resolved_at: now,
+        },
+        { updateTime: requireUpdateTime(reportDoc) },
       );
-      const factDoc = await getFact(input.factId);
-      if (factDoc) {
-        const reinstateTarget = reinstatementTargetFor(factDoc.status);
-        if (reinstateTarget !== null) {
-          await setFactStatus({
-            id: input.factId,
-            status: reinstateTarget,
-            reason: input.note ?? "Fact updated and reinstated via moderation",
-          });
-        }
-      }
     }
-    await patchDoc(`trivia_reports/${input.reportId}`, {
-      status: "resolved",
-      resolutionNote: input.note ?? "Fact updated and resolved via moderation",
-      resolved_at: now,
-    });
+    stageAudit({ action: input.action, factId: storedFactId });
     return { ok: true };
-  }
+  });
 
-  if (input.action === "resolve_as_is") {
-    if (input.factId) {
-      await patchDoc(
-        `fact_bank/${input.factId}`,
-        {},
-        ["quality_flags", "disputed_reason", "disputed_at"],
-      );
-      const factDoc = await getFact(input.factId);
-      if (factDoc) {
-        const reinstateTarget = reinstatementTargetFor(factDoc.status);
-        if (reinstateTarget !== null) {
-          await setFactStatus({
-            id: input.factId,
-            status: reinstateTarget,
-            reason: input.note ?? "Accepted fact as-is via moderation",
-          });
-        }
-      }
-    }
-    await patchDoc(`trivia_reports/${input.reportId}`, {
-      status: "resolved",
-      resolutionNote: input.note ?? "Report accepted: fact verified as-is",
-      resolved_at: now,
-    });
-    return { ok: true };
-  }
+  return result;
+}
 
-  if (input.action === "add_to_bank") {
-    const subject = input.topic || "General";
-    const angle = input.claimStatement || subject;
-    const true_number = input.correctedNumber ?? 0;
-    const unit = input.unit || "";
-    const claim_template = input.claimStatement
-      ? input.claimStatement.replace(new RegExp(String(true_number), "g"), "{n}")
-      : `${subject}: {n} ${unit}`;
-
-    const reportDoc = await getDoc(`trivia_reports/${input.reportId}`);
-    const reportExplanation = reportDoc
-      ? canonicalExplanation(reportDoc.data, ["reveal"])
-      : "";
-    const explanation = reportExplanation || input.note?.trim() || input.claimStatement || subject;
-
-    await createFact({
+/**
+ * Build the pending admission document for the report `add_to_bank` action.
+ * The report path is admitted with the same canonical builder as manual and
+ * CSV paths, but carries its own origin for auditability.
+ */
+function buildAddToBankFact(input: {
+  topic?: string;
+  claimStatement?: string;
+  correctedNumber?: number;
+  unit?: string;
+  note?: string;
+  reportExplanation?: string;
+}): PendingFact {
+  const subject = input.topic || "General";
+  const angle = input.claimStatement || subject;
+  const true_number = input.correctedNumber ?? 0;
+  const unit = input.unit || "";
+  const claim_template = input.claimStatement
+    ? input.claimStatement.replace(new RegExp(String(true_number), "g"), "{n}")
+    : `${subject}: {n} ${unit}`;
+  const explanation =
+    input.reportExplanation || input.note?.trim() || input.claimStatement || subject;
+  return buildAdmissionFact(
+    {
       subject,
       angle,
       true_number,
       unit,
-      claim_template: claim_template.includes("{n}") ? claim_template : `${claim_template} {n}`,
-      // The report path is admitted with the same canonical builder as manual
-      // and CSV paths, but carries its own origin for auditability.
+      claim_template: claim_template.includes("{n}")
+        ? claim_template
+        : `${claim_template} {n}`,
       explanation,
       question: input.claimStatement || subject,
       surprise_factor: 2,
       content_rating: "standard",
       source_urls: [],
       origin: PENDING_FACT_ORIGINS[2],
-    });
-
-    const note = input.note?.trim();
-    await patchDoc(`trivia_reports/${input.reportId}`, {
-      status: "resolved",
-      resolutionNote: note ? `${note} — ${PENDING_ADMISSION_COPY}` : PENDING_ADMISSION_COPY,
-      resolved_at: now,
-    });
-    return { ok: true };
-  }
-
-  if (input.action === "resolve_only") {
-    await patchDoc(`trivia_reports/${input.reportId}`, {
-      status: "resolved",
-      resolutionNote: input.note ?? "Report accepted",
-      resolved_at: now,
-    });
-    return { ok: true };
-  }
-
-  // Reject: restore a fact auto-disputed by signed telemetry or fact lint.
-  // Flagging only transitions active -> disputed, so a rejected false signal
-  // must reactivate the fact instead of leaving it permanently excluded from
-  // active-only consumers such as the daily picker.
-  const reportDoc = await getDoc(`trivia_reports/${input.reportId}`);
-  const reportData = reportDoc?.data ?? {};
-  const storedFactId =
-    typeof reportData["factId"] === "string" && reportData["factId"].trim()
-      ? (reportData["factId"] as string).trim()
-      : typeof reportData["questionId"] === "string" && (reportData["questionId"] as string).startsWith("fact:")
-        ? ((reportData["questionId"] as string).slice("fact:".length).trim() || null)
-        : null;
-  let remainingFlags: string[] = [];
-  if (
-    storedFactId &&
-    (reportData["reportSource"] === "round_telemetry" || reportData["reportSource"] === "fact_lint")
-  ) {
-    const factDoc = await getDoc(`fact_bank/${storedFactId}`);
-    if (factDoc && factDoc.data["status"] === STATUS.disputed) {
-      const currentFlags = Array.isArray(factDoc.data["quality_flags"])
-        ? (factDoc.data["quality_flags"] as string[])
-        : [];
-      remainingFlags =
-        reportData["reportSource"] === "fact_lint"
-          ? currentFlags.filter(isNonDuplicateFlag)
-          : [];
-
-      if (remainingFlags.length === 0) {
-        const previous =
-          typeof reportData["factPreviousStatus"] === "string" && reportData["factPreviousStatus"]
-            ? (reportData["factPreviousStatus"] as string)
-            : STATUS.active;
-        await patchDoc(
-          `fact_bank/${storedFactId}`,
-          { status: previous },
-          ["quality_flags", "disputed_reason", "disputed_at"],
-        );
-      } else {
-        await patchDoc(`fact_bank/${storedFactId}`, {
-          quality_flags: remainingFlags,
-          disputed_reason: `fact_lint: ${remainingFlags.join(",")}`,
-        });
-      }
-    }
-
-    if (reportData["reportSource"] === "fact_lint") {
-      const duplicateIds = asSources(reportData["duplicateFactIds"] ?? reportData["duplicate_fact_ids"]);
-      for (const dupId of duplicateIds) {
-        if (!dupId || dupId === storedFactId) continue;
-        let dupRemaining: string[] = [];
-        const dupDoc = await getDoc(`fact_bank/${dupId}`);
-        if (dupDoc && dupDoc.data["status"] === STATUS.disputed) {
-          const currentFlags = Array.isArray(dupDoc.data["quality_flags"])
-            ? (dupDoc.data["quality_flags"] as string[])
-            : [];
-          dupRemaining = currentFlags.filter(isNonDuplicateFlag);
-
-          if (dupRemaining.length === 0) {
-            await patchDoc(
-              `fact_bank/${dupId}`,
-              { status: STATUS.active },
-              ["quality_flags", "disputed_reason", "disputed_at"],
-            );
-          } else {
-            await patchDoc(`fact_bank/${dupId}`, {
-              quality_flags: dupRemaining,
-              disputed_reason: `fact_lint: ${dupRemaining.join(",")}`,
-            });
-          }
-        }
-        const dupReport = await getDoc(`trivia_reports/lint_${dupId}`);
-        if (dupReport && dupReport.data["status"] === "pending_review") {
-          if (dupRemaining.length === 0) {
-            await patchDoc(`trivia_reports/lint_${dupId}`, {
-              status: "rejected",
-              resolutionNote: input.note ?? `Auto-rejected: counterpart report ${input.reportId} rejected`,
-              resolved_at: now,
-            });
-          } else {
-            await patchDoc(
-              `trivia_reports/lint_${dupId}`,
-              {
-                qualityFlags: dupRemaining,
-                reason: `fact_lint: ${dupRemaining.join(",")}`,
-                resolutionNote: `Duplicate dismissed via ${input.reportId}; remaining flags: ${dupRemaining.join(", ")}`,
-              },
-              ["duplicateFactIds", "duplicate_fact_ids"],
-            );
-          }
-        }
-      }
-    }
-  }
-
-  if (remainingFlags.length > 0) {
-    await patchDoc(
-      `trivia_reports/${input.reportId}`,
-      {
-        qualityFlags: remainingFlags,
-        reason: `fact_lint: ${remainingFlags.join(",")}`,
-        resolutionNote: input.note ?? `Duplicate dismissed; remaining flags: ${remainingFlags.join(", ")}`,
-      },
-      ["duplicateFactIds", "duplicate_fact_ids"],
-    );
-  } else {
-    await patchDoc(`trivia_reports/${input.reportId}`, {
-      status: "rejected",
-      resolutionNote: input.note ?? "Report rejected",
-      resolved_at: now,
-    });
-  }
-  return { ok: true };
+    },
+    PENDING_FACT_ORIGINS[2],
+  );
 }
 
 /**
@@ -2405,36 +2935,56 @@ export async function flushStaleReports(limit = 200): Promise<{
       typeof data["factId"] === "string" && data["factId"].trim()
         ? (data["factId"] as string).trim()
         : null;
-
-    let autoNote: string | null = null;
     if (!factId) {
-      autoNote = "Auto-resolved: report missing factId";
-    } else {
-      const factDoc = await getDoc(`fact_bank/${factId}`);
+      details.push(`${reportDoc.id}: Auto-resolved: report missing factId`);
+      flushed++;
+      await runTransaction(async (tx) => {
+        const current = await tx.get(`trivia_reports/${reportDoc.id}`);
+        if (!current || current.data["status"] !== "pending_review") return;
+        tx.update(
+          `trivia_reports/${reportDoc.id}`,
+          { status: "resolved", resolutionNote: "Auto-resolved: report missing factId", resolved_at: now },
+          { updateTime: requireUpdateTime(current) },
+        );
+      });
+      continue;
+    }
+
+    // The fact read and the report resolution share one transaction: a fact
+    // re-disputed between the check and the write aborts the resolution and
+    // the retried callback re-evaluates the fresh snapshot instead of
+    // clearing a live dispute's report.
+    const note = await runTransaction(async (tx) => {
+      const current = await tx.get(`trivia_reports/${reportDoc.id}`);
+      if (!current || current.data["status"] !== "pending_review") return null;
+      const factDoc = await tx.get(`fact_bank/${factId}`);
+      let autoNote: string | null = null;
       if (!factDoc) {
         autoNote = "Auto-resolved: underlying fact no longer exists";
       } else {
-        const factData = factDoc.data;
-        const stat = factData["status"];
+        const stat = factDoc.data["status"];
         if (stat === STATUS.retired) {
           autoNote = "Auto-resolved: underlying fact was retired";
         } else if (stat === STATUS.active) {
-          const qf = Array.isArray(factData["quality_flags"]) ? (factData["quality_flags"] as string[]) : [];
+          const qf = Array.isArray(factDoc.data["quality_flags"])
+            ? (factDoc.data["quality_flags"] as string[])
+            : [];
           if (qf.length === 0) {
             autoNote = "Auto-resolved: fact is active and passes all lint rules";
           }
         }
       }
-    }
-
-    if (autoNote) {
-      await patchDoc(`trivia_reports/${reportDoc.id}`, {
-        status: "resolved",
-        resolutionNote: autoNote,
-        resolved_at: now,
-      });
+      if (!autoNote) return null;
+      tx.update(
+        `trivia_reports/${reportDoc.id}`,
+        { status: "resolved", resolutionNote: autoNote, resolved_at: now },
+        { updateTime: requireUpdateTime(current) },
+      );
+      return autoNote;
+    });
+    if (note) {
       flushed++;
-      details.push(`${reportDoc.id}: ${autoNote}`);
+      details.push(`${reportDoc.id}: ${note}`);
     }
   }
 

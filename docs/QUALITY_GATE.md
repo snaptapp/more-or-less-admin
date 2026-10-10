@@ -44,6 +44,11 @@ does not perform network I/O.
 - The DDM-4 kernel remains the production authority. A stored Firestore block is
   untrusted input: the adapter and caller re-gate it under the current vendored
   kernel and fall back or abstain rather than trusting stale fields.
+- The manifest also covers the fact-quality pipeline as **coverage-only**
+  sources (export/publication scripts, quality registry, serving gates,
+  hydration workflow, quality fixtures). They are never copied into Admin;
+  they exist so the freshness check notices when a quality producer moved
+  upstream without an adoption.
 
 ## Fact-bank lifecycle and propagation
 
@@ -58,6 +63,13 @@ Firestore is the canonical source truth. The deployed JSON bank in the game
 Worker is the serving truth. A Firestore change becomes player-visible only
 after export, hydration PR merge, and Worker deployment. The Admin deployed-
 state view compares those stores; it does not mutate either one.
+
+Keep two signal pairs distinct when moderating. A `verified_at` stamp records
+when a qualified audit promoted a revision; it is historical evidence, not
+current readiness — readiness is the live `quality_receipt` bound to the
+current revision. And in the lint catalog, a finding's `severity` (how bad)
+is separate from its `enforcement` class (whether it gates); Admin renders
+both verbatim from the generated catalog, never restated.
 
 The edge dispute blocklist is an independent one-year KV hot-path cache. A
 player dispute can remove a matching claim from the hot path immediately, but

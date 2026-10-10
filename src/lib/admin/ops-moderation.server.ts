@@ -17,7 +17,7 @@ import {
   type FactRecord,
   type ReportRecord,
 } from "./content.server";
-import { logAdminAction } from "@/lib/firebase/audit.server";
+import { buildAuditEntry, logAdminAction } from "@/lib/firebase/audit.server";
 import { countCollection } from "@/lib/firebase/firestore.server";
 
 const QUEUE_LIMIT = 100;
@@ -73,6 +73,8 @@ export interface ModerationFactSummary {
   quality_flags: string[];
   context: string;
   source_urls: string[];
+  /** Measurement/edition year the true_number covers; bounds copilot source periods. */
+  as_of_year: number | null;
 }
 
 export interface ModerationQueueItem {
@@ -151,6 +153,7 @@ function summarizeFact(fact: FactRecord): ModerationFactSummary {
     quality_flags: fact.quality_flags ?? [],
     context: fact.context,
     source_urls: fact.source_urls ?? [],
+    as_of_year: fact.as_of_year,
   };
 }
 
@@ -351,6 +354,13 @@ export async function moderationAct(input: ModerationActInput): Promise<{ ok: tr
       : input.correctedNumber;
   const factUpdates = input.action === "edit_fact" ? cleanUpdates(input.factUpdates) : input.factUpdates;
 
+  const copilot = input.copilot;
+  const audit = buildAuditEntry(OPS_ACTOR, {
+    action: `report.${input.action}`,
+    targetType: "report",
+    targetId: reportId,
+    details: `Report action: ${input.action} | via Ops Assistant${copilot ? ` | copilot ${copilot.verdict} (${copilot.confidence}, ${copilot.score})` : " | no copilot review"}`,
+  });
   await resolveReport({
     reportId,
     action: input.action,
@@ -363,15 +373,9 @@ export async function moderationAct(input: ModerationActInput): Promise<{ ok: tr
     unit: item.report.unit,
     keepFactId: button.keepFactId,
     retireFactIds: button.retireFactIds,
-  });
-
-  const copilot = input.copilot;
-  await logAdminAction(OPS_ACTOR, {
-    action: `report.${input.action}`,
-    targetType: "report",
-    targetId: reportId,
-    details: `Report action: ${input.action} | via Ops Assistant${copilot ? ` | copilot ${copilot.verdict} (${copilot.confidence}, ${copilot.score})` : " | no copilot review"}`,
-    after: {
+    admin: OPS_ACTOR,
+    audit,
+    auditAfter: {
       action: input.action,
       factId: button.factId ?? item.fact?.id ?? null,
       correctedNumber: correctedNumber ?? null,
@@ -531,6 +535,7 @@ export async function moderationCopilot(reportId: string): Promise<{
           source_urls: item.fact.source_urls,
           quality_flags: item.fact.quality_flags,
           status: item.fact.status,
+          as_of_year: item.fact.as_of_year,
         }
       : null,
     duplicateFacts: item.duplicates.map((d) => ({
@@ -545,6 +550,7 @@ export async function moderationCopilot(reportId: string): Promise<{
       source_urls: d.source_urls,
       quality_flags: d.quality_flags,
       status: d.status,
+      as_of_year: d.as_of_year,
     })),
   });
   const recommendation = recommendModerationAction(review, item.buttons);

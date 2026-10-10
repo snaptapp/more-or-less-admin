@@ -4,11 +4,12 @@
 //
 // Source of truth:
 //   agent-go/foundry.go, agent-go/factlint.go, agent-go/factrepair.go  (fact statuses)
+//   agent-go/factquality_review.go                                      (quality review kinds)
 //   tests/fixtures/derivation_tables.json  (closed_sets.quantity_kind)
-//   scripts/contract-transitions.json       (status transitions + lifecycle fields)
+//   scripts/contract-transitions.json       (status transitions + lifecycle fields + quality review kinds)
 //   contract.version                        (CONTRACT_VERSION)
 
-export const CONTRACT_VERSION = 2;
+export const CONTRACT_VERSION = 4;
 
 export const FACT_STATUSES = ["pending", "active", "disputed", "retired"] as const;
 export type FactStatus = (typeof FACT_STATUSES)[number];
@@ -54,4 +55,24 @@ export const LIFECYCLE_FIELDS: readonly FieldDescriptor[] = [
   { name: "quality_flags", type: "string[]", required: false },
   { name: "verified_at", type: "string", required: false },
   { name: "derivation_input_fingerprint", type: "string", required: false },
+  { name: "lint_findings", type: "object[]", required: false },
+  { name: "lint_rules_revision", type: "string", required: false },
+  { name: "number_token", type: "string", required: false },
+  { name: "as_of_year", type: "number", required: false },
+  { name: "true_number_token", type: "string", required: false },
+  { name: "quantity_spec", type: "object", required: false },
+  { name: "source_evidence", type: "object[]", required: false },
+  { name: "range_justification", type: "object", required: false },
+  { name: "answer_uncertainty", type: "object", required: false },
+  { name: "quality_receipt", type: "object", required: false },
+  { name: "quality_reviews", type: "object[]", required: false },
+  { name: "quality_hold", type: "object", required: false },
 ] as const;
+
+export const QUALITY_REVIEW_KINDS = [
+  "finding_accepted",
+  "source_interpretation",
+  "finding_cleared",
+  "finding_auto_cleared",
+] as const;
+export type QualityReviewKind = (typeof QUALITY_REVIEW_KINDS)[number];

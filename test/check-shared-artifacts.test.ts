@@ -58,6 +58,28 @@ const DDM_SOURCE = "export const DDMVersion = \"ddm-4\";\n";
 const FIXTURE_SOURCE = "{\"model_version\":\"ddm-4\"}\n";
 const SOURCE_COMMIT = "abcdef1234567890";
 
+/**
+ * Coverage-only producers the checker requires in every manifest. Mirrors
+ * REQUIRED_COVERED_SOURCE_FILES in scripts/check-shared-artifacts.mjs; kept
+ * inline so fixture drift fails loudly if the contract grows.
+ */
+const REQUIRED_COVERAGE = [
+  ".github/scripts/open-hydration-pr.sh",
+  ".github/scripts/verify-fact-bank-publication.mjs",
+  ".github/workflows/fact-foundry.yml",
+  "agent-go/factlint.go",
+  "agent-go/factlint_rules.go",
+  "agent-go/factquality_review.go",
+  "scripts/export_eligible_coverage.mjs",
+  "scripts/export_fact_bank.mjs",
+  "scripts/frozen_bank_export.mjs",
+  "scripts/gen_derivation_tables.mjs",
+  "scripts/gen_fact_lint_catalog.mjs",
+  "scripts/gen_fact_quality_units.mjs",
+  "scripts/gen_shared_contract.mjs",
+  "scripts/write_bank_pair.mjs",
+];
+
 interface FixtureManifest {
   sourceRepository: string;
   contractVersion: number;
@@ -70,13 +92,18 @@ function digest(source: string): string {
   return createHash("sha256").update(Buffer.from(source, "utf8")).digest("hex");
 }
 
-function makeManifest(): FixtureManifest {
-  const sources: Record<string, string> = {
+function fixtureSources(): Record<string, string> {
+  return {
     "shared/fact-lifecycle-contract.gen.ts": CONTRACT_SOURCE,
     "src/derivation.ts": DDM_SOURCE,
     "tests/fixtures/derivation_parity.json": FIXTURE_SOURCE,
     "agent-go/derivation.go": "package main\n",
+    ...Object.fromEntries(REQUIRED_COVERAGE.map((p) => [p, `// ${p}\n`])),
   };
+}
+
+function makeManifest(): FixtureManifest {
+  const sources = fixtureSources();
   return {
     sourceRepository: "snaptapp/more-or-less",
     contractVersion: 2,
@@ -97,12 +124,7 @@ function makeFixture(): { adminRoot: string; upstreamRoot: string; manifest: Fix
   mkdirSync(upstreamRoot, { recursive: true });
 
   const manifest = makeManifest();
-  const sources: Record<string, string> = {
-    "shared/fact-lifecycle-contract.gen.ts": CONTRACT_SOURCE,
-    "src/derivation.ts": DDM_SOURCE,
-    "tests/fixtures/derivation_parity.json": FIXTURE_SOURCE,
-    "agent-go/derivation.go": "package main\n",
-  };
+  const sources = fixtureSources();
   for (const [sourcePath, source] of Object.entries(sources)) {
     const absolute = path.join(upstreamRoot, ...sourcePath.split("/"));
     mkdirSync(path.dirname(absolute), { recursive: true });
@@ -174,6 +196,30 @@ describe("local shared artifact integrity", () => {
     expect(outcome.ok).toBe(false);
     expect(outcome.exitCode).not.toBe(0);
     expect(outcome.stderr.join("\n")).toContain("digest mismatch");
+  });
+
+  it("rejects a manifest that omits a required coverage producer", () => {
+    const { adminRoot, upstreamRoot, manifest } = makeFixture();
+    installSyncedFixture(manifest, adminRoot, upstreamRoot);
+    const dropped = manifest.coveredSourcePaths.filter(
+      (sourcePath) => sourcePath !== "agent-go/factquality_review.go",
+    );
+    const files = { ...manifest.files };
+    delete files["agent-go/factquality_review.go"];
+    const underCovered = { ...manifest, coveredSourcePaths: dropped, files };
+    writeFileSync(
+      path.join(adminRoot, "contract", "published", "artifact-manifest.json"),
+      `${JSON.stringify(underCovered, null, 2)}\n`,
+      "utf8",
+    );
+
+    const outcome = shared.runSharedArtifactCheck({ root: adminRoot });
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.exitCode).not.toBe(0);
+    expect(outcome.stderr.join("\n")).toContain(
+      "Manifest does not cover required producer agent-go/factquality_review.go",
+    );
   });
 
   it("rejects an adoption version that does not match the manifest", () => {

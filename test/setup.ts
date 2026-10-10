@@ -565,6 +565,22 @@ export function createFirestoreDouble(): FirestoreDouble {
     }
 
     if (!current) {
+      if (write.precondition?.exists === false) {
+        // Real Firestore treats an update write with currentDocument.exists=false
+        // as an atomic create-if-absent; the update mask limits the created fields.
+        const created: Record<string, unknown> = { ...write.data };
+        for (const fieldPath of write.deletePaths ?? []) delete created[fieldPath];
+        put(write.path, created);
+        return {
+          kind: "create",
+          path: write.path,
+          collection: write.path.split("/")[0],
+          documentId: write.path.split("/").slice(1).join("/"),
+          data: toJsonRecord(write.data),
+          transaction: true,
+          precondition: { ...write.precondition },
+        };
+      }
       throw new Error(`FAILED_PRECONDITION: transaction update target does not exist: ${write.path}`);
     }
     const merged: Record<string, unknown> = { ...current.data, ...write.data };

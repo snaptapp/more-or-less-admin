@@ -29,7 +29,8 @@
       "ZERO_OUTSIDE_YEAR_DOMAIN",
       "NO_CANDIDATE_PASSES_GATE",
       "STATEMENT_UNRECOVERABLE",
-      "TABLE_VERSION_MISMATCH"
+      "TABLE_VERSION_MISMATCH",
+      "INVALID_NUMERIC_CONSTRAINTS"
     ],
     "canonical_surprise": [0, 1, 2, 3]
   },

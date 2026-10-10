@@ -1,0 +1,321 @@
+{
+  "$comment": "Authoritative declarative fact-quality unit registry. Unit conversion factors are exact decimal rationals (factor_num/factor_den applied after offset_num/offset_den: base = (value - offset) * factor). Domains declare sign/integrality/bounds on the BASE-unit value so a scaled count like 3.5 million people is checked against an integral base count while a fractional headcount is not silently admitted. Reviewed by hand; consumed through generated artifacts only. Registry additions require the same review as a rule change.",
+  "schema_version": 1,
+  "registry_revision": "fact-quality-units-1",
+  "relations": [
+    "first_occurrence",
+    "return",
+    "measured_value",
+    "maximum_record",
+    "minimum_threshold",
+    "scheduled_event",
+    "other"
+  ],
+  "aggregations": [
+    "single_event",
+    "total",
+    "unique_count",
+    "maximum",
+    "minimum",
+    "mean",
+    "median",
+    "rate",
+    "credited_statistic",
+    "ratio"
+  ],
+  "value_semantics": ["exact", "rounded", "estimated", "threshold"],
+  "temporal_modes": [
+    "timeless",
+    "historical_event",
+    "closed_period",
+    "current_snapshot"
+  ],
+  "base_quantities": {
+    "count": {
+      "integral": true,
+      "min_token": "0",
+      "kinds": ["count"]
+    },
+    "capacity": {
+      "integral": false,
+      "min_token": "0",
+      "kinds": ["count", "rating"]
+    },
+    "money": {
+      "integral": false,
+      "kinds": ["money"]
+    },
+    "length": {
+      "integral": false,
+      "min_token": "0",
+      "kinds": ["physical_measure"]
+    },
+    "temperature": {
+      "integral": false,
+      "kinds": ["physical_measure"]
+    },
+    "percent_proportion": {
+      "integral": false,
+      "min_token": "0",
+      "max_token": "100",
+      "kinds": ["percentage"]
+    },
+    "percent_delta": {
+      "integral": false,
+      "kinds": ["percent_change"]
+    },
+    "percent_point": {
+      "integral": false,
+      "min_token": "-100",
+      "max_token": "100",
+      "kinds": ["percent_change"]
+    },
+    "rank": {
+      "integral": true,
+      "min_token": "1",
+      "kinds": ["count"]
+    },
+    "calendar_year": {
+      "integral": true,
+      "min_token": "1000",
+      "max_token": "2200",
+      "kinds": ["year"]
+    },
+    "rate": {
+      "integral": false,
+      "min_token": "0",
+      "kinds": ["physical_measure"]
+    },
+    "duration": {
+      "integral": false,
+      "min_token": "0",
+      "kinds": ["duration"]
+    },
+    "ratio": {
+      "integral": false,
+      "min_token": "0",
+      "kinds": ["ratio"]
+    },
+    "rating": {
+      "integral": false,
+      "min_token": "0",
+      "kinds": ["rating"]
+    }
+  },
+  "units": {
+    "person": {
+      "base": "count",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["person", "people", "persons", "astronauts", "astronaut", "employees", "companies", "players", "members"]
+    },
+    "million_persons": {
+      "base": "count",
+      "factor_num": "1000000",
+      "factor_den": "1",
+      "integral_base": true,
+      "aliases": ["million people", "millions of people", "million persons", "million"]
+    },
+    "sack": {
+      "base": "count",
+      "factor_num": "1",
+      "factor_den": "1",
+      "quantum_token": "0.5",
+      "aliases": ["sacks", "sack", "credited sacks"]
+    },
+    "seat": {
+      "base": "capacity",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["seats", "capacity", "seats of capacity"]
+    },
+    "us_dollar": {
+      "base": "money",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["dollars", "dollar", "usd", "us dollars", "$"]
+    },
+    "us_dollar_thousand": {
+      "base": "money",
+      "factor_num": "1000",
+      "factor_den": "1",
+      "aliases": ["thousand dollars", "thousands of dollars", "$k"]
+    },
+    "us_dollar_million": {
+      "base": "money",
+      "factor_num": "1000000",
+      "factor_den": "1",
+      "aliases": ["million dollars", "millions of dollars", "usd million", "$m"]
+    },
+    "us_dollar_billion": {
+      "base": "money",
+      "factor_num": "1000000000",
+      "factor_den": "1",
+      "aliases": ["billion dollars", "billions of dollars", "usd billion", "$b"]
+    },
+    "meter": {
+      "base": "length",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["meters", "metres", "meter", "metre", "m"]
+    },
+    "kilometer": {
+      "base": "length",
+      "factor_num": "1000",
+      "factor_den": "1",
+      "aliases": ["kilometers", "kilometres", "kilometer", "kilometre", "km"]
+    },
+    "centimeter": {
+      "base": "length",
+      "factor_num": "0.01",
+      "factor_den": "1",
+      "aliases": ["centimeters", "centimetres", "centimeter", "centimetre", "cm"]
+    },
+    "foot": {
+      "base": "length",
+      "factor_num": "0.3048",
+      "factor_den": "1",
+      "aliases": ["feet", "foot", "ft"]
+    },
+    "inch": {
+      "base": "length",
+      "factor_num": "0.0254",
+      "factor_den": "1",
+      "aliases": ["inches", "inch", "in"]
+    },
+    "mile": {
+      "base": "length",
+      "factor_num": "1609.344",
+      "factor_den": "1",
+      "aliases": ["miles", "mile", "mi"]
+    },
+    "degree_celsius": {
+      "base": "temperature",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["degrees celsius", "celsius", "degrees c", "°c"]
+    },
+    "degree_fahrenheit": {
+      "base": "temperature",
+      "factor_num": "5",
+      "factor_den": "9",
+      "offset_num": "32",
+      "offset_den": "1",
+      "aliases": ["degrees fahrenheit", "fahrenheit", "degrees f", "°f"]
+    },
+    "percent": {
+      "base": "percent_proportion",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["percent", "percentage", "%", "pct", "per cent"]
+    },
+    "percentage_point": {
+      "base": "percent_point",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["percentage points", "percentage point", "points", "pp"]
+    },
+    "percent_change": {
+      "base": "percent_delta",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["percent change", "percent increase", "percent decrease", "percent growth", "% change", "pct change", "percentage change"]
+    },
+    "rank": {
+      "base": "rank",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["rank", "place", "position", "ranking"]
+    },
+    "calendar_year": {
+      "base": "calendar_year",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["year", "years", "yr", "calendar year", "ce", "ad"]
+    },
+    "meter_per_second": {
+      "base": "rate",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["meters per second", "metres per second", "m/s", "mps"]
+    },
+    "kilometer_per_hour": {
+      "base": "rate",
+      "factor_num": "1000",
+      "factor_den": "3600",
+      "aliases": ["kilometers per hour", "kilometres per hour", "km/h", "kmh", "kph"]
+    },
+    "mile_per_hour": {
+      "base": "rate",
+      "factor_num": "1609.344",
+      "factor_den": "3600",
+      "aliases": ["miles per hour", "mph"]
+    },
+    "second": {
+      "base": "duration",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["seconds", "second", "sec", "secs"]
+    },
+    "minute": {
+      "base": "duration",
+      "factor_num": "60",
+      "factor_den": "1",
+      "aliases": ["minutes", "minute", "min"]
+    },
+    "hour": {
+      "base": "duration",
+      "factor_num": "3600",
+      "factor_den": "1",
+      "aliases": ["hours", "hour", "hrs"]
+    },
+    "day": {
+      "base": "duration",
+      "factor_num": "86400",
+      "factor_den": "1",
+      "aliases": ["days", "day"]
+    },
+    "week": {
+      "base": "duration",
+      "factor_num": "604800",
+      "factor_den": "1",
+      "aliases": ["weeks", "week"]
+    },
+    "year_duration": {
+      "base": "duration",
+      "factor_num": "31557600",
+      "factor_den": "1",
+      "aliases": ["years elapsed", "years of", "years long", "elapsed years"]
+    },
+    "ratio": {
+      "base": "ratio",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["ratio", "times", "x"]
+    },
+    "rating_point": {
+      "base": "rating",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["rating points", "stars", "rating"]
+    }
+  },
+  "measures": {
+    "net_worth": { "bases": ["money"], "aggregations": ["single_event", "maximum"] },
+    "population": { "bases": ["count"], "aggregations": ["total", "unique_count", "single_event"] },
+    "headcount": { "bases": ["count"], "aggregations": ["total", "unique_count", "single_event"] },
+    "credited_statistic": { "bases": ["count"], "aggregations": ["credited_statistic", "total"] },
+    "list_rank": { "bases": ["rank"], "aggregations": ["single_event", "maximum", "minimum"] },
+    "calendar_year_of_event": { "bases": ["calendar_year"], "aggregations": ["single_event"] },
+    "temperature": { "bases": ["temperature"], "aggregations": ["single_event", "maximum", "minimum", "mean"] },
+    "speed": { "bases": ["rate"], "aggregations": ["single_event", "maximum", "mean", "rate"] },
+    "distance": { "bases": ["length"], "aggregations": ["single_event", "total", "maximum", "mean"] },
+    "height": { "bases": ["length"], "aggregations": ["single_event", "maximum", "mean"] },
+    "proportion": { "bases": ["percent_proportion"], "aggregations": ["single_event", "mean", "ratio"] },
+    "growth": { "bases": ["percent_delta"], "aggregations": ["rate", "single_event", "mean", "ratio"] },
+    "elapsed_time": { "bases": ["duration"], "aggregations": ["total", "single_event", "mean", "rate"] },
+    "score": { "bases": ["rating"], "aggregations": ["single_event", "mean", "maximum"] },
+    "capacity": { "bases": ["capacity", "count"], "aggregations": ["total", "single_event", "maximum"] },
+    "generic": { "bases": ["count", "capacity", "money", "length", "temperature", "percent_proportion", "percent_delta", "percent_point", "rank", "calendar_year", "rate", "duration", "ratio", "rating"], "aggregations": ["single_event", "total", "unique_count", "maximum", "minimum", "mean", "median", "rate", "credited_statistic", "ratio"] }
+  }
+}

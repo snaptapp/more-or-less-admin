@@ -4,8 +4,38 @@ import {
   type FactStatus,
   type QuantityKind,
 } from "../../../shared/fact-lifecycle-contract.gen";
+import {
+  FACT_QUALITY_REGISTRY,
+  type FactQualityMeasure,
+  type FactQualityUnit,
+} from "../../../shared/fact-quality/fact-quality-units.gen";
 import { normalizeKey } from "../firebase/firestore.server";
 import { GENRES, type Genre } from "./taxonomy";
+
+/**
+ * The versioned quantity descriptor (Go QuantitySpecV1). Admin admission may
+ * carry a proposed spec on a pending fact for the auditor; admission never
+ * approves it. Field names mirror the Go contract byte for byte.
+ */
+export interface QuantitySpec {
+  schema_version: number;
+  entity_key: string;
+  measure_key: string;
+  relation: string;
+  aggregation: string;
+  unit_id: string;
+  scale_numerator?: string;
+  scale_denominator?: string;
+  temporal?: {
+    mode: string;
+    start?: string;
+    end?: string;
+    observed_at?: string;
+  };
+  value_semantics: string;
+  display_decimal_places: number;
+  quantum_token?: string;
+}
 
 const STATUS: { [K in FactStatus]: K } = (() => {
   const statuses = {} as { [K in FactStatus]: K };
@@ -34,6 +64,12 @@ export interface PendingFactInput {
   sub_category?: string | null;
   angle: string;
   true_number: number;
+  /** Optional exact decimal token for the truth; must project to true_number. */
+  true_number_token?: string;
+  /** Optional proposed quantity spec; the Foundry auditor owns approval. */
+  quantity_spec?: QuantitySpec | null;
+  /** Optional measurement/edition year kept separate from verification time. */
+  as_of_year?: number | null;
   unit: string;
   claim_template: string;
   question: string;
@@ -61,6 +97,9 @@ export type PendingFact = {
   angle: string;
   angle_key: string;
   true_number: number;
+  true_number_token?: string;
+  quantity_spec?: QuantitySpec;
+  as_of_year?: number;
   unit: string;
   claim_template: string;
   question: string;
@@ -120,6 +159,9 @@ const OPTIONAL_FIELDS = [
   "plausible_max",
   "number_pinned",
   "pinned_reason",
+  "true_number_token",
+  "quantity_spec",
+  "as_of_year",
 ] as const;
 
 const ALLOWED_FIELDS = new Set<string>([...REQUIRED_FIELDS, ...OPTIONAL_FIELDS]);
@@ -201,6 +243,35 @@ function isGenre(value: unknown): value is Genre {
   return typeof value === "string" && GENRES.some((genre) => genre === value);
 }
 
+function isQuantitySpec(value: unknown): value is QuantitySpec {
+  if (!isRecord(value)) return false;
+  const temporal = value["temporal"];
+  return (
+    value["schema_version"] === 1 &&
+    isNonEmptyString(value["entity_key"]) &&
+    isNonEmptyString(value["measure_key"]) &&
+    isNonEmptyString(value["relation"]) &&
+    isNonEmptyString(value["aggregation"]) &&
+    isNonEmptyString(value["unit_id"]) &&
+    isNonEmptyString(value["value_semantics"]) &&
+    Number.isInteger(value["display_decimal_places"]) &&
+    (temporal === undefined || isRecord(temporal)) &&
+    (value["scale_numerator"] === undefined ||
+      typeof value["scale_numerator"] === "string") &&
+    (value["scale_denominator"] === undefined ||
+      typeof value["scale_denominator"] === "string") &&
+    (value["quantum_token"] === undefined || typeof value["quantum_token"] === "string")
+  );
+}
+
+/**
+ * Projection helper for consumers that need the spec off a stored doc. It is
+ * structural only: closed-set membership lives in validatePendingFact.
+ */
+export function parseQuantitySpec(value: unknown): QuantitySpec | null {
+  return isQuantitySpec(value) ? value : null;
+}
+
 function isPendingStatus(value: unknown): value is typeof PENDING_FACT_STATUS {
   return value === PENDING_FACT_STATUS;
 }
@@ -241,7 +312,11 @@ function isPendingFactRecord(value: Record<string, unknown>): value is PendingFa
     (value["plausible_min"] === undefined || typeof value["plausible_min"] === "string") &&
     (value["plausible_max"] === undefined || typeof value["plausible_max"] === "string") &&
     (value["number_pinned"] === undefined || typeof value["number_pinned"] === "boolean") &&
-    (value["pinned_reason"] === undefined || typeof value["pinned_reason"] === "string")
+    (value["pinned_reason"] === undefined || typeof value["pinned_reason"] === "string") &&
+    (value["true_number_token"] === undefined ||
+      typeof value["true_number_token"] === "string") &&
+    (value["quantity_spec"] === undefined || isQuantitySpec(value["quantity_spec"])) &&
+    (value["as_of_year"] === undefined || typeof value["as_of_year"] === "number")
   );
 }
 
@@ -320,6 +395,15 @@ function candidate(input: PendingFactInput, timestamp: string): Record<string, u
   }
   if (input.number_pinned !== undefined) value["number_pinned"] = input.number_pinned;
   if (hasBound(input.pinned_reason)) value["pinned_reason"] = text(input.pinned_reason);
+  if (input.true_number_token !== undefined) {
+    value["true_number_token"] = text(input.true_number_token);
+  }
+  if (input.quantity_spec !== undefined && input.quantity_spec !== null) {
+    value["quantity_spec"] = input.quantity_spec;
+  }
+  if (input.as_of_year !== undefined && input.as_of_year !== null) {
+    value["as_of_year"] = input.as_of_year;
+  }
   return value;
 }
 
@@ -455,6 +539,145 @@ function validateBounds(
   }
 }
 
+/**
+ * A stored token must project to the same value as the float field. Admission
+ * compares at the shared scale-3 projection the DDM stores; the Go evaluator
+ * re-checks the token against the exact rational at audit time, so a token
+ * that disagrees only below the envelope still fails the audit, never here.
+ */
+function validateTrueNumberToken(
+  record: Record<string, unknown>,
+  truth: bigint | null,
+  issues: PendingFactIssue[],
+): void {
+  if (!Object.hasOwn(record, "true_number_token")) return;
+  const token = record["true_number_token"];
+  if (typeof token !== "string" || !DECIMAL_TOKEN.test(token.trim())) {
+    issue(issues, "true_number_token", "token", "must be an exact JSON decimal token");
+    return;
+  }
+  if (truth === null) return;
+  const ingested = ingestDecimal(token.trim());
+  if (ingested === null || ingested !== truth) {
+    issue(
+      issues,
+      "true_number_token",
+      "token_mismatch",
+      "must project to the same value as true_number",
+    );
+  }
+}
+
+/**
+ * Structural plus closed-set validation of a proposed quantity spec using the
+ * generated unit registry. Admission validates membership and measure/unit
+ * compatibility; it never approves the spec (the Foundry auditor owns that).
+ */
+function validateQuantitySpec(
+  record: Record<string, unknown>,
+  issues: PendingFactIssue[],
+): void {
+  if (!Object.hasOwn(record, "quantity_spec")) return;
+  const spec = record["quantity_spec"];
+  if (!isRecord(spec)) {
+    issue(issues, "quantity_spec", "type", "must be an object");
+    return;
+  }
+  if (spec["schema_version"] !== 1) {
+    issue(issues, "quantity_spec.schema_version", "closed_set", "must be 1");
+  }
+  for (const key of ["entity_key", "measure_key", "relation", "aggregation", "unit_id", "value_semantics"]) {
+    if (typeof spec[key] !== "string" || (spec[key] as string).trim() === "") {
+      issue(issues, `quantity_spec.${key}`, "required", "must be a non-empty string");
+    }
+  }
+  const relation = spec["relation"];
+  if (typeof relation === "string" && !FACT_QUALITY_REGISTRY.relations.includes(relation)) {
+    issue(issues, "quantity_spec.relation", "closed_set", "must be a registry relation");
+  }
+  const aggregation = spec["aggregation"];
+  if (
+    typeof aggregation === "string" &&
+    !FACT_QUALITY_REGISTRY.aggregations.includes(aggregation)
+  ) {
+    issue(issues, "quantity_spec.aggregation", "closed_set", "must be a registry aggregation");
+  }
+  const valueSemantics = spec["value_semantics"];
+  if (
+    typeof valueSemantics === "string" &&
+    !FACT_QUALITY_REGISTRY.value_semantics.includes(valueSemantics)
+  ) {
+    issue(issues, "quantity_spec.value_semantics", "closed_set", "must be a registry semantics");
+  }
+  const unitId = spec["unit_id"];
+  const unit: FactQualityUnit | undefined =
+    typeof unitId === "string" ? FACT_QUALITY_REGISTRY.units[unitId] : undefined;
+  if (typeof unitId === "string" && unit === undefined) {
+    issue(issues, "quantity_spec.unit_id", "closed_set", "must be a registry unit id");
+  }
+  const measureKey = spec["measure_key"];
+  const measure: FactQualityMeasure | undefined =
+    typeof measureKey === "string" ? FACT_QUALITY_REGISTRY.measures[measureKey] : undefined;
+  if (typeof measureKey === "string" && measure === undefined) {
+    issue(issues, "quantity_spec.measure_key", "closed_set", "must be a registry measure");
+  }
+  if (unit !== undefined && measure !== undefined) {
+    if (!measure.bases.includes(unit.base)) {
+      issue(
+        issues,
+        "quantity_spec.unit_id",
+        "spec_coherence",
+        `unit base ${unit.base} is not declared by measure ${String(measureKey)}`,
+      );
+    }
+    if (
+      typeof aggregation === "string" &&
+      !measure.aggregations.includes(aggregation)
+    ) {
+      issue(
+        issues,
+        "quantity_spec.aggregation",
+        "spec_coherence",
+        `aggregation is not declared by measure ${String(measureKey)}`,
+      );
+    }
+  }
+  const temporal = spec["temporal"];
+  if (temporal !== undefined) {
+    if (!isRecord(temporal)) {
+      issue(issues, "quantity_spec.temporal", "type", "must be an object");
+    } else {
+      const mode = temporal["mode"];
+      if (typeof mode !== "string" || !FACT_QUALITY_REGISTRY.temporal_modes.includes(mode)) {
+        issue(issues, "quantity_spec.temporal.mode", "closed_set", "must be a registry mode");
+      }
+      for (const bound of ["start", "end", "observed_at"] as const) {
+        const member = temporal[bound];
+        if (member !== undefined && typeof member !== "string") {
+          issue(issues, `quantity_spec.temporal.${bound}`, "type", "must be a string");
+        }
+      }
+    }
+  }
+  const places = spec["display_decimal_places"];
+  if (
+    typeof places !== "number" ||
+    !Number.isInteger(places) ||
+    places < 0 ||
+    places > 3
+  ) {
+    issue(issues, "quantity_spec.display_decimal_places", "range", "must be an integer 0..3");
+  }
+}
+
+function validateAsOfYear(record: Record<string, unknown>, issues: PendingFactIssue[]): void {
+  if (!Object.hasOwn(record, "as_of_year")) return;
+  const value = record["as_of_year"];
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    issue(issues, "as_of_year", "type", "must be an integer measurement or edition year");
+  }
+}
+
 function validatePinnedFields(record: Record<string, unknown>, issues: PendingFactIssue[]): void {
   if (Object.hasOwn(record, "number_pinned") && typeof record["number_pinned"] !== "boolean") {
     issue(issues, "number_pinned", "type", "must be a boolean");
@@ -521,6 +744,9 @@ export function validatePendingFact(value: unknown): PendingFactValidationResult
   validateSourceUrls(value, issues);
   validateQuantityKind(value, issues);
   validateBounds(value, truth, issues);
+  validateTrueNumberToken(value, truth, issues);
+  validateQuantitySpec(value, issues);
+  validateAsOfYear(value, issues);
   validatePinnedFields(value, issues);
 
   if (!isContentRating(value["content_rating"])) {

@@ -468,13 +468,6 @@ const DYNAMIC_TARGET_IDS: Readonly<Record<string, Readonly<Record<string, Dynami
     },
   },
   "src/lib/admin/content.functions.ts": {
-    "data.reportId": {
-      coverage: "schema-min-1",
-      schemaField: "reportId",
-      reason:
-        "The actOnReport validator declares `reportId: z.string().min(1)`; the handler is also " +
-        "invoked behind the doubles by Property 19.",
-    },
     "created.id": {
       coverage: "property-19",
       reason:
@@ -483,11 +476,6 @@ const DYNAMIC_TARGET_IDS: Readonly<Record<string, Readonly<Record<string, Dynami
     },
   },
   "src/lib/admin/ops-moderation.server.ts": {
-    reportId: {
-      coverage: "documented",
-      reason:
-        "`moderationAct` validates `reportId` against the pending queue before executing and logging.",
-    },
     id: {
       coverage: "documented",
       reason:
@@ -582,10 +570,11 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Property 18: Every 
     // The known call sites, so a silent drop in coverage is visible.
     const byFile = new Map<string, number>();
     for (const site of CALL_SITES) byFile.set(site.file, (byFile.get(site.file) ?? 0) + 1);
-    // Ordinary edit/status/import/bulk handlers now stage one audit per fact in
-    // the item transaction rather than calling logAdminAction afterwards; the
-    // remaining handler call sites are still checked here.
-    expect(byFile.get("src/lib/admin/content.functions.ts")).toBeGreaterThanOrEqual(3);
+    // Ordinary edit/status/import/bulk handlers and report resolution now stage
+    // one audit per mutation inside the item transaction rather than calling
+    // logAdminAction afterwards; the remaining handler call sites are still
+    // checked here.
+    expect(byFile.get("src/lib/admin/content.functions.ts")).toBeGreaterThanOrEqual(2);
     expect(byFile.get("src/lib/admin/ops.functions.ts")).toBeGreaterThanOrEqual(7);
     expect(byFile.get("src/lib/admin/ops.server.ts")).toBeGreaterThanOrEqual(5);
     expect(byFile.get("src/lib/admin/roles.functions.ts")).toBe(1);

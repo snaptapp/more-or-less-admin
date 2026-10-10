@@ -728,7 +728,10 @@ export function CorrectedReplacementForm({
           />
         </label>
         <label className="admin-field" htmlFor="corrected-replacement-sources">
-          <span>Source URLs (one per line)</span>
+          <span>
+            Source URLs (one per line){" "}
+            <InfoTip text="Listed URLs are citation candidates. Source support is decided by auditor evidence assertions on the fact's revision, not by URL presence." />
+          </span>
           <textarea
             id="corrected-replacement-sources"
             className="admin-textarea"
@@ -1129,7 +1132,10 @@ export function FactEditor({
           />
         </label>
         <label className="admin-field">
-          <span>Source URLs (one per line)</span>
+          <span>
+            Source URLs (one per line){" "}
+            <InfoTip text="Listed URLs are citation candidates. Source support is decided by auditor evidence assertions on the fact's revision, not by URL presence." />
+          </span>
           <textarea
             className="admin-textarea"
             value={form.source_urls}
@@ -1140,9 +1146,13 @@ export function FactEditor({
         <dl className="admin-kv">
           <dt>Previous number</dt>
           <dd>{fact.previous_true_number ?? "—"}</dd>
-          <dt>Verified</dt>
+          <dt>Verified stamp</dt>
           <dd>
             {fact.verified_at ?? "—"} {fact.verifier_model ? `· ${fact.verifier_model}` : ""}
+            <div style={{ fontSize: 11, color: "var(--ds-arena-color-text-muted)" }}>
+              Historical audit time, not current readiness. Readiness is the live quality receipt on the
+              current revision.
+            </div>
           </dd>
           <dt>Served</dt>
           <dd>
@@ -1588,7 +1598,10 @@ export function NewFactForm({ onDone }: { onDone: () => void }) {
           />
         </label>
         <label className="admin-field">
-          <span>Source URLs (one per line)</span>
+          <span>
+            Source URLs (one per line){" "}
+            <InfoTip text="Listed URLs are citation candidates. Source support is decided by auditor evidence assertions on the fact's revision, not by URL presence." />
+          </span>
           <textarea
             className="admin-textarea"
             value={form.source_urls}

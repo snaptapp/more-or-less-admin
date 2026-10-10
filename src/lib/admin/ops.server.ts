@@ -1368,28 +1368,68 @@ export async function flagQuestionTelemetry(input: { days: 7 | 30 | 90; question
   }
 
   const factId = parseTelemetryFactId(input.questionId);
-  let factPreviousStatus: string | null = null;
-  if (factId) {
-    const factDoc = await getDoc(`fact_bank/${factId}`);
-    if (factDoc) {
-      const currentStatus = typeof factDoc.data["status"] === "string" ? factDoc.data["status"] : "";
-      factPreviousStatus = currentStatus || null;
-      // Only transition active facts to disputed. Never overwrite an
-      // already-disputed or retired fact with stale telemetry.
-      if (currentStatus === STATUS.active) {
-        await patchDoc(`fact_bank/${factId}`, { status: STATUS.disputed, disputedAt: new Date().toISOString() });
+
+  // The report create, the active -> disputed transition, and the report's
+  // bound revision are one transaction: the report is re-checked inside (the
+  // earlier getDoc is only an early-out), a fact that changed state between
+  // the read and the write aborts rather than being overwritten by stale
+  // telemetry, and the report can never exist without its dispute write
+  // committing.
+  const reportPath = `trivia_reports/${reportId}`;
+  const outcome = await runTransaction(async (tx) => {
+    const existingReport = await tx.get(reportPath);
+    if (existingReport) {
+      return { alreadyReviewed: existingReport.data["status"] !== "pending_review" };
+    }
+    let factPreviousStatus: string | null = null;
+    let factUpdateTime: string | null = null;
+    let factDisputedAt: string | null = null;
+    if (factId) {
+      const factDoc = await tx.get(`fact_bank/${factId}`);
+      if (factDoc) {
+        const currentStatus =
+          typeof factDoc.data["status"] === "string" ? factDoc.data["status"] : "";
+        factPreviousStatus = currentStatus || null;
+        if (currentStatus === STATUS.active && factDoc.updateTime) {
+          // The pre-dispute updateTime is invalidated by this transaction's
+          // own write (commit assigns a fresh updateTime), so the report binds
+          // the disputed_at stamp it wrote instead. Only an untouched fact
+          // keeps updateTime as its revision bound.
+          factDisputedAt = new Date().toISOString();
+          tx.update(
+            `fact_bank/${factId}`,
+            {
+              status: STATUS.disputed,
+              disputed_at: factDisputedAt,
+              disputed_reason: "round_telemetry",
+            },
+            { updateTime: factDoc.updateTime },
+          );
+        } else {
+          factUpdateTime = factDoc.updateTime ?? null;
+        }
       }
     }
-  }
-  await createDoc("trivia_reports", reportId, {
-    status: "pending_review", reportSource: "round_telemetry", questionId: input.questionId,
-    ...(factId ? { factId } : {}),
-    ...(factPreviousStatus ? { factPreviousStatus } : {}),
-    topic: telemetry?.topic ?? "", claimStatement: telemetry?.claim ?? "", unit: telemetry?.unit ?? "",
-    category: telemetry?.category ?? "", kind: telemetry?.kind ?? "",
-    telemetryDays: input.days, telemetryAnswered: telemetry?.answered ?? 0,
-    telemetryAccuracy: telemetry?.accuracy ?? 0,
-    reason: `Low player accuracy in ${input.days}-day signed self-reported telemetry`, createdAt: new Date().toISOString(),
+    tx.update(
+      reportPath,
+      {
+        status: "pending_review", reportSource: "round_telemetry", questionId: input.questionId,
+        ...(factId ? { factId } : {}),
+        ...(factPreviousStatus ? { factPreviousStatus } : {}),
+        ...(factDisputedAt
+          ? { fact_disputed_at: factDisputedAt }
+          : factUpdateTime
+            ? { fact_update_time: factUpdateTime }
+            : {}),
+        topic: telemetry?.topic ?? "", claimStatement: telemetry?.claim ?? "", unit: telemetry?.unit ?? "",
+        category: telemetry?.category ?? "", kind: telemetry?.kind ?? "",
+        telemetryDays: input.days, telemetryAnswered: telemetry?.answered ?? 0,
+        telemetryAccuracy: telemetry?.accuracy ?? 0,
+        reason: `Low player accuracy in ${input.days}-day signed self-reported telemetry`, createdAt: new Date().toISOString(),
+      },
+      { exists: false },
+    );
+    return { alreadyReviewed: false };
   });
-  return { reportId, alreadyReviewed: false };
+  return { reportId, alreadyReviewed: outcome.alreadyReviewed };
 }

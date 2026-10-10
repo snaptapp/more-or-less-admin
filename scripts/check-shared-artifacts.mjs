@@ -48,9 +48,11 @@ const COMMIT_PATTERN = /^[a-f0-9]{7,64}$/i;
 
 /** Generated DDM source files that are valid handoff artifacts. */
 const DDM_SOURCE_FILES = new Set([
+  "src/ddm_implementation_gen.ts",
   "src/derivation.ts",
   "src/derivation_adapter.ts",
   "src/factbank_precompute.ts",
+  "src/factquality_round.ts",
   "src/derivation_resolve.ts",
   "src/derivation_statement.ts",
   "src/derivation_tables_gen.ts",
@@ -61,8 +63,12 @@ const DDM_SOURCE_FILES = new Set([
 const FIXTURE_SOURCE_FILES = new Set([
   "tests/fixtures/derivation_corpus.json",
   "tests/fixtures/derivation_cross_runtime.json",
+  "tests/fixtures/derivation_numeric_constraints.json",
   "tests/fixtures/derivation_parity.json",
+  "tests/fixtures/derivation_playable_candidates.json",
   "tests/fixtures/derivation_tables.json",
+  "tests/fixtures/fact_quality_round_parity.json",
+  "tests/fixtures/numeric_format_v2.json",
   "tests/fixtures/unit_tables.json",
   "tests/fixtures/key_normalization.json",
 ]);
@@ -73,18 +79,109 @@ const FIXTURE_SOURCE_FILES = new Set([
  * their producers; the sync command must not copy them into Admin.
  */
 const COVERAGE_ONLY_SOURCE_FILES = new Set([
+  ".github/scripts/open-hydration-pr.sh",
+  ".github/scripts/verify-fact-bank-publication.mjs",
+  ".github/workflows/fact-foundry.yml",
+  "agent-go/ddm_implementation_gen.go",
   "agent-go/derivation.go",
+  "agent-go/derivation_bounds.go",
+  "agent-go/derivation_candidate.go",
+  "agent-go/derivation_classify.go",
+  "agent-go/derivation_constraints.go",
+  "agent-go/derivation_counterexample.go",
+  "agent-go/derivation_derive.go",
+  "agent-go/derivation_enumerate.go",
+  "agent-go/derivation_giveaway_gate.go",
+  "agent-go/derivation_ingest.go",
+  "agent-go/derivation_kernel.go",
+  "agent-go/derivation_playable.go",
+  "agent-go/derivation_schema.go",
+  "agent-go/derivation_snapping.go",
+  "agent-go/derivation_statement_gate.go",
+  "agent-go/derivation_statement_inflect.go",
+  "agent-go/derivation_statement_policy.go",
+  "agent-go/derivation_statement_scan.go",
+  "agent-go/derivation_strategy.go",
+  "agent-go/derivation_surprise.go",
+  "agent-go/derivation_tables_gen.go",
+  "agent-go/derivation_trap.go",
+  "agent-go/derivation_variation.go",
+  "agent-go/derivation_zero.go",
+  "agent-go/enqueue.go",
   "agent-go/factlint.go",
+  "agent-go/factlint_rules.go",
+  "agent-go/factquality.go",
+  "agent-go/factquality_audit.go",
+  "agent-go/factquality_audit_store.go",
+  "agent-go/factquality_bank_compare.go",
+  "agent-go/factquality_cli.go",
+  "agent-go/factquality_cmd.go",
+  "agent-go/factquality_constraints.go",
+  "agent-go/factquality_evidence.go",
+  "agent-go/factquality_fetch.go",
+  "agent-go/factquality_numeric.go",
+  "agent-go/factquality_publication.go",
+  "agent-go/factquality_publication_round.go",
+  "agent-go/factquality_review.go",
+  "agent-go/factquality_round.go",
+  "agent-go/factquality_round_numeric.go",
+  "agent-go/factquality_sft.go",
+  "agent-go/factquality_units_gen.go",
   "agent-go/factrepair.go",
   "agent-go/foundry.go",
+  "agent-go/foundry_crawl_prompt.txt",
+  "agent-go/foundry_failure_log.go",
+  "agent-go/foundry_refresh_prompt.txt",
+  "agent-go/foundry_source_discovery_prompt.txt",
+  "agent-go/guardrails.go",
+  "agent-go/subcommands.go",
+  "agent-go/unit_tables_gen.go",
   "contract.version",
+  "functions/src/packQuality.ts",
+  "scripts/check_fact_bank_quality.mjs",
   "scripts/contract-transitions.json",
+  "scripts/coverage_reconcile_report.mjs",
+  "scripts/ddm-port-source/derivation.ts",
+  "scripts/ddm-port-source/derivation_resolve.ts",
+  "scripts/ddm-port-source/derivation_statement.ts",
+  "scripts/ddm-port-source/factquality_round.ts",
+  "scripts/export_eligible_coverage.mjs",
+  "scripts/export_fact_bank.mjs",
+  "scripts/export_lib.mjs",
+  "scripts/extract_pr611_fixture.mjs",
+  "scripts/fact_foundry_failure_gate.mjs",
+  "scripts/frozen_bank_export.mjs",
+  "scripts/gen_artifact_manifest.mjs",
+  "scripts/gen_derivation_tables.mjs",
+  "scripts/gen_fact_bank_quality_shim.mjs",
+  "scripts/gen_fact_lint_catalog.mjs",
+  "scripts/gen_fact_quality_units.mjs",
+  "scripts/gen_shared_contract.mjs",
+  "scripts/preview_paths.mjs",
+  "scripts/write_bank_pair.mjs",
+  "src/disputed.ts",
+  "src/factbank.ts",
+  "src/factquality_registry.ts",
+  "src/factquality_serving.ts",
+  "tests/fixtures/publication-report.json",
+  "tests/fixtures/publication-source.json",
 ]);
 
 const EXACT_DESTINATIONS = new Map([
   [
     "shared/fact-lifecycle-contract.gen.ts",
     [PUBLISHED_CONTRACT_RELATIVE_PATH, CONSUMED_CONTRACT_RELATIVE_PATH],
+  ],
+  [
+    "shared/fact-lint-catalog.gen.ts",
+    [
+      "contract/published/fact-lint-catalog.gen.ts",
+      "shared/fact-lint-catalog.gen.ts",
+    ],
+  ],
+  [
+    "shared/fact-quality-units.gen.ts",
+    ["shared/fact-quality/fact-quality-units.gen.ts"],
   ],
   ["src/derivation.ts", ["shared/ddm/derivation.ts"]],
   ["src/derivation_resolve.ts", ["shared/ddm/derivation_resolve.ts"]],
@@ -108,6 +205,28 @@ const EXACT_DESTINATIONS = new Map([
   [
     "tests/fixtures/key_normalization.json",
     ["shared/ddm/fixtures/key_normalization.json"],
+  ],
+  // Fact-quality definitions and parity fixtures adopted under their own tree
+  // so the DDM fixture namespace stays scoped to derivation behavior.
+  [
+    "tests/fixtures/derivation_playable_candidates.json",
+    ["shared/fact-quality/fixtures/derivation_playable_candidates.json"],
+  ],
+  [
+    "tests/fixtures/fact_quality_pr611.json",
+    ["shared/fact-quality/fixtures/fact_quality_pr611.json"],
+  ],
+  [
+    "tests/fixtures/fact_quality_units.json",
+    ["shared/fact-quality/fixtures/fact_quality_units.json"],
+  ],
+  [
+    "tests/fixtures/guardrail_parity.json",
+    ["shared/fact-quality/fixtures/guardrail_parity.json"],
+  ],
+  [
+    "tests/fixtures/question_normalization.json",
+    ["shared/fact-quality/fixtures/question_normalization.json"],
   ],
 ]);
 
@@ -363,14 +482,50 @@ function isCoverageOnly(sourcePath) {
 }
 
 /**
+ * Producers whose freshness the handoff contract promises to gate: the
+ * hydration workflow and publication pipeline, the review/write authority,
+ * and the lint/contract generators. These must actually appear in
+ * `coveredSourcePaths` — a manifest that omits one is rejected rather than
+ * silently ungating freshness for that producer, which is exactly the gap
+ * COVERAGE_ONLY_SOURCE_FILES alone cannot catch.
+ */
+const REQUIRED_COVERED_SOURCE_FILES = new Set([
+  ".github/scripts/open-hydration-pr.sh",
+  ".github/scripts/verify-fact-bank-publication.mjs",
+  ".github/workflows/fact-foundry.yml",
+  "agent-go/factlint.go",
+  "agent-go/factlint_rules.go",
+  "agent-go/factquality_review.go",
+  "scripts/export_eligible_coverage.mjs",
+  "scripts/export_fact_bank.mjs",
+  "scripts/frozen_bank_export.mjs",
+  "scripts/gen_derivation_tables.mjs",
+  "scripts/gen_fact_lint_catalog.mjs",
+  "scripts/gen_fact_quality_units.mjs",
+  "scripts/gen_shared_contract.mjs",
+  "scripts/write_bank_pair.mjs",
+]);
+
+/**
  * Build the declared handoff operations from a manifest. Coverage-only source
  * paths are deliberately omitted. A source that is neither a known coverage
  * path nor a known handoff path is rejected rather than silently ignored.
+ * Every REQUIRED_COVERED producer must be present in coveredSourcePaths:
+ * the requirement binds the manifest, not just the allowlist.
  */
 export function getHandoffEntries(manifest) {
   const explicit = manifest.destinations ?? null;
   const entries = [];
   const destinationOwners = new Map();
+
+  const covered = new Set(manifest.coveredSourcePaths);
+  for (const required of REQUIRED_COVERED_SOURCE_FILES) {
+    if (!covered.has(required)) {
+      throw new ArtifactConfigError(
+        `Manifest does not cover required producer ${required}.`,
+      );
+    }
+  }
 
   for (const sourcePath of manifest.coveredSourcePaths) {
     const declared = explicit?.[sourcePath];

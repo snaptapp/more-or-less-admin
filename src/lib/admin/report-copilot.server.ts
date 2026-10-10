@@ -5,6 +5,7 @@
  */
 import { getAccessToken } from "../firebase/credentials.server";
 import { asJsonObject, isAbortError, responseSnippet } from "./http";
+import { compareSourceValues, type SourceValueRef } from "./source-compare";
 import {
   scoreFactCandidateQuality,
   compareDuplicateCandidates,
@@ -43,9 +44,17 @@ export interface CopilotSource {
   excerpts: string[];
   /** Number the source states, when the model extracted one. */
   value?: number;
+  /** Exact decimal token as stated, when the model extracted one. */
+  value_token?: string;
+  /** Unit the stated value is expressed in (raw spelling). */
+  unit?: string;
+  /** Coverage period the source's figure describes (year/edition). */
+  period?: string;
   stance: "supports" | "contradicts" | "unclear";
-  /** True when this source's value disagrees with the recommended number or other sources. */
+  /** True when this source's value exactly conflicts with the recommendation or another source. */
   conflicting: boolean;
+  /** True when this source's value cannot be reconciled (different period, unknown or cross-measure unit, unparseable token). */
+  incomparable?: boolean;
 }
 
 export interface CopilotDuplicateResolution {
@@ -59,10 +68,16 @@ export interface CopilotDuplicateResolution {
  * Source-quality policy applied before any recommendation is shown:
  * - No sources: verdict forced to "unclear", confidence "low". Prefill is advisory only.
  * - Only 1 source: confidence capped at "medium".
- * - Sources disagree (>5% spread between stated values, or a source contradicts the
- *   recommended number): confidence capped at "low", each disagreeing source flagged.
+ * - Sources conflict (exact mismatch after unit normalization, or a source
+ *   contradicts the recommended number): confidence capped at "low", each
+ *   conflicting source flagged.
+ * - Sources incomparable (different period, unknown or cross-measure unit,
+ *   unparseable token): marked needsReview without lowering confidence;
+ *   absence of agreement is not proof of conflict.
  * - Model says "low": kept low; recommendation still shown but marked for closer review.
- * Any cap or flag sets needsReview so admins can prioritize.
+ * Any cap or flag sets needsReview so admins can prioritize. The score and
+ * confidence are heuristic ordering aids: `uncalibrated` is always true and
+ * they never authorize a write.
  */
 export interface CopilotPolicy {
   needsReview: boolean;
@@ -71,6 +86,8 @@ export interface CopilotPolicy {
   score: number; // 0-100 for the meter
   /** Every input to the score, in order. Sum of points = score (clamped 0-100). */
   factors: CopilotFactor[];
+  /** Always true: the score/confidence are uncalibrated advisory signals. */
+  uncalibrated: true;
 }
 
 export interface CopilotFactor {
@@ -128,6 +145,8 @@ export interface CopilotInput {
     status?: string;
     quantity_kind?: string;
     surprise_factor?: number;
+    /** Measurement/edition year the fact's true_number covers. */
+    as_of_year?: number | null;
   } | null;
   duplicateFacts?: CopilotFactCandidate[];
 }
@@ -153,7 +172,7 @@ function vertexUrl(): string {
 
 const SYSTEM = `You are the moderation copilot for "More or Less", a numeric trivia game.
 A player disputed a fact or a linter flagged duplicate/conflicting facts. Use Google Search to verify the true number. Respond with ONLY a JSON object:
-{"verdict":"uphold_fact|fix_number|edit_fact|retire_fact|resolve_duplicate|add_to_bank|resolve_as_is|reject|unclear","confidence":"low|medium|high","rationale":"2-4 sentences","suggested":{"true_number":number?,"unit":string?,"question":string?,"claim_template":string? (must contain {n}),"context":string?,"subject":string?,"angle":string?,"quantity_kind":string?,"surprise_factor":number?,"plausible_min":string?,"plausible_max":string?,"difficulty_hint":"casual|medium|hard"?,"note":string (short resolution note)},"duplicate_resolution":{"keep_fact_id":string|null,"retire_fact_ids":[string],"action":"keep_one|retire_all|reject_report","reason":string},"sources":[{"url":string,"title":string,"excerpt":"verbatim quote","value":number|null (the number this source states, in the fact's unit),"stance":"supports|contradicts|unclear" (relative to your recommended true number)}]}
+{"verdict":"uphold_fact|fix_number|edit_fact|retire_fact|resolve_duplicate|add_to_bank|resolve_as_is|reject|unclear","confidence":"low|medium|high","rationale":"2-4 sentences","suggested":{"true_number":number?,"unit":string?,"question":string?,"claim_template":string? (must contain {n}),"context":string?,"subject":string?,"angle":string?,"quantity_kind":string?,"surprise_factor":number?,"plausible_min":string?,"plausible_max":string?,"difficulty_hint":"casual|medium|hard"?,"note":string (short resolution note)},"duplicate_resolution":{"keep_fact_id":string|null,"retire_fact_ids":[string],"action":"keep_one|retire_all|reject_report","reason":string},"sources":[{"url":string,"title":string,"excerpt":"verbatim quote","value":number|null (the number this source states, in the fact's unit),"value_token":string|null (the exact decimal as stated, e.g. "1.2e9"),"unit":string|null (the unit that value is expressed in, if not the fact's unit),"period":string|null (the year/edition the figure covers, e.g. "1989" or "FY2023"),"stance":"supports|contradicts|unclear" (relative to your recommended true number)}]}
 Never invent excerpts; if sources disagree, say so in the rationale.
 Rules:
 - When duplicate candidate facts are present:
@@ -388,6 +407,12 @@ export async function reviewReportWithCopilot(input: CopilotInput): Promise<Copi
       if (target) {
         const v = typeof row?.value === "number" ? row.value : Number(row?.value);
         if (row?.value !== null && row?.value !== undefined && Number.isFinite(v)) target.value = v;
+        const vtok = clean(row?.value_token, 80);
+        if (vtok) target.value_token = vtok;
+        const sunit = clean(row?.unit, 60);
+        if (sunit) target.unit = sunit;
+        const speriod = clean(row?.period, 60);
+        if (speriod) target.period = speriod;
         const st = String(row?.stance);
         if (st === "supports" || st === "contradicts") target.stance = st;
       }
@@ -401,7 +426,10 @@ export async function reviewReportWithCopilot(input: CopilotInput): Promise<Copi
         : input.duplicateFacts?.find((d) => d.id === duplicateResolution!.keepFactId))
     : input.fact;
   const targetNumber = suggested.true_number ?? targetFact?.true_number ?? input.trueNumber;
-  const policy = applySourcePolicy(sources, targetNumber, confidence);
+  const policy = applySourcePolicy(sources, targetNumber, confidence, {
+    unit: suggested.unit ?? targetFact?.unit ?? input.unit,
+    period: targetFact?.as_of_year != null ? String(targetFact.as_of_year) : undefined,
+  });
 
   let finalVerdict = verdict;
   if (sources.length === 0) {
@@ -427,15 +455,32 @@ export async function reviewReportWithCopilot(input: CopilotInput): Promise<Copi
 const RANK = { low: 0, medium: 1, high: 2 } as const;
 const cap = (c: keyof typeof RANK, max: keyof typeof RANK) => (RANK[c] > RANK[max] ? max : c);
 
-function differs(a: number, b: number): boolean {
-  const scale = Math.max(Math.abs(a), Math.abs(b), 1e-9);
-  return Math.abs(a - b) / scale > 0.05;
+/**
+ * The stated-value reference for one source row. The prompt asks the model to
+ * give values in the fact's unit, so a source with no explicit `unit` is
+ * interpreted in the fact's unit; a missing `period` is never assumed.
+ */
+function sourceRef(
+  s: CopilotSource,
+  factUnit: string | undefined,
+): SourceValueRef | null {
+  const token = s.value_token?.trim() || (s.value !== undefined ? String(s.value) : "");
+  if (!token) return null;
+  return { token, unit: s.unit ?? factUnit, period: s.period };
 }
 
+/**
+ * Compare every valued source against the recommendation target and against
+ * each other. A "conflict" is an exact mismatch after unit normalization on
+ * the same period; an "incomparable" pair cannot be reconciled (different
+ * period, unknown or cross-measure unit, unparseable token) and marks the
+ * review for a human without asserting a conflict.
+ */
 export function applySourcePolicy(
   sources: CopilotSource[],
   target: number | null | undefined,
   modelConfidence: "low" | "medium" | "high",
+  targetMeta?: { unit?: string; period?: string },
 ): { confidence: "low" | "medium" | "high"; policy: CopilotPolicy } {
   const reasons: string[] = [];
   let confidence = modelConfidence;
@@ -446,20 +491,61 @@ export function applySourcePolicy(
     confidence = cap(confidence, "medium");
     reasons.push("Only one source found.");
   }
-  const valued = sources.filter((s) => s.value !== undefined);
+  const targetRef: SourceValueRef | null =
+    target != null && Number.isFinite(target)
+      ? { token: String(target), unit: targetMeta?.unit, period: targetMeta?.period }
+      : null;
+  const refs = sources.map((s) => sourceRef(s, targetMeta?.unit));
   let conflict = false;
-  for (const s of sources) {
-    const vsTarget = s.value !== undefined && target != null && Number.isFinite(target) && differs(s.value, target);
-    const vsOthers = s.value !== undefined && valued.some((o) => o !== s && differs(o.value!, s.value!));
-    s.conflicting = s.stance === "contradicts" || vsTarget || vsOthers;
+  let incomparable = false;
+  for (let i = 0; i < sources.length; i++) {
+    const s = sources[i];
+    const ref = refs[i];
+    let hasConflict = s.stance === "contradicts";
+    let hasIncomparable = false;
+    if (ref) {
+      let targetDecided = false;
+      if (targetRef) {
+        const vs = compareSourceValues(ref, targetRef);
+        // The source's own comparison against the recommendation is
+        // authoritative for its status: an agreeing source stays supporting
+        // even when another row conflicts or cannot be reconciled.
+        if (vs === "conflict") {
+          hasConflict = true;
+          targetDecided = true;
+        } else if (vs === "agree") {
+          targetDecided = true;
+        }
+      }
+      if (!targetDecided) {
+        // Only when the target cannot place this source (no numeric target,
+        // or the target's own unit/period fails to reconcile) do peer rows
+        // decide: a peer conflict flags it, peer agreement reconciles it, and
+        // otherwise it is incomparable.
+        let reconciledByPeer = false;
+        for (let j = 0; j < sources.length; j++) {
+          if (j === i || !refs[j]) continue;
+          const vs = compareSourceValues(ref, refs[j]!);
+          if (vs === "conflict") hasConflict = true;
+          else if (vs === "agree") reconciledByPeer = true;
+        }
+        if (!hasConflict && !reconciledByPeer) hasIncomparable = true;
+      }
+    }
+    s.conflicting = hasConflict;
+    s.incomparable = !hasConflict && hasIncomparable;
     if (s.conflicting) conflict = true;
+    if (s.incomparable) incomparable = true;
   }
   if (conflict) {
     confidence = "low";
-    reasons.push(`${sources.filter((s) => s.conflicting).length} source(s) conflict with the recommendation or each other.`);
+    reasons.push(`${sources.filter((s) => s.conflicting).length} source(s) conflict with the recommendation or each other (exact mismatch after unit/period normalization).`);
+  }
+  if (incomparable) {
+    reasons.push(`${sources.filter((s) => s.incomparable).length} source(s) could not be reconciled (different period or incompatible unit); not counted as agreement or conflict.`);
   }
   if (modelConfidence === "low" && !reasons.length) reasons.push("Copilot reported low confidence.");
-  const supporting = sources.filter((s) => !s.conflicting && s.stance === "supports");
+  const supporting = sources.filter((s) => !s.conflicting && !s.incomparable && s.stance === "supports");
   const conflicting = sources.filter((s) => s.conflicting);
   const withExcerpts = sources.filter((s) => s.excerpts.length > 0).length;
   const factors: CopilotFactor[] = [];
@@ -485,6 +571,10 @@ export function applySourcePolicy(
   if (conflict) {
     factors.push({ label: "Conflict penalty", points: -10, kind: "penalty", detail: `${conflicting.length} conflicting: ${conflicting.map((c) => c.title).slice(0, 3).join("; ")}` });
   }
+  if (incomparable) {
+    const count = sources.filter((s) => s.incomparable).length;
+    factors.push({ label: "Unreconciled sources", points: -5, kind: "penalty", detail: `${count} source(s) not reconcilable (period/unit/parse).` });
+  }
   if (sources.length && withExcerpts === 0) {
     factors.push({ label: "No quoted evidence", points: -5, kind: "penalty", detail: "Sources returned links but no excerpts to check." });
     reasons.push("No source provided a quoted excerpt.");
@@ -492,6 +582,13 @@ export function applySourcePolicy(
   const score = Math.max(0, Math.min(100, factors.reduce((sum, f) => sum + f.points, 0)));
   return {
     confidence,
-    policy: { needsReview: confidence === "low" || reasons.length > 0, reasons, modelConfidence, score, factors },
+    policy: {
+      needsReview: confidence === "low" || reasons.length > 0,
+      reasons,
+      modelConfidence,
+      score,
+      factors,
+      uncalibrated: true,
+    },
   };
 }
