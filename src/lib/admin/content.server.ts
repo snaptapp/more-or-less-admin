@@ -57,6 +57,8 @@ import {
   MATERIAL_EDIT_KEYS,
   MATERIAL_INVALIDATION_PATHS,
   materialEditHold,
+  QUALITY_REVIEW_KINDS,
+  QUALITY_REVIEW_SCHEMA,
   type QualityReviewRecord,
 } from "./quality-review";
 
@@ -385,7 +387,7 @@ export function toFact(doc: FirestoreDoc): FactRecord {
           }
         : null,
     quality_reviews: Array.isArray(d["quality_reviews"])
-      ? (d["quality_reviews"] as unknown as QualityReviewRecord[])
+      ? d["quality_reviews"].flatMap((entry) => (isQualityReviewRecord(entry) ? [entry] : []))
       : [],
     number_pinned: asBool(d["number_pinned"]) ?? false,
     pinned_reason: typeof d["pinned_reason"] === "string" ? d["pinned_reason"] : null,
@@ -897,10 +899,43 @@ function asJson(value: unknown): Json {
   return null;
 }
 
-function asJsonRecord(value: Record<string, unknown>): Record<string, Json> {
+function asJsonRecord(value: object): Record<string, Json> {
   const output: Record<string, Json> = {};
   for (const [key, entry] of Object.entries(value)) output[key] = asJson(entry);
   return output;
+}
+
+/** Spread a typed object into a plain record without asserting its shape:
+ *  preserves entries verbatim (including absent optional fields left
+ *  undefined) so Firestore writes see exactly the original object. */
+function asPlainRecord(value: object): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value));
+}
+
+function isQualityReviewRecord(value: unknown): value is QualityReviewRecord {
+  if (value === null || typeof value !== "object") return false;
+  const r = value as Record<string, unknown>;
+  if (r["schema_version"] !== QUALITY_REVIEW_SCHEMA) return false;
+  for (const key of [
+    "review_id",
+    "fact_id",
+    "actor",
+    "actor_role",
+    "reason",
+    "lint_rules_revision",
+    "content_fingerprint",
+    "update_time",
+    "created_at",
+  ]) {
+    if (typeof r[key] !== "string") return false;
+  }
+  const isStringArray = (entry: unknown): entry is string[] =>
+    Array.isArray(entry) && entry.every((item) => typeof item === "string");
+  return (
+    QUALITY_REVIEW_KINDS.some((kind) => kind === r["kind"]) &&
+    isStringArray(r["reviewed_fields"]) &&
+    isStringArray(r["finding_ids"])
+  );
 }
 
 function mergedFactDoc(
@@ -1670,7 +1705,7 @@ export async function createFact(input: ImportFactInput): Promise<FactRecord> {
     }
     const subjectDoc = subjectPath ? await tx.get(subjectPath) : null;
 
-    tx.update(factPath, pendingFact as unknown as Record<string, unknown>, { exists: false });
+    tx.update(factPath, asPlainRecord(pendingFact), { exists: false });
 
     if (subjectPath) {
       const subjectPatch: Record<string, unknown> = { category: pendingFact.category };
@@ -1695,7 +1730,7 @@ export async function createFact(input: ImportFactInput): Promise<FactRecord> {
     return toFact({
       id,
       path: factPath,
-      data: asJsonRecord(pendingFact as unknown as Record<string, unknown>),
+      data: asJsonRecord(pendingFact),
     });
   });
 }
@@ -2589,7 +2624,7 @@ export async function resolveReport(input: {
         : null;
       if (subjectPath) subjectDoc = await tx.get(subjectPath);
 
-      tx.update(factPath, addToBankFact as unknown as Record<string, unknown>, { exists: false });
+      tx.update(factPath, asPlainRecord(addToBankFact), { exists: false });
       if (subjectPath) {
         const subjectPatch: Record<string, unknown> = { category: addToBankFact.category };
         if (addToBankFact.sub_category) subjectPatch["sub_category"] = addToBankFact.sub_category;
