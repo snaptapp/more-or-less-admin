@@ -57,13 +57,13 @@ function OverviewPage() {
             </Card>
             <Card>
               <CardLabel>Disputed</CardLabel>
-              <p className="admin-stat" data-tone="amber">
+              <p className="admin-stat" data-tone="red">
                 {data.disputed}
               </p>
             </Card>
             <Card>
               <CardLabel>Retired</CardLabel>
-              <p className="admin-stat" data-tone="red">
+              <p className="admin-stat" data-tone="muted">
                 {data.retired}
               </p>
             </Card>
@@ -120,12 +120,18 @@ function OverviewPage() {
           <div className="admin-chart-grid">
             <StatusPie title="Fact bank status" rows={data.series.factStatus} />
             <StatusPie title="Active content rating" rows={data.series.contentRating} />
-            <CountBar title="Facts by genre" rows={data.series.categories} layout="horizontal" />
             <StatusPie title="Moderation mix" rows={data.series.reports} />
-            <CountBar title="Crawl queue" rows={data.series.crawl} />
+            <CountBar title="Crawl queue" rows={data.series.crawl} keepZeroRows />
+            <CountBar
+              title="Active facts by genre"
+              rows={data.series.categories}
+              color="#d7f24a"
+              emptyMessage="No active facts yet"
+            />
             <StatusPie
               title="Games by mode (7d)"
               rows={data.series.gamesByMode}
+              emptyMessage="No games played in the last 7 days"
               footnote={
                 data.gamesIndexUnavailable
                   ? "Approximate until the game_history playedAt collection-group index is Enabled in Firebase."

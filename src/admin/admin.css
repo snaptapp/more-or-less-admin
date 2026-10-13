@@ -1040,9 +1040,105 @@ th .admin-infotip:focus-visible .admin-infotip-content,
 }
 
 .admin-chart {
-  min-height: 240px;
-  height: 240px;
+  min-height: 120px;
+  height: 120px;
   margin-top: var(--ds-arena-space-3);
+}
+
+.admin-donut {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-arena-space-4);
+  margin-top: var(--ds-arena-space-3);
+}
+
+.admin-donut__chart {
+  position: relative;
+  flex: 0 0 auto;
+  width: 148px;
+  height: 148px;
+}
+
+.admin-donut__total {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.admin-donut__total-value {
+  font-family: var(--ds-arena-font-display);
+  font-size: 24px;
+  line-height: 1;
+  color: var(--ds-arena-color-text);
+}
+
+.admin-donut__total-label {
+  margin-top: 2px;
+  font-family: var(--ds-arena-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-arena-color-text-muted);
+}
+
+.admin-donut__legend {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  column-gap: var(--ds-arena-space-3);
+  row-gap: var(--ds-arena-space-2);
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.admin-donut__legend li {
+  display: contents;
+}
+
+.admin-donut__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.admin-donut__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ds-arena-color-text);
+}
+
+.admin-donut__count {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ds-arena-color-text);
+}
+
+.admin-donut__share {
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-arena-color-text-muted);
+}
+
+@media (max-width: 480px) {
+  .admin-donut {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-donut__chart {
+    align-self: center;
+  }
 }
 
 .admin-chart-empty {
@@ -1104,6 +1200,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
 .admin-stat[data-tone="amber"] { color: var(--ds-arena-color-amber); }
 .admin-stat[data-tone="red"] { color: var(--ds-arena-color-red); }
 .admin-stat[data-tone="purple"] { color: var(--ds-arena-color-purple); }
+.admin-stat[data-tone="muted"] { color: var(--ds-arena-color-text-muted); }
 
 .admin-tabs {
   display: flex;
