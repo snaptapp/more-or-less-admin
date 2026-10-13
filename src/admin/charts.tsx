@@ -116,8 +116,8 @@ export function StatusPie({
                   stroke="none"
                   isAnimationActive={false}
                 >
-                  {data.map((row, index) => (
-                    <Cell key={row.name} fill={colorFor(row.name, index)} />
+                  {data.map((row) => (
+                    <Cell key={row.name} fill={colorFor(row.name, rows.indexOf(row))} />
                   ))}
                 </Pie>
                 <Tooltip content={<ChartTooltip />} />
