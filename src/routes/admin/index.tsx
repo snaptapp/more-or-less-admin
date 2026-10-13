@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -5,6 +6,7 @@ import { Badge, Button, Card, CardLabel } from "@/index";
 import { CountBar, StatusPie } from "@/admin/charts";
 import { ErrorNote, PageHead } from "@/admin/AdminShell";
 import { useAdminAuth } from "@/admin/auth";
+import { trackViewedAdminOverview } from "@/lib/amplitude";
 import { fetchOverview } from "@/lib/admin/content.functions";
 
 export const Route = createFileRoute("/admin/")({
@@ -24,6 +26,10 @@ export const Route = createFileRoute("/admin/")({
 function OverviewPage() {
   const { user, ready } = useAdminAuth();
   const overview = useServerFn(fetchOverview);
+
+  useEffect(() => {
+    trackViewedAdminOverview();
+  }, []);
   const { data, isLoading, error } = useQuery({
     queryKey: ["overview", user?.uid],
     queryFn: () => overview(),
