@@ -14,7 +14,7 @@ export function initAmplitude(): void {
   }
   initialized = true;
   amplitude.initAll(apiKey, {
-    analytics: { autocapture: true },
+    analytics: { autocapture: { elementInteractions: false, frustrationInteractions: false } },
     // Off: admin screens show staff emails and moderation data.
     sessionReplay: { sampleRate: 0 },
   });
