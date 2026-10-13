@@ -20,7 +20,7 @@ Repo checkout (adjust if different):
 
 ```text
 <path>/more-or-less-admin/
-  wrangler.jsonc                    # Worker name: tanstack-start-app → ops.snaptapp.us
+  wrangler.jsonc                    # Worker name: more-or-less-ops → ops.snaptapp.us
   .env.example                      # documents OPS_ASSISTANT_SECRET
   notion-workers/
     README.md                       # deploy / env docs
@@ -43,7 +43,7 @@ Notion Custom Agent:
 
 | Place | Env var | Role |
 | --- | --- | --- |
-| Cloudflare Worker `tanstack-start-app` (ops.snaptapp.us) | `OPS_ASSISTANT_SECRET` | Server gate for `/api/internal/ops/*` |
+| Cloudflare Worker `more-or-less-ops` (ops.snaptapp.us) | `OPS_ASSISTANT_SECRET` | Server gate for `/api/internal/ops/*` |
 | Notion worker `more-or-less-factbank` | `OPS_ASSISTANT_SECRET` | Same value; sent as `Authorization: Bearer …` |
 | Notion worker | `OPS_API_BASE_URL` | `https://ops.snaptapp.us` |
 
@@ -69,7 +69,7 @@ Call this value `SECRET` below. Do not commit it. Do not put it in chat logs if 
 
 ## Step 2 — Admin Worker (Cloudflare)
 
-From `more-or-less-admin` root (must be Wrangler-authenticated to the account that owns `tanstack-start-app`):
+From `more-or-less-admin` root (must be Wrangler-authenticated to the account that owns `more-or-less-ops`):
 
 ```sh
 cd <path>/more-or-less-admin
@@ -77,7 +77,7 @@ npx wrangler secret put OPS_ASSISTANT_SECRET
 # paste SECRET when prompted
 ```
 
-Or: Cloudflare Dashboard → Workers → **`tanstack-start-app`** → Settings → Variables and Secrets → add secret `OPS_ASSISTANT_SECRET`.
+Or: Cloudflare Dashboard → Workers → **`more-or-less-ops`** → Settings → Variables and Secrets → add secret `OPS_ASSISTANT_SECRET`.
 
 Verify the API gate (expect `200` JSON, not `503` / `401`):
 

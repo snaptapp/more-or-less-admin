@@ -2,7 +2,7 @@
 
 Admin portal for More or Less (ops). TanStack Start + React on Cloudflare Workers.
 
-Production: [ops.snaptapp.us](https://ops.snaptapp.us) → Worker `tanstack-start-app`.
+Production: [ops.snaptapp.us](https://ops.snaptapp.us) → Worker `more-or-less-ops`.
 
 ## Stack
 
@@ -182,7 +182,7 @@ From the repo root, add `--worker-id 01a0fb75-8c71-77fc-b769-0d2f008a8bd9` on fa
 npx wrangler secret put OPS_ASSISTANT_SECRET --name more-or-less-ops
 ```
 
-`ops.snaptapp.us` is served by `more-or-less-ops`. The `name` in `wrangler.jsonc` is `tanstack-start-app`, and secrets on that Worker do not reach the hostname. Do not reuse `OPS_CRON_SECRET` or set `OPS_ASSISTANT_ALLOW_CRON_FALLBACK` in production. Do not commit or print either secret.
+`ops.snaptapp.us` is served by `more-or-less-ops`, which is also the `name` in `wrangler.jsonc`. The retired `tanstack-start-app` Worker has no hostname; secrets on it reach nothing. Do not reuse `OPS_CRON_SECRET` or set `OPS_ASSISTANT_ALLOW_CRON_FALLBACK` in production. Do not commit or print either secret.
 
 The CLI cannot connect workers to the agent or enable their tools. In Notion, open **More-or-Less Ops Assistant** → Settings → Tools and access and enable the worker tools. The instructions themselves are the agent's Instructions page (`fb6dfb7d-5260-4ca8-abc1-5d2a3a998f8a`). Replace that page from `notion-workers/AGENT_INSTRUCTIONS.md`:
 
@@ -206,7 +206,7 @@ production).
 
 Connect Git so every commit/PR merge to `main` builds and deploys with no CI runners.
 
-1. Cloudflare Dashboard → **Workers & Pages** → Worker **`tanstack-start-app`** (must match `name` in `wrangler.jsonc`).
+1. Cloudflare Dashboard → **Workers & Pages** → Worker **`more-or-less-ops`** (must match `name` in `wrangler.jsonc`).
 2. **Settings** → **Builds** → **Connect**.
 3. Select GitHub account / org **snaptapp**, repository **more-or-less-admin**.
 4. Build settings:
@@ -225,7 +225,7 @@ The npm-only migration leaves these unchanged: the build command stays `npm run 
 2. Daily Blitz authoring (`/admin/daily`) calls the Go pack factory on Cloud Run (`GO_AGENT_URL` var) and a swappable chat backend (`OPS_CHAT_BACKEND`, default `gemini`) for the strategist. The ops service account needs `roles/run.invoker` on `agent-go` and `roles/aiplatform.user` on project `more-or-less-505908`. Chat never publishes: Apply cards load the editor, Save & Schedule writes `daily_packs`. Autonomous cron (`POST /api/internal/daily-drafts` with `OPS_CRON_SECRET`) writes `daily_pack_drafts` only. Content (`/admin/facts`) uses the same chat rail to enqueue crawls; Fact Foundry is the only `fact_bank` writer. Foundry-generated facts land as `status: pending` (never served/exported) until the banked-fact auditor promotes them — filter the facts list by `pending` to review the unverified queue; a manual "Mark active" is a human-verified promote.
 3. Push or merge to `main` to trigger a production deploy. Preview branches upload a version only.
 
-Alternatively: **Workers & Pages** → **Create** → **Import a repository** → same settings. Worker name must stay `tanstack-start-app` so it continues serving `ops.snaptapp.us`.
+Alternatively: **Workers & Pages** → **Create** → **Import a repository** → same settings. Worker name must stay `more-or-less-ops` so it continues serving `ops.snaptapp.us`.
 
 ## Firestore indexes (occasional)
 
