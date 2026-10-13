@@ -18,7 +18,16 @@ export function initAmplitude(): void {
   }
   initialized = true;
   amplitude.init(apiKey, {
-    autocapture: { elementInteractions: false, frustrationInteractions: false },
+    // Sessions and page views only. Element, form, and frustration capture
+    // would send inner text and labels from screens with emails and audit data.
+    autocapture: {
+      sessions: true,
+      pageViews: true,
+      formInteractions: false,
+      fileDownloads: false,
+      elementInteractions: false,
+      frustrationInteractions: false,
+    },
   });
 }
 
