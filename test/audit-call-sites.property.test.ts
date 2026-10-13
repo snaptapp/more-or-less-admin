@@ -698,11 +698,11 @@ describe("Feature: admin-quality-gates-and-shared-contracts, Property 18: Every 
         }
         return true;
       }),
-      { numRuns: 200 },
+      // Every site runs once as an explicit example, so coverage never depends on the draw.
+      { numRuns: 200, examples: CALL_SITES.map((site) => [site] as [typeof site]) },
     );
 
-    // 200 uniform draws over this many sites covers all of them with
-    // overwhelming probability; asserting it makes the coverage explicit.
+    // The examples guarantee full coverage; asserting it keeps that explicit.
     expect(visited.size).toBe(CALL_SITES.length);
   });
 
