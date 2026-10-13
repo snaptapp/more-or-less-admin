@@ -1,10 +1,14 @@
-import * as amplitude from "@amplitude/unified";
+// Analytics-only SDK on purpose: @amplitude/unified always adds Session Replay,
+// Experiment, and Engagement, and a remote Session Replay sampling config would
+// override any local sampleRate. Admin screens show staff emails and
+// moderation data, so replay must not be in this bundle at all.
+import * as amplitude from "@amplitude/analytics-browser";
 
 const apiKey = import.meta.env.VITE_AMPLITUDE_API_KEY as string | undefined;
 
 let initialized = false;
 
-/** Browser-only, idempotent: initAll must run once per page lifecycle. */
+/** Browser-only, idempotent: init must run once per page lifecycle. */
 export function initAmplitude(): void {
   if (initialized || typeof window === "undefined") return;
   if (!apiKey) {
@@ -13,10 +17,8 @@ export function initAmplitude(): void {
     return;
   }
   initialized = true;
-  amplitude.initAll(apiKey, {
-    analytics: { autocapture: { elementInteractions: false, frustrationInteractions: false } },
-    // Off: admin screens show staff emails and moderation data.
-    sessionReplay: { sampleRate: 0 },
+  amplitude.init(apiKey, {
+    autocapture: { elementInteractions: false, frustrationInteractions: false },
   });
 }
 
