@@ -5,7 +5,9 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+
+import { initAmplitude } from "@/lib/amplitude";
 
 import appCss from "../styles.css?url";
 
@@ -63,6 +65,10 @@ gtag('config', 'G-7QMJL9732Z');`,
 // /__component) render inside it, so any chrome leaks into every frame.
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    initAmplitude();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

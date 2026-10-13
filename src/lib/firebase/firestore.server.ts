@@ -5,6 +5,7 @@
  * runtime is a Cloudflare Worker (no native Node modules).
  */
 import { getAccessToken, getServiceAccount } from "./credentials.server";
+import { forwardAuditEntries, isAuditPath } from "@/lib/analytics/audit-amplitude.server";
 
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
@@ -269,6 +270,9 @@ export async function createDoc(
     `${baseUrl()}/${collection}?${params.toString()}`,
     { method: "POST", body: JSON.stringify({ fields: encodeFields(data) }) },
   );
+  if (isAuditPath(`${collection}/${documentId}`)) {
+    await forwardAuditEntries([{ id: documentId, data }]);
+  }
   return toDoc(raw);
 }
 
@@ -372,6 +376,9 @@ async function runTransactionOnce<T>(work: (tx: FirestoreTransaction) => Promise
   });
   const transaction = started.transaction;
   const writes: Record<string, unknown>[] = [];
+  let result: T;
+  // Audit rows staged in this attempt; forwarded only after commit succeeds.
+  const auditWrites: { id: string; data: Record<string, unknown> }[] = [];
   let writesQueued = false;
   try {
     const tx: FirestoreTransaction = {
@@ -403,6 +410,9 @@ async function runTransactionOnce<T>(work: (tx: FirestoreTransaction) => Promise
             fields: encodeFields(data),
           },
         });
+        if (isAuditPath(path)) {
+          auditWrites.push({ id: path.replace(/^\//, "").split("/").pop() ?? "", data });
+        }
       },
       update: (path: string, data: Record<string, unknown>, options) => {
         const currentDocument = transactionPrecondition(options);
@@ -426,7 +436,7 @@ async function runTransactionOnce<T>(work: (tx: FirestoreTransaction) => Promise
         writes.push({ delete: documentResourceName(path) });
       },
     };
-    const result = await work(tx);
+    result = await work(tx);
     await request(`${baseUrl()}:commit`, {
       method: "POST",
       body: JSON.stringify({
@@ -435,11 +445,14 @@ async function runTransactionOnce<T>(work: (tx: FirestoreTransaction) => Promise
         writes,
       }),
     });
-    return result;
   } catch (error) {
     await rollbackTransaction(transaction);
     throw error;
   }
+  // Outside the try: forwarding never throws, and a committed transaction
+  // must not be rolled back or retried on its account.
+  await forwardAuditEntries(auditWrites);
+  return result;
 }
 
 /**

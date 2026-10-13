@@ -50,4 +50,4 @@ ntn workers env set CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=...
 ntn workers exec production_health -d '{"project":"more-or-less"}'
 ```
 
-From the repo root, pass `--worker-id 01a0fb75-8c71-77fc-b769-0d2f008a8bd9` to `env` and `exec` for the factbank worker. The matching Admin secret is `npx wrangler secret put OPS_ASSISTANT_SECRET --name more-or-less-ops`. The hostname `ops.snaptapp.us` is that worker. `wrangler.jsonc` name `tanstack-start-app` does not serve it.
+From the repo root, pass `--worker-id 01a0fb75-8c71-77fc-b769-0d2f008a8bd9` to `env` and `exec` for the factbank worker. The matching Admin secret is `npx wrangler secret put OPS_ASSISTANT_SECRET --name more-or-less-ops`. The hostname `ops.snaptapp.us` is that worker, and `wrangler.jsonc` uses the same name. The retired `tanstack-start-app` Worker serves nothing.
