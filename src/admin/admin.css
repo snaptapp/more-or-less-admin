@@ -1200,6 +1200,7 @@ th .admin-infotip:focus-visible .admin-infotip-content,
 .admin-stat[data-tone="amber"] { color: var(--ds-arena-color-amber); }
 .admin-stat[data-tone="red"] { color: var(--ds-arena-color-red); }
 .admin-stat[data-tone="purple"] { color: var(--ds-arena-color-purple); }
+.admin-stat[data-tone="muted"] { color: var(--ds-arena-color-text-muted); }
 
 .admin-tabs {
   display: flex;

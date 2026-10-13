@@ -57,13 +57,13 @@ function OverviewPage() {
             </Card>
             <Card>
               <CardLabel>Disputed</CardLabel>
-              <p className="admin-stat" data-tone="amber">
+              <p className="admin-stat" data-tone="red">
                 {data.disputed}
               </p>
             </Card>
             <Card>
               <CardLabel>Retired</CardLabel>
-              <p className="admin-stat" data-tone="red">
+              <p className="admin-stat" data-tone="muted">
                 {data.retired}
               </p>
             </Card>

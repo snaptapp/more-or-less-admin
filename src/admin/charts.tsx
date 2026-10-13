@@ -34,7 +34,7 @@ const SEMANTIC: Record<string, string> = {
   retired: ARENA.muted,
   standard: ARENA.lime,
   after_dark: ARENA.purple,
-  pending_review: ARENA.amber,
+  pending_review: ARENA.purple,
   resolved: ARENA.lime,
   rejected: ARENA.muted,
   queued: ARENA.amber,
@@ -168,7 +168,7 @@ export function CountBar({
   color?: string;
 }) {
   const data = keepZeroRows ? rows : positiveRows(rows);
-  const hasData = data.some((row) => row.count > 0);
+  const hasData = data.length > 0;
   const chartHeight = Math.max(120, data.length * 32 + 16);
   const labelWidth = Math.min(
     160,
