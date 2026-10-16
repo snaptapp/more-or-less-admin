@@ -111,16 +111,20 @@ export function summarizeLaunchRuns(runs: readonly LaunchRun[]): LaunchModeSumma
 }
 
 export interface LaunchStatsRow {
-  mode: LaunchModeId;
+  mode: "arena" | "octagon";
   rankedMatches: number;
   wins: number;
   scoreTotal: number;
 }
 
-/** Reads `users/{uid}/launch_stats/{mode}` documents; unknown modes are skipped. */
+/**
+ * Reads `users/{uid}/launch_stats/{mode}` documents. Functions write these only
+ * for ranked Arena/Octagon results, so any other id (including a Solitaire doc)
+ * is skipped rather than shown as ranked stats.
+ */
 export function toLaunchStats(docs: readonly LaunchHistoryDoc[]): LaunchStatsRow[] {
   return docs.flatMap((doc) => {
-    if (!isLaunchMode(doc.id)) return [];
+    if (doc.id !== "arena" && doc.id !== "octagon") return [];
     return [{
       mode: doc.id,
       rankedMatches: num(doc.data["rankedMatches"]) ?? 0,

@@ -87,10 +87,11 @@ describe("launch analytics", () => {
     expect(byMode.octagon).toMatchObject({ runs: 0, averageScore: null });
   });
 
-  it("reads launch_stats by mode id and ignores unknown modes", () => {
+  it("reads only ranked-mode launch_stats and ignores Solitaire and unknown modes", () => {
     const stats = toLaunchStats([
       { id: "arena", path: "users/u1/launch_stats/arena", data: { rankedMatches: 3, wins: 1, scoreTotal: 9000 } },
       { id: "party", path: "users/u1/launch_stats/party", data: { rankedMatches: 9 } },
+      { id: "solitaire", path: "users/u1/launch_stats/solitaire", data: { rankedMatches: 4 } },
     ]);
     expect(stats).toEqual([{ mode: "arena", rankedMatches: 3, wins: 1, scoreTotal: 9000 }]);
   });
