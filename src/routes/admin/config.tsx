@@ -1,11 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Badge, Button, Card, CardTitle } from "@/index";
 import { fetchRemoteConfigTopics, saveRemoteConfigTopics } from "@/lib/admin/config.functions";
 import type { CustomParamEntry } from "@/lib/firebase/remote_config.server";
 import { GAME_MODES, modeVisibilityKey, parseModeVisibility, type ModeVisibility } from "@/lib/admin/mode-visibility";
+import {
+  CONFIG_FORM_SECTION_LABELS,
+  changedConfigSections,
+  configFormFromServer,
+  type ConfigForm,
+} from "@/lib/admin/config-form";
 
 export const Route = createFileRoute("/admin/config")({
   head: () => ({ meta: [
@@ -138,38 +144,44 @@ function ConfigPage() {
   const [draggedVariantTopic, setDraggedVariantTopic] = useState<{ vIdx: number; tIdx: number } | null>(null);
   const [dragOverVariantTopic, setDragOverVariantTopic] = useState<{ vIdx: number; tIdx: number } | null>(null);
 
+  // Form state and the dirty check both come from configFormFromServer, so an
+  // unedited form always equals its baseline.
+  const applyServerConfig = useCallback((config: Parameters<typeof configFormFromServer>[0]) => {
+    const form = configFormFromServer(config, DEFAULT_CURATED_TOPICS);
+    setDefaultTopics(form.defaultTopics);
+    setVariants(form.variants);
+    setEnableInterstitialAds(form.enableInterstitialAds);
+    setInterstitialAdFrequency(form.interstitialAdFrequency);
+    setEnableRewardedAds(form.enableRewardedAds);
+    setEnableBannerAds(form.enableBannerAds);
+    setAllowedEmails(form.allowedEmails);
+    setModeVisibility(form.modeVisibility);
+    setCustomParameters(form.customParameters);
+  }, []);
+
   // Populate state when data loads
   useEffect(() => {
     if (data) {
-      setDefaultTopics(
-        data.defaultTopics && data.defaultTopics.length > 0
-          ? data.defaultTopics
-          : DEFAULT_CURATED_TOPICS,
-      );
-      setVariants(data.variants ?? []);
-      setEnableInterstitialAds(data.enableInterstitialAds ?? false);
-      setInterstitialAdFrequency(data.interstitialAdFrequency ?? 3);
-      setEnableRewardedAds(data.enableRewardedAds ?? true);
-      setEnableBannerAds(data.enableBannerAds ?? false);
-      setAllowedEmails(data.allowedEmails ?? []);
-      setModeVisibility(data.modeVisibility ?? parseModeVisibility(undefined));
-      setCustomParameters(data.customParameters ?? {});
+      applyServerConfig(data);
       setEtag(data.etag ?? "");
     }
-  }, [data]);
+  }, [data, applyServerConfig]);
 
-  const hasChanges =
-    Boolean(data) &&
-    (JSON.stringify(defaultTopics) !==
-      JSON.stringify(data?.defaultTopics?.length ? data.defaultTopics : DEFAULT_CURATED_TOPICS) ||
-      JSON.stringify(variants) !== JSON.stringify(data?.variants ?? []) ||
-      enableInterstitialAds !== (data?.enableInterstitialAds ?? false) ||
-      interstitialAdFrequency !== (data?.interstitialAdFrequency ?? 3) ||
-      enableRewardedAds !== (data?.enableRewardedAds ?? true) ||
-      enableBannerAds !== (data?.enableBannerAds ?? false) ||
-      JSON.stringify(allowedEmails) !== JSON.stringify(data?.allowedEmails ?? []) ||
-      JSON.stringify(modeVisibility) !== JSON.stringify(data?.modeVisibility ?? parseModeVisibility(undefined)) ||
-      JSON.stringify(customParameters) !== JSON.stringify(data?.customParameters ?? {}));
+  const currentForm: ConfigForm = {
+    defaultTopics,
+    variants,
+    enableInterstitialAds,
+    interstitialAdFrequency,
+    enableRewardedAds,
+    enableBannerAds,
+    allowedEmails,
+    modeVisibility,
+    customParameters,
+  };
+  const changedSections = data
+    ? changedConfigSections(currentForm, configFormFromServer(data, DEFAULT_CURATED_TOPICS))
+    : [];
+  const hasChanges = changedSections.length > 0;
 
   // Topic Handlers
   function handleAddDefaultTopic() {
@@ -338,6 +350,11 @@ function ConfigPage() {
       });
       setEtag(result.etag);
       setSaveSuccess(true);
+      // The published values are now the baseline, even if the refetch below
+      // is slow or served stale.
+      queryClient.setQueryData(["remote-config-topics"], (old: typeof data) =>
+        old ? { ...old, ...currentForm, etag: result.etag } : old,
+      );
       await queryClient.invalidateQueries({ queryKey: ["remote-config-topics"] });
       setTimeout(() => setSaveSuccess(false), 4000);
     } catch (err: unknown) {
@@ -1268,16 +1285,22 @@ function ConfigPage() {
               <div>
                 <strong style={{ color: "var(--ds-arena-color-primary, #a3e635)" }}>Unpublished changes</strong>
                 <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--ds-arena-color-text-muted)" }}>
-                  You have modified Remote Config settings. Publish to apply to live clients.
+                  Changed: {changedSections.map((section) => CONFIG_FORM_SECTION_LABELS[section]).join(", ")}.
+                  Publish to apply to live clients.
                 </p>
               </div>
-              <Button
-                variant="primary"
-                disabled={isSaving}
-                onClick={handlePublish}
-              >
-                {isSaving ? "Publishing…" : "Publish to Remote Config"}
-              </Button>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <Button variant="ghost" disabled={isSaving} onClick={() => data && applyServerConfig(data)}>
+                  Discard changes
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={isSaving}
+                  onClick={handlePublish}
+                >
+                  {isSaving ? "Publishing…" : "Publish to Remote Config"}
+                </Button>
+              </div>
             </div>
           )}
         </>
