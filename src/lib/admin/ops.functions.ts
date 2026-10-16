@@ -210,6 +210,13 @@ export const fetchPlayer = createServerFn({ method: "POST" }).middleware([authMi
     return getPlayer(data.id);
   });
 
+export const fetchPlayerLaunch = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) => z.object({ id: z.string().regex(/^[^/]{1,128}$/) }).parse(data))
+  .handler(async ({ data }) => {
+    const { getPlayerLaunch } = await import("./ops.server");
+    return getPlayerLaunch(data.id);
+  });
+
 export const togglePremium = createServerFn({ method: "POST" }).middleware([authMiddleware])
   .inputValidator((data: unknown) =>
     z.object({ id: z.string().min(1), isPremium: z.boolean() }).parse(data),
@@ -379,6 +386,13 @@ export const fetchGameAnalytics = createServerFn({ method: "POST" }).middleware(
   .handler(async ({ data }) => {
     const { getGameAnalytics } = await import("./ops.server");
     return getGameAnalytics(data);
+  });
+
+export const fetchLaunchAnalytics = createServerFn({ method: "POST" }).middleware([authMiddleware])
+  .inputValidator((data: unknown) => z.object({ since: z.string().optional() }).parse(data))
+  .handler(async ({ data }) => {
+    const { getLaunchAnalytics } = await import("./ops.server");
+    return getLaunchAnalytics(data);
   });
 
 export const fetchQuestionTelemetry = createServerFn({ method: "POST" }).middleware([authMiddleware])

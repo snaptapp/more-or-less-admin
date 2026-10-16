@@ -16,6 +16,13 @@
  *      marker; nothing above needs to change.
  */
 import { beforeEach, afterEach, vi } from "vitest";
+import {
+  MODE_VISIBILITY_KEYS,
+  applyModeVisibility,
+  modesWithConditionalValues,
+  parseModeVisibility,
+  type ModeVisibility,
+} from "@/lib/admin/mode-visibility";
 
 // ---------------------------------------------------------------------------
 // 1. NetworkAccessError
@@ -1152,6 +1159,7 @@ export function createRemoteConfigDouble(): RemoteConfigDouble {
     enableRewardedAds?: boolean;
     enableBannerAds?: boolean;
     allowedEmails?: string[];
+    modeVisibility?: Partial<ModeVisibility>;
     customParameters?: Record<string, import("@/lib/firebase/remote_config.server").CustomParamEntry>;
   }): void {
     const priorConditionNames = new Set(
@@ -1187,6 +1195,9 @@ export function createRemoteConfigDouble(): RemoteConfigDouble {
         defaultValue: { value: String(config.enableRewardedAds) },
         valueType: "BOOLEAN",
       };
+    }
+    if (config.modeVisibility) {
+      applyModeVisibility(state.parameters, config.modeVisibility);
     }
     if (config.enableBannerAds !== undefined) {
       state.parameters["enable_banner_ads"] = {
@@ -1261,6 +1272,7 @@ export function createRemoteConfigDouble(): RemoteConfigDouble {
         "enable_rewarded_ads",
         "enable_banner_ads",
         "allowed_emails",
+        ...MODE_VISIBILITY_KEYS,
       ]);
       for (const [key, p] of Object.entries(template.parameters ?? {})) {
         if (!knownKeys.has(key)) {
@@ -1280,6 +1292,8 @@ export function createRemoteConfigDouble(): RemoteConfigDouble {
         enableRewardedAds,
         enableBannerAds,
         allowedEmails,
+        modeVisibility: parseModeVisibility(template.parameters),
+        modesWithOverrides: modesWithConditionalValues(template.parameters),
         customParameters,
         etag: template.etag,
         versionNumber: template.version?.versionNumber,
@@ -1341,6 +1355,8 @@ export function createRemoteConfigDouble(): RemoteConfigDouble {
         allowedEmails:
           newConfig.allowedEmails ??
           (state.parameters["allowed_emails"]?.defaultValue?.value ?? "").split(/[\s,]+/).filter(Boolean),
+        modeVisibility: parseModeVisibility(state.parameters),
+        modesWithOverrides: modesWithConditionalValues(state.parameters),
         customParameters,
         etag: currentEtag(),
         versionNumber: String(state.versionNumber),

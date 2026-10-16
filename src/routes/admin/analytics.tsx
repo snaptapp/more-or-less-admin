@@ -4,7 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { Button, Card, CardLabel, CardTitle } from "@/index";
 import { ErrorNote, PageHead } from "@/admin/AdminShell";
-import { fetchGameAnalytics, fetchQuestionTelemetry, flagQuestionTelemetry } from "@/lib/admin/ops.functions";
+import { fetchGameAnalytics, fetchLaunchAnalytics, fetchQuestionTelemetry, flagQuestionTelemetry } from "@/lib/admin/ops.functions";
+import type { LaunchModeSummary } from "@/lib/admin/launch-analytics";
 
 export const Route = createFileRoute("/admin/analytics")({
   head: () => ({
@@ -91,6 +92,72 @@ function Breakdown({
             <span style={{ textAlign: "right" }}>{row.count}</span>
           </div>
         ))}
+      </div>
+    </Card>
+  );
+}
+
+const LAUNCH_MODE_LABELS: Record<LaunchModeSummary["mode"], string> = {
+  solitaire: "Solitaire (self-reported)",
+  arena: "Arena (server-verified)",
+  octagon: "Octagon (server-verified)",
+};
+
+function LaunchModes({
+  rows,
+  total,
+  windowed,
+  indexUnavailable,
+}: {
+  rows: LaunchModeSummary[];
+  total: number;
+  windowed: boolean;
+  indexUnavailable: boolean;
+}) {
+  return (
+    <Card>
+      <CardTitle>Launch modes</CardTitle>
+      <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13 }}>
+        Sample of users/*/launch_history. Wins count ranked events only (two or more humans).
+      </p>
+      {indexUnavailable ? (
+        <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: 0 }}>
+          Collection-group index on launch_history.startedAt is not Enabled yet, so this sample is unordered.
+        </p>
+      ) : null}
+      {windowed ? (
+        <p style={{ color: "var(--ds-arena-color-text-muted)", fontSize: 13, margin: 0 }}>
+          Capped at 500 results. Shorten the window for exact counts.
+        </p>
+      ) : null}
+      {total === 0 ? <p className="admin-empty">No launch-mode results in this window.</p> : null}
+      <div className="admin-table-wrap" style={{ marginTop: "var(--ds-arena-space-3)" }}>
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th scope="col" style={{ textAlign: "left" }}>Mode</th>
+            <th scope="col">Runs</th>
+            <th scope="col">Players</th>
+            <th scope="col">Events</th>
+            <th scope="col">Ranked</th>
+            <th scope="col">Wins</th>
+            <th scope="col">Avg score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.mode} data-testid={`launch-mode-${row.mode}`}>
+              <th scope="row" style={{ textAlign: "left" }}>{LAUNCH_MODE_LABELS[row.mode]}</th>
+              <td data-label="Runs" style={{ textAlign: "center" }}>{row.runs}</td>
+              <td data-label="Players" style={{ textAlign: "center" }}>{row.players}</td>
+              <td data-label="Events" style={{ textAlign: "center" }}>{row.mode === "solitaire" ? "—" : row.events}</td>
+              <td data-label="Ranked" style={{ textAlign: "center" }}>{row.mode === "solitaire" ? "—" : row.rankedRuns}</td>
+              <td data-label="Wins" style={{ textAlign: "center" }}>{row.mode === "solitaire" ? "—" : row.wins}</td>
+              <td data-label="Avg score" style={{ textAlign: "center" }}>{row.averageScore ?? "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       </div>
     </Card>
   );
@@ -227,6 +294,7 @@ function CategoryBreakdown({
 function AnalyticsPage() {
   const load = useServerFn(fetchGameAnalytics);
   const loadQuestions = useServerFn(fetchQuestionTelemetry);
+  const loadLaunch = useServerFn(fetchLaunchAnalytics);
   const flagQuestion = useServerFn(flagQuestionTelemetry);
   const [days, setDays] = useState(7);
   const [deletedCategories, setDeletedCategories] = useState<string[]>([]);
@@ -246,6 +314,11 @@ function AnalyticsPage() {
   const query = useQuery({
     queryKey: ["analytics", days],
     queryFn: () => load({ data: { since: since(days) } }),
+    retry: false,
+  });
+  const launch = useQuery({
+    queryKey: ["launch-analytics", days],
+    queryFn: () => loadLaunch({ data: { since: since(days) } }),
     retry: false,
   });
   const questions = useQuery({
@@ -319,6 +392,15 @@ function AnalyticsPage() {
             />
           </div>
           <Breakdown title="Verified vs unverified" rows={data.byVerified} total={data.total} />
+          <ErrorNote error={launch.error} />
+          {launch.data ? (
+            <LaunchModes
+              rows={launch.data.byMode}
+              total={launch.data.total}
+              windowed={launch.data.windowed}
+              indexUnavailable={launch.data.indexUnavailable}
+            />
+          ) : null}
           <CategoryBreakdown
             rows={data.byCategory}
             deleted={deletedCategories}

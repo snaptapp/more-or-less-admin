@@ -4,6 +4,14 @@
  */
 
 import { getAccessToken, getServiceAccount } from "./credentials.server";
+import {
+  MODE_VISIBILITY_KEYS,
+  applyModeVisibility,
+  modesWithConditionalValues,
+  parseModeVisibility,
+  type GameModeId,
+  type ModeVisibility,
+} from "@/lib/admin/mode-visibility";
 
 const REMOTE_CONFIG_SCOPE = "https://www.googleapis.com/auth/firebase.remoteconfig";
 
@@ -58,6 +66,9 @@ export interface TopicSuggestionConfig {
   enableRewardedAds: boolean;
   enableBannerAds: boolean;
   allowedEmails: string[];
+  // Client mode visibility (`mode_<id>_visible`)
+  modeVisibility: ModeVisibility;
+  modesWithOverrides: GameModeId[];
   // Dynamic custom parameters
   customParameters: Record<string, CustomParamEntry>;
   etag: string;
@@ -79,6 +90,7 @@ export interface RemoteConfigPublishInput {
   enableRewardedAds?: boolean;
   enableBannerAds?: boolean;
   allowedEmails?: string[];
+  modeVisibility?: Partial<ModeVisibility>;
   customParameters?: Record<string, CustomParamEntry>;
 }
 
@@ -90,6 +102,7 @@ const KNOWN_PARAM_KEYS = new Set([
   "enable_rewarded_ads",
   "enable_banner_ads",
   "allowed_emails",
+  ...MODE_VISIBILITY_KEYS,
 ]);
 
 const VALID_TAG_COLORS = new Set([
@@ -228,6 +241,8 @@ export async function getTopicSuggestionsConfig(): Promise<TopicSuggestionConfig
     enableRewardedAds,
     enableBannerAds,
     allowedEmails,
+    modeVisibility: parseModeVisibility(template.parameters),
+    modesWithOverrides: modesWithConditionalValues(template.parameters),
     customParameters,
     etag: template.etag,
     versionNumber: template.version?.versionNumber,
@@ -322,6 +337,10 @@ export async function publishTopicSuggestionsConfig(
     };
   }
 
+  if (newConfig.modeVisibility) {
+    applyModeVisibility(template.parameters, newConfig.modeVisibility);
+  }
+
   // Merge custom dynamic parameters if provided
   if (newConfig.customParameters) {
     for (const [key, customParam] of Object.entries(newConfig.customParameters)) {
@@ -411,6 +430,8 @@ export async function publishTopicSuggestionsConfig(
       (updatedTemplate.parameters?.["allowed_emails"]?.defaultValue?.value ?? "")
         .split(/[\s,]+/)
         .filter(Boolean),
+    modeVisibility: parseModeVisibility(updatedTemplate.parameters),
+    modesWithOverrides: modesWithConditionalValues(updatedTemplate.parameters),
     customParameters: currentCustomParams,
     etag: newEtag,
     versionNumber: updatedTemplate.version?.versionNumber,

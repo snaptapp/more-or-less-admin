@@ -18,6 +18,7 @@ import type { AdminUser } from "../firebase/verify.server";
 import { sanitizeDraftRounds } from "./daily-blitz";
 import { STATUS } from "./contract";
 import { GENRES, validateTaxonomy } from "./taxonomy";
+import { summarizeLaunchRuns, toLaunchRun, toLaunchStats, type LaunchRun } from "./launch-analytics";
 
 function str(value: Json | undefined): string {
   return typeof value === "string" ? value : "";
@@ -791,6 +792,23 @@ export async function getPlayer(id: string): Promise<PlayerRecord | null> {
   };
 }
 
+/**
+ * A player's launch-mode aggregates and most recent results. Both collections
+ * are written by Functions only; this is a read. Ordering by startedAt on a
+ * single subcollection uses the automatic single-field index.
+ */
+export async function getPlayerLaunch(id: string) {
+  if (!/^[^/]{1,128}$/.test(id)) throw new Error("Invalid player id");
+  const [stats, history] = await Promise.all([
+    listDocs(`users/${id}/launch_stats`, { pageSize: 10 }),
+    listDocs(`users/${id}/launch_history`, { pageSize: 20, orderBy: "startedAt desc" }),
+  ]);
+  return {
+    stats: toLaunchStats(stats.docs),
+    recent: history.docs.map(toLaunchRun).filter((run): run is LaunchRun => run !== null),
+  };
+}
+
 export async function setPremium(input: { id: string; isPremium: boolean }, adminUser?: AdminUser) {
   // Resolve the player's email to write to the canonical entitlements/{email} doc.
   const doc = await getDoc(`users/${input.id}`);
@@ -1291,6 +1309,55 @@ export async function getGameAnalytics(input: { since?: string }) {
     byLobby: tallyClassified("label", (row) => row.lobby !== null),
     byCategory: tally("category"),
     byVerified: tallyBool("verified", "verified", "unverified"),
+  };
+}
+
+/**
+ * Launch-mode results from users/{uid}/launch_history (collection group).
+ * `startedAt` is epoch milliseconds. Like game analytics, a missing
+ * COLLECTION_GROUP index degrades to an unordered sample filtered in memory.
+ */
+export async function getLaunchAnalytics(input: { since?: string }) {
+  const sinceMs = input.since ? Date.parse(input.since) : NaN;
+  const filters = Number.isFinite(sinceMs)
+    ? [{ field: "startedAt" as const, op: "GREATER_THAN_OR_EQUAL" as const, value: sinceMs }]
+    : [];
+  const newestFirst = { field: "startedAt" as const, direction: "DESCENDING" as const };
+  const attempts = [
+    { orderBy: newestFirst, useFilters: true },
+    { orderBy: undefined, useFilters: true },
+    { orderBy: newestFirst, useFilters: false },
+    { orderBy: undefined, useFilters: false },
+  ];
+
+  let docs: FirestoreDoc[] = [];
+  let indexUnavailable = true;
+  for (const attempt of attempts) {
+    try {
+      docs = await runQuery({
+        collection: "launch_history",
+        allDescendants: true,
+        filters: attempt.useFilters ? filters : [],
+        ...(attempt.orderBy ? { orderBy: attempt.orderBy } : {}),
+        limit: 500,
+      });
+      indexUnavailable = !attempt.useFilters && filters.length > 0;
+      break;
+    } catch (error) {
+      if (!isFirestoreIndexError(error)) throw error;
+    }
+  }
+
+  const runs = docs
+    .map(toLaunchRun)
+    .filter((run): run is LaunchRun => run !== null)
+    .filter((run) => !Number.isFinite(sinceMs) || run.startedAt >= sinceMs);
+
+  return {
+    total: runs.length,
+    windowed: docs.length >= 500,
+    indexUnavailable,
+    byMode: summarizeLaunchRuns(runs),
   };
 }
 

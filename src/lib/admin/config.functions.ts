@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "./middleware";
+import { GAME_MODE_IDS } from "./mode-visibility";
 
 const VariantSchema = z.object({
   conditionName: z.string().min(1),
@@ -31,6 +32,7 @@ const SaveConfigInputSchema = z.object({
   enableRewardedAds: z.boolean().optional(),
   enableBannerAds: z.boolean().optional(),
   allowedEmails: z.array(z.string()).optional(),
+  modeVisibility: z.object(Object.fromEntries(GAME_MODE_IDS.map((id) => [id, z.boolean()])) as Record<(typeof GAME_MODE_IDS)[number], z.ZodBoolean>).partial().strict().optional(),
   customParameters: z.record(CustomParamSchema).optional(),
   etag: z.string(),
 });
@@ -59,6 +61,7 @@ export const saveRemoteConfigTopics = createServerFn({ method: "POST" })
         enableRewardedAds: data.enableRewardedAds,
         enableBannerAds: data.enableBannerAds,
         allowedEmails: data.allowedEmails,
+        modeVisibility: data.modeVisibility,
         customParameters: data.customParameters,
       },
       data.etag,
@@ -78,6 +81,7 @@ export const saveRemoteConfigTopics = createServerFn({ method: "POST" })
         enableRewardedAds: updated.enableRewardedAds,
         enableBannerAds: updated.enableBannerAds,
         allowedEmails: updated.allowedEmails,
+        modeVisibility: updated.modeVisibility,
         customParameters: updated.customParameters,
         versionNumber: updated.versionNumber,
       },
