@@ -79,7 +79,9 @@ const FIXTURE_SOURCE_FILES = new Set([
  * their producers; the sync command must not copy them into Admin.
  */
 const COVERAGE_ONLY_SOURCE_FILES = new Set([
+  ".github/scripts/check-fact-bank-baseline.mjs",
   ".github/scripts/open-hydration-pr.sh",
+  ".github/scripts/prepare-hydration-pr-body.mjs",
   ".github/scripts/verify-fact-bank-publication.mjs",
   ".github/workflows/fact-foundry.yml",
   "agent-go/ddm_implementation_gen.go",
@@ -98,7 +100,6 @@ const COVERAGE_ONLY_SOURCE_FILES = new Set([
   "agent-go/derivation_schema.go",
   "agent-go/derivation_snapping.go",
   "agent-go/derivation_statement_gate.go",
-  "agent-go/derivation_statement_inflect.go",
   "agent-go/derivation_statement_policy.go",
   "agent-go/derivation_statement_scan.go",
   "agent-go/derivation_strategy.go",
@@ -114,6 +115,7 @@ const COVERAGE_ONLY_SOURCE_FILES = new Set([
   "agent-go/factquality_audit.go",
   "agent-go/factquality_audit_store.go",
   "agent-go/factquality_bank_compare.go",
+  "agent-go/factquality_baseline_compare.go",
   "agent-go/factquality_cli.go",
   "agent-go/factquality_cmd.go",
   "agent-go/factquality_constraints.go",

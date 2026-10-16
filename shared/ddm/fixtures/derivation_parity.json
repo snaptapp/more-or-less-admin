@@ -475,7 +475,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 31,
+          "mantissa": 30,
           "scale": 0
         },
         "true_number": {
@@ -484,7 +484,7 @@
           "scale": 0
         },
         "normalized_unit": "stars",
-        "quantity_kind": "count",
+        "quantity_kind": "rating",
         "surprise_factor": 1,
         "magnitude_scale": 1,
         "trap_direction": "UNDERESTIMATE",
@@ -500,7 +500,7 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 31,
+          "mantissa": 30,
           "scale": 0
         },
         "correct_direction": "MORE",
@@ -2214,7 +2214,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 120,
+          "mantissa": 69,
           "scale": 0
         },
         "true_number": {
@@ -2239,7 +2239,7 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 120,
+          "mantissa": 69,
           "scale": 0
         },
         "correct_direction": "LESS",
@@ -2402,7 +2402,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 110,
+          "mantissa": 67,
           "scale": 0
         },
         "true_number": {
@@ -2427,7 +2427,7 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 110,
+          "mantissa": 67,
           "scale": 0
         },
         "correct_direction": "LESS",
@@ -3867,270 +3867,6 @@
   ],
   "statement_cases": [
     {
-      "name": "statement_governed_rewrite_strict",
-      "notes": "governed literal rewritten to presented; consistent under strict",
-      "statement": "The bridge spans 350 meters.",
-      "truth": {
-        "negative": false,
-        "mantissa": 500,
-        "scale": 0
-      },
-      "presented": {
-        "negative": false,
-        "mantissa": 200,
-        "scale": 0
-      },
-      "policy": "strict",
-      "expected": {
-        "ok": true,
-        "policy": "strict",
-        "reason": "",
-        "statement": "The bridge spans 200 meters."
-      }
-    },
-    {
-      "name": "statement_truth_leak_rewritten_strict",
-      "notes": "a literal equal to truth is forbidden and rewritten under strict",
-      "statement": "Was 500, now 350 give or take.",
-      "truth": {
-        "negative": false,
-        "mantissa": 500,
-        "scale": 0
-      },
-      "presented": {
-        "negative": false,
-        "mantissa": 200,
-        "scale": 0
-      },
-      "policy": "strict",
-      "expected": {
-        "ok": true,
-        "policy": "strict",
-        "reason": "",
-        "statement": "Was 200, now 200 gives or take."
-      }
-    },
-    {
-      "name": "statement_no_numbers_strict",
-      "notes": "a statement with no numeric literals is consistent under strict",
-      "statement": "This statement mentions no numbers at all.",
-      "truth": {
-        "negative": false,
-        "mantissa": 5,
-        "scale": 0
-      },
-      "presented": {
-        "negative": false,
-        "mantissa": 3,
-        "scale": 0
-      },
-      "policy": "strict",
-      "expected": {
-        "ok": true,
-        "policy": "strict",
-        "reason": "",
-        "statement": "This statement mentions no numbers at all."
-      }
-    },
-    {
-      "name": "statement_unrecoverable_truth_equals_presented_strict",
-      "notes": "truth equals presented is unrecoverable under strict",
-      "statement": "The value is 42 units.",
-      "truth": {
-        "negative": false,
-        "mantissa": 42,
-        "scale": 0
-      },
-      "presented": {
-        "negative": false,
-        "mantissa": 42,
-        "scale": 0
-      },
-      "policy": "strict",
-      "expected": {
-        "ok": false,
-        "policy": "strict",
-        "reason": "STATEMENT_UNRECOVERABLE",
-        "statement": "The value is 42 units."
-      }
-    },
-    {
-      "name": "statement_grammar_singular_strict",
-      "notes": "presented value 1 forces singular noun under strict",
-      "statement": "There are 5 dogs in the yard.",
-      "truth": {
-        "negative": false,
-        "mantissa": 5,
-        "scale": 0
-      },
-      "presented": {
-        "negative": false,
-        "mantissa": 1,
-        "scale": 0
-      },
-      "policy": "strict",
-      "expected": {
-        "ok": true,
-        "policy": "strict",
-        "reason": "",
-        "statement": "There are 1 dog in the yard."
-      }
-    },
-    {
-      "name": "statement_governed_rewrite_governed_incidental",
-      "notes": "governed literal rewritten to presented; consistent under governed_incidental",
-      "statement": "The bridge spans 350 meters.",
-      "truth": {
-        "negative": false,
-        "mantissa": 500,
-        "scale": 0
-      },
-      "presented": {
-        "negative": false,
-        "mantissa": 200,
-        "scale": 0
-      },
-      "policy": "governed_incidental",
-      "expected": {
-        "ok": true,
-        "policy": "governed_incidental",
-        "reason": "",
-        "statement": "The bridge spans 200 meters."
-      }
-    },
-    {
-      "name": "statement_truth_leak_rewritten_governed_incidental",
-      "notes": "a literal equal to truth is forbidden and rewritten under governed_incidental",
-      "statement": "Was 500, now 350 give or take.",
-      "truth": {
-        "negative": false,
-        "mantissa": 500,
-        "scale": 0
-      },
-      "presented": {
-        "negative": false,
-        "mantissa": 200,
-        "scale": 0
-      },
-      "policy": "governed_incidental",
-      "expected": {
-        "ok": true,
-        "policy": "governed_incidental",
-        "reason": "",
-        "statement": "Was 200, now 200 gives or take."
-      }
-    },
-    {
-      "name": "statement_no_numbers_governed_incidental",
-      "notes": "a statement with no numeric literals is consistent under governed_incidental",
-      "statement": "This statement mentions no numbers at all.",
-      "truth": {
-        "negative": false,
-        "mantissa": 5,
-        "scale": 0
-      },
-      "presented": {
-        "negative": false,
-        "mantissa": 3,
-        "scale": 0
-      },
-      "policy": "governed_incidental",
-      "expected": {
-        "ok": true,
-        "policy": "governed_incidental",
-        "reason": "",
-        "statement": "This statement mentions no numbers at all."
-      }
-    },
-    {
-      "name": "statement_unrecoverable_truth_equals_presented_governed_incidental",
-      "notes": "truth equals presented is unrecoverable under governed_incidental",
-      "statement": "The value is 42 units.",
-      "truth": {
-        "negative": false,
-        "mantissa": 42,
-        "scale": 0
-      },
-      "presented": {
-        "negative": false,
-        "mantissa": 42,
-        "scale": 0
-      },
-      "policy": "governed_incidental",
-      "expected": {
-        "ok": false,
-        "policy": "governed_incidental",
-        "reason": "STATEMENT_UNRECOVERABLE",
-        "statement": "The value is 42 units."
-      }
-    },
-    {
-      "name": "statement_grammar_singular_governed_incidental",
-      "notes": "presented value 1 forces singular noun under governed_incidental",
-      "statement": "There are 5 dogs in the yard.",
-      "truth": {
-        "negative": false,
-        "mantissa": 5,
-        "scale": 0
-      },
-      "presented": {
-        "negative": false,
-        "mantissa": 1,
-        "scale": 0
-      },
-      "policy": "governed_incidental",
-      "expected": {
-        "ok": true,
-        "policy": "governed_incidental",
-        "reason": "",
-        "statement": "There are 1 dog in the yard."
-      }
-    },
-    {
-      "name": "statement_incidental_apollo_strict",
-      "notes": "strict rewrites the incidental 11 in 'Apollo 11'",
-      "statement": "Apollo 11 carried 12 astronauts on that mission.",
-      "truth": {
-        "negative": false,
-        "mantissa": 3,
-        "scale": 0
-      },
-      "presented": {
-        "negative": false,
-        "mantissa": 12,
-        "scale": 0
-      },
-      "policy": "strict",
-      "expected": {
-        "ok": true,
-        "policy": "strict",
-        "reason": "",
-        "statement": "Apollo 12 carried 12 astronauts on that mission."
-      }
-    },
-    {
-      "name": "statement_incidental_apollo_governed",
-      "notes": "governed_incidental may keep the incidental 11 in 'Apollo 11'",
-      "statement": "Apollo 11 carried 12 astronauts on that mission.",
-      "truth": {
-        "negative": false,
-        "mantissa": 3,
-        "scale": 0
-      },
-      "presented": {
-        "negative": false,
-        "mantissa": 12,
-        "scale": 0
-      },
-      "policy": "governed_incidental",
-      "expected": {
-        "ok": true,
-        "policy": "governed_incidental",
-        "reason": "",
-        "statement": "Apollo 11 carried 12 astronauts on that mission."
-      }
-    },
-    {
       "name": "statement_numberless_drop_clean",
       "notes": "numberless_drop keeps a numberless claim unchanged",
       "statement": "Number of vertebrae in a giraffe's neck",
@@ -4216,6 +3952,28 @@
         "policy": "numberless_drop",
         "reason": "",
         "statement": "Apollo 11 flew 12 missions worth of crew."
+      }
+    },
+    {
+      "name": "statement_unrecoverable_truth_equals_presented_numberless_drop",
+      "notes": "truth equals presented is unrecoverable under numberless_drop",
+      "statement": "Number of vertebrae in a giraffe's neck",
+      "truth": {
+        "negative": false,
+        "mantissa": 42,
+        "scale": 0
+      },
+      "presented": {
+        "negative": false,
+        "mantissa": 42,
+        "scale": 0
+      },
+      "policy": "numberless_drop",
+      "expected": {
+        "ok": false,
+        "policy": "numberless_drop",
+        "reason": "STATEMENT_UNRECOVERABLE",
+        "statement": "Number of vertebrae in a giraffe's neck"
       }
     }
   ]

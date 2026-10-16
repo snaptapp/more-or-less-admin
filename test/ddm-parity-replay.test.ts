@@ -497,10 +497,10 @@ describe("derivation_cross_runtime.json replay", () => {
     expect(CROSS_RUNTIME_FIXTURE.rows).toHaveLength(231);
     expect(
       CROSS_RUNTIME_FIXTURE.rows.filter(({ expected }) => expected.outcome === "success"),
-    ).toHaveLength(188);
+    ).toHaveLength(186);
     expect(
       CROSS_RUNTIME_FIXTURE.rows.filter(({ expected }) => expected.outcome === "abstain"),
-    ).toHaveLength(43);
+    ).toHaveLength(45);
     expect(mismatches, mismatches.join("\n")).toEqual([]);
     expect(blockedNetworkAttempts()).toEqual([]);
   });

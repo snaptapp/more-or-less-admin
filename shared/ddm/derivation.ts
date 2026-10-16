@@ -2530,14 +2530,10 @@ export {
 } from "./derivation_resolve";
 
 // ---------------------------------------------------------------------------
-// Task 9.5 Statement Consistency Gate (scanner + classifier, generated
-// inflection + grammar correction, policy-parameterized rewrite/revalidation,
-// and the pinned production-policy build guard) — implemented in the
+// Task 9.5 Statement Consistency Gate (scanner + classifier, numberless-drop
+// gate, and the pinned production-policy build guard) — implemented in the
 // co-located module derivation_statement.ts and re-exported here so the DDM
-// presents a single import surface. That module consumes ONLY the generated
-// unit tables (unit_tables_gen.ts) statement_inflection block and the exact
-// kernel; the production selector is pinned to numberless_drop and the module
-// is live in production via the task 16.5 cutover.
+// presents a single import surface.
 // ---------------------------------------------------------------------------
 
 export {
@@ -2548,16 +2544,10 @@ export {
   type StatementLiteral,
   type StatementLiteralClass,
   type StatementScan,
-  // inflection + grammar correction (task 7.2 port)
-  stmtInflectValueIsSingular,
-  stmtInflectNoun,
-  stmtInflectNounForValue,
-  // policy-parameterized rewrite + revalidation (task 7.3 port)
+  // statement gate (task 7.3 port)
   stmtGateApply,
   stmtGateContainsValue,
   stmtGateValidPolicy,
-  StmtGateStrict,
-  StmtGateGovernedIncidental,
   StmtGateNumberlessDrop,
   type StmtGatePolicy,
   type StmtGateResult,

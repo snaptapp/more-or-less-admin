@@ -546,6 +546,7 @@ function describeBand(context: ResolvedAuditContext): Omit<DerivationAuditTrace[
     context.kind as KernelQuantityKind,
     context.canonicalSurprise,
     context.magnitudeScale,
+    context.trueFixed,
   );
   const band = composed.band;
   const multiplicative = band.strategy === "multiplicative";

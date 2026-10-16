@@ -3319,7 +3319,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 110,
+          "mantissa": 68,
           "scale": 0
         },
         "true_number": {
@@ -3344,7 +3344,7 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 110,
+          "mantissa": 68,
           "scale": 0
         },
         "correct_direction": "LESS",

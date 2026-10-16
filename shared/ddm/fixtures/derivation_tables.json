@@ -128,7 +128,7 @@
   },
 
   "bounds_defaults": {
-    "$comment": "Deterministic kind-derived plausibility bounds used only when no valid Fact Bank or model bounds_hint survives. `mult_lo_permille`/`mult_hi_permille` derive bounds multiplicatively from |true| for unbounded kinds; `zero_default_max` provides the default upper bound when true_number == 0 so zero-value additive distractors fit within plausibility bounds; fixed_min/fixed_max apply for kinds with a fixed scale. A resolved pair must satisfy plausible_min <= true_number <= plausible_max; otherwise the model abstains with BOUNDS_INCOHERENT. `year.retrospective_ceiling` fixes the normative upper bound for retrospective past milestones (true_number <= retrospective_ceiling) so past events never generate absurd future-year decoys; it is bumped each January by the repo maintainers alongside gen_derivation_tables.mjs. Future-dated events (true_number > retrospective_ceiling) remain unclamped.",
+    "$comment": "Deterministic kind-derived plausibility bounds used only when no valid Fact Bank or model bounds_hint survives. `mult_lo_permille`/`mult_hi_permille` derive bounds multiplicatively from |true| for unbounded kinds; `zero_default_max` provides the default upper bound when true_number == 0 so zero-value additive distractors fit within plausibility bounds; fixed_min/fixed_max apply for kinds with a fixed scale (with optional mult_lo_permille/mult_hi_permille fallback when true_number exceeds fixed_max, e.g. rating > 10). A resolved pair must satisfy plausible_min <= true_number <= plausible_max; otherwise the model abstains with BOUNDS_INCOHERENT. `year.retrospective_ceiling` fixes the normative upper bound for retrospective past milestones (true_number <= retrospective_ceiling) so past events never generate absurd future-year decoys; it is updated at generation time by scripts/gen_derivation_tables.mjs. Future-dated events (true_number > retrospective_ceiling) remain unclamped.",
     "year": { "mode": "additive_window", "window_below": 150, "window_above": 150, "hard_floor": 1, "hard_ceiling": 3000, "retrospective_ceiling": 2026 },
     "count": { "mode": "multiplicative", "mult_lo_permille": 100, "mult_hi_permille": 8000, "hard_floor": 0, "floor_min_to_integer": true, "zero_default_max": 50 },
     "percentage": { "mode": "fixed", "fixed_min": 0, "fixed_max": 100, "scale": 1 },
@@ -137,7 +137,7 @@
     "physical_measure": { "mode": "multiplicative", "mult_lo_permille": 100, "mult_hi_permille": 10000, "zero_default_max": 100 },
     "money": { "mode": "multiplicative", "mult_lo_permille": 100, "mult_hi_permille": 10000, "zero_default_max": 1000 },
     "duration": { "mode": "multiplicative", "mult_lo_permille": 100, "mult_hi_permille": 10000, "zero_default_max": 10 },
-    "rating": { "mode": "fixed", "fixed_min": 0, "fixed_max": 10, "scale": 1 }
+    "rating": { "mode": "fixed", "fixed_min": 0, "fixed_max": 10, "scale": 1, "mult_lo_permille": 100, "mult_hi_permille": 8000, "hard_floor": 0 }
   },
 
   "unit_bounds_overrides": {
@@ -155,7 +155,7 @@
     "physical_measure": { "min_inclusive": null, "max_inclusive": null, "integer_only": false },
     "money": { "min_inclusive": 0, "max_inclusive": null, "integer_only": false },
     "duration": { "min_inclusive": 0, "max_inclusive": null, "integer_only": false },
-    "rating": { "min_inclusive": 0, "max_inclusive": 10, "integer_only": false, "scale": 1 }
+    "rating": { "min_inclusive": 0, "max_inclusive": null, "integer_only": false, "scale": 1 }
   },
 
   "dead_zones": {

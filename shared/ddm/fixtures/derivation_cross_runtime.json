@@ -3971,7 +3971,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 2,
+          "mantissa": 4,
           "scale": 1
         },
         "true_number": {
@@ -3996,12 +3996,12 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 2,
+          "mantissa": 4,
           "scale": 1
         },
         "correct_direction": "LESS",
         "source": "live",
-        "remedy_stage": "opposite_side"
+        "remedy_stage": "opposite_bound_derived"
       }
     },
     {
@@ -4019,13 +4019,10 @@
         "surprise_factor": 2
       },
       "expected": {
-        "outcome": "success",
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "0.071",
         "fixed_point_value": {
-          "negative": false,
-          "mantissa": 2,
-          "scale": 1
-        },
-        "true_number": {
           "negative": false,
           "mantissa": 71,
           "scale": 3
@@ -4044,15 +4041,7 @@
           "negative": false,
           "mantissa": 1000,
           "scale": 0
-        },
-        "presented_number": {
-          "negative": false,
-          "mantissa": 2,
-          "scale": 1
-        },
-        "correct_direction": "LESS",
-        "source": "live",
-        "remedy_stage": "opposite_side"
+        }
       }
     },
     {
@@ -6655,7 +6644,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 2,
+          "mantissa": 6,
           "scale": 1
         },
         "true_number": {
@@ -6680,12 +6669,12 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 2,
+          "mantissa": 6,
           "scale": 1
         },
         "correct_direction": "LESS",
         "source": "live",
-        "remedy_stage": "opposite_side"
+        "remedy_stage": "opposite_bound_derived"
       }
     },
     {
@@ -6703,13 +6692,10 @@
         "surprise_factor": 2
       },
       "expected": {
-        "outcome": "success",
+        "outcome": "abstain",
+        "reason": "NO_CANDIDATE_PASSES_GATE",
+        "incoming_numeric_token": "7E-2",
         "fixed_point_value": {
-          "negative": false,
-          "mantissa": 2,
-          "scale": 1
-        },
-        "true_number": {
           "negative": false,
           "mantissa": 7,
           "scale": 2
@@ -6728,15 +6714,7 @@
           "negative": false,
           "mantissa": 1000,
           "scale": 0
-        },
-        "presented_number": {
-          "negative": false,
-          "mantissa": 2,
-          "scale": 1
-        },
-        "correct_direction": "LESS",
-        "source": "live",
-        "remedy_stage": "opposite_side"
+        }
       }
     },
     {
@@ -8263,7 +8241,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 1500,
+          "mantissa": 1300,
           "scale": 0
         },
         "true_number": {
@@ -8288,7 +8266,7 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 1500,
+          "mantissa": 1300,
           "scale": 0
         },
         "correct_direction": "LESS",
@@ -8468,7 +8446,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 1600,
+          "mantissa": 1400,
           "scale": 0
         },
         "true_number": {
@@ -8493,7 +8471,7 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 1600,
+          "mantissa": 1400,
           "scale": 0
         },
         "correct_direction": "LESS",
@@ -8675,7 +8653,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 1400,
+          "mantissa": 1300,
           "scale": 0
         },
         "true_number": {
@@ -8700,7 +8678,7 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 1400,
+          "mantissa": 1300,
           "scale": 0
         },
         "correct_direction": "LESS",
@@ -9703,7 +9681,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 1700,
+          "mantissa": 1400,
           "scale": 0
         },
         "true_number": {
@@ -9728,7 +9706,7 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 1700,
+          "mantissa": 1400,
           "scale": 0
         },
         "correct_direction": "LESS",
@@ -9857,7 +9835,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 53,
+          "mantissa": 51,
           "scale": 0
         },
         "true_number": {
@@ -9882,7 +9860,7 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 53,
+          "mantissa": 51,
           "scale": 0
         },
         "correct_direction": "LESS",
@@ -9963,7 +9941,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 970,
+          "mantissa": 740,
           "scale": 0
         },
         "true_number": {
@@ -9988,7 +9966,7 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 970,
+          "mantissa": 740,
           "scale": 0
         },
         "correct_direction": "LESS",
@@ -10121,7 +10099,7 @@
         "outcome": "success",
         "fixed_point_value": {
           "negative": false,
-          "mantissa": 730,
+          "mantissa": 660,
           "scale": 0
         },
         "true_number": {
@@ -10146,7 +10124,7 @@
         },
         "presented_number": {
           "negative": false,
-          "mantissa": 730,
+          "mantissa": 660,
           "scale": 0
         },
         "correct_direction": "LESS",

@@ -3,7 +3,7 @@
 // Source of truth:
 //   tests/fixtures/unit_tables.json
 //   tests/fixtures/derivation_tables.json
-// unit classification, inference, inflection
+// unit classification and inference
 
 export const UNIT_TABLES = {
   "calendar_year_window": {
@@ -217,85 +217,13 @@ export const UNIT_TABLES = {
     "rating"
   ],
   "schema_version": 1,
-  "statement_inflection": {
-    "default_pluralization_rules": [
-      {
-        "append": "es",
-        "id": "es_after_sibilant",
-        "order": 0,
-        "suffix_any": [
-          "s",
-          "x",
-          "z",
-          "ch",
-          "sh"
-        ]
-      },
-      {
-        "id": "ies_after_consonant_y",
-        "order": 1,
-        "replace_suffix": "y",
-        "suffix_regex": "[bcdfghjklmnpqrstvwxz]y$",
-        "with": "ies"
-      },
-      {
-        "append": "s",
-        "id": "default_s",
-        "order": 2
-      }
-    ],
-    "invariant": [
-      "series",
-      "species",
-      "sheep",
-      "fish",
-      "deer",
-      "aircraft",
-      "spacecraft",
-      "offspring",
-      "percent",
-      "hertz"
-    ],
-    "irregular": {
-      "analysis": "analyses",
-      "cactus": "cacti",
-      "child": "children",
-      "crisis": "crises",
-      "criterion": "criteria",
-      "datum": "data",
-      "focus": "foci",
-      "foot": "feet",
-      "fungus": "fungi",
-      "goose": "geese",
-      "half": "halves",
-      "index": "indices",
-      "knife": "knives",
-      "leaf": "leaves",
-      "life": "lives",
-      "loaf": "loaves",
-      "man": "men",
-      "matrix": "matrices",
-      "mouse": "mice",
-      "nucleus": "nuclei",
-      "person": "people",
-      "phenomenon": "phenomena",
-      "tooth": "teeth",
-      "vertebra": "vertebrae",
-      "vertex": "vertices",
-      "wolf": "wolves",
-      "woman": "women"
-    },
-    "singular_value": 1
-  },
   "uniqueness_constraints": {
     "exact_unit_map": "distinct_normalized_keys",
     "inference_rule_id": "distinct",
     "inference_rule_kind_in_closed_set": true,
     "inference_rule_order": "distinct_contiguous_from_zero",
     "negative_admitting_kinds_partition": "admitting_and_non_admitting_are_disjoint_and_cover_closed_set",
-    "quantity_kinds": "distinct_members",
-    "statement_invariant": "distinct_members",
-    "statement_irregular": "distinct_singular_keys"
+    "quantity_kinds": "distinct_members"
   },
   "unit_classification": {
     "exact": {
