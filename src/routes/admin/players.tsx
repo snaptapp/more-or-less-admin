@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Fragment, useState } from "react";
 import { Badge, Button, Card, CardTitle } from "@/index";
 import { ErrorNote, InlineEditorRow, PageHead } from "@/admin/AdminShell";
-import { fetchPlayer, fetchPlayers, togglePremium } from "@/lib/admin/ops.functions";
+import { fetchPlayer, fetchPlayerLaunch, fetchPlayers, togglePremium } from "@/lib/admin/ops.functions";
 
 export const Route = createFileRoute("/admin/players")({
   head: () => ({
@@ -19,6 +19,78 @@ export const Route = createFileRoute("/admin/players")({
   }),
   component: PlayersPage,
 });
+
+const LAUNCH_LABELS = { solitaire: "Solitaire", arena: "Arena", octagon: "Octagon" } as const;
+
+function PlayerLaunch({ id }: { id: string }) {
+  const load = useServerFn(fetchPlayerLaunch);
+  const query = useQuery({
+    queryKey: ["player-launch", id],
+    queryFn: () => load({ data: { id } }),
+    retry: false,
+  });
+  const data = query.data;
+
+  return (
+    <section aria-label="Launch modes" style={{ marginTop: "var(--ds-arena-space-4)" }}>
+      <CardTitle>Launch modes</CardTitle>
+      <ErrorNote error={query.error} />
+      {query.isLoading ? <p className="admin-empty">Loading launch results…</p> : null}
+      {data ? (
+        <>
+          {data.stats.length === 0 ? (
+            <p className="admin-empty">No ranked Arena or Octagon matches.</p>
+          ) : (
+            <dl className="admin-kv">
+              {data.stats.map((row) => (
+                <Fragment key={row.mode}>
+                  <dt>{LAUNCH_LABELS[row.mode]} ranked</dt>
+                  <dd>
+                    {row.rankedMatches} matches · {row.wins} wins · {row.scoreTotal} total score
+                  </dd>
+                </Fragment>
+              ))}
+            </dl>
+          )}
+          {data.recent.length === 0 ? (
+            <p className="admin-empty">No launch-mode results yet.</p>
+          ) : (
+            <div className="admin-table-wrap" style={{ marginTop: "var(--ds-arena-space-3)" }}>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Mode</th>
+                    <th>Started</th>
+                    <th>Score</th>
+                    <th>Rank</th>
+                    <th>Outcome</th>
+                    <th>Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.recent.map((run) => (
+                    <tr key={run.id}>
+                      <td data-label="Mode">{LAUNCH_LABELS[run.mode]}</td>
+                      <td data-label="Started">{new Date(run.startedAt).toISOString()}</td>
+                      <td data-label="Score">{run.score}</td>
+                      <td data-label="Rank">
+                        {run.rank !== null && run.humanCount !== null
+                          ? `#${run.rank}${run.ranked ? "" : " (practice)"}`
+                          : "—"}
+                      </td>
+                      <td data-label="Outcome">{run.win ? `${run.outcome} (win)` : run.outcome}</td>
+                      <td data-label="Source">{run.verified ? "Server-verified" : "Self-reported"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      ) : null}
+    </section>
+  );
+}
 
 function PlayerDetail({ id, onDone }: { id: string; onDone: () => void }) {
   const load = useServerFn(fetchPlayer);
@@ -71,6 +143,7 @@ function PlayerDetail({ id, onDone }: { id: string; onDone: () => void }) {
               {player.stats ? `${Math.round(player.stats.lifetimePercentCorrect)}%` : "—"}
             </dd>
           </dl>
+          <PlayerLaunch id={player.id} />
           <div className="admin-row-actions" style={{ marginTop: "var(--ds-arena-space-4)" }}>
             <Button
               variant={player.isPremium ? "skip" : "daily"}
