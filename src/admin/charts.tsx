@@ -46,7 +46,11 @@ function colorFor(name: string, index: number): string {
   return SEMANTIC[name] ?? PALETTE[index % PALETTE.length]!;
 }
 
-function label(name: string): string {
+export function label(name: unknown): string {
+  if (typeof name !== "string") {
+    if (typeof name === "number") return String(name);
+    return "";
+  }
   return name.replace(/_/g, " ");
 }
 
@@ -67,15 +71,34 @@ function EmptyState({ message = "No data" }: { message?: string }) {
   return <p className="admin-chart-empty">{message}</p>;
 }
 
-function ChartTooltip({ active, payload, label: axisLabel }: TooltipProps<number, string>) {
+export function ChartTooltip({ active, payload, label: axisLabel }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
-  const name = (entry?.name ?? axisLabel ?? "") as string;
-  const value = entry?.value ?? 0;
+  const rowPayload = entry?.payload;
+  const row = (
+    typeof rowPayload === "object" &&
+    rowPayload !== null &&
+    "payload" in rowPayload &&
+    typeof (rowPayload as { payload: unknown }).payload === "object" &&
+    (rowPayload as { payload: unknown }).payload !== null
+      ? (rowPayload as { payload: ChartRow }).payload
+      : rowPayload
+  ) as ChartRow | null;
+  const rawName =
+    (typeof axisLabel === "string" && axisLabel.length > 0 ? axisLabel : null) ??
+    (typeof row?.name === "string" && row.name.length > 0 ? row.name : null) ??
+    (typeof entry?.name === "string" && entry.name.length > 0 ? entry.name : null) ??
+    "";
+  const rawValue =
+    typeof entry?.value === "number"
+      ? entry.value
+      : typeof row?.count === "number"
+        ? row.count
+        : 0;
   return (
     <div className="admin-chart-tooltip">
-      {name ? <div className="admin-chart-tooltip__label">{label(name)}</div> : null}
-      <div className="admin-chart-tooltip__value">{numberFormat.format(value)}</div>
+      {rawName ? <div className="admin-chart-tooltip__label">{label(rawName)}</div> : null}
+      <div className="admin-chart-tooltip__value">{numberFormat.format(rawValue)}</div>
     </div>
   );
 }
