@@ -240,4 +240,24 @@ describe("DDM-4 derivation auditor", () => {
       plausibleMax: "5000",
     })).presentedNumber));
   });
+
+  it("reports adaptive rating strategy consistently as bounded <=10 and multiplicative >10", () => {
+    const boundedTrace = auditDerivation({
+      trueNumber: "7",
+      unit: "rating",
+      quantityKind: KindRating,
+      surpriseFactor: 1,
+    });
+    expect(boundedTrace.classification.strategy).toBe("bounded");
+    expect(boundedTrace.classification.unitDescription).toBe("rating (bounded)");
+
+    const multiplicativeTrace = auditDerivation({
+      trueNumber: "120",
+      unit: "rating",
+      quantityKind: KindRating,
+      surpriseFactor: 1,
+    });
+    expect(multiplicativeTrace.classification.strategy).toBe("multiplicative");
+    expect(multiplicativeTrace.classification.unitDescription).toBe("rating (multiplicative)");
+  });
 });

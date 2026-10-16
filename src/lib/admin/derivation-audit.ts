@@ -197,8 +197,14 @@ export function classifyQuantityKind(
   };
 }
 
-/** Resolves the strategy through the vendored generated-table view. */
-export function strategyForKind(kind: QuantityKind): DerivationStrategy {
+/** Resolves the strategy through the vendored generated-table view, accounting for adaptive rating strategy when trueFixed is provided. */
+export function strategyForKind(kind: QuantityKind, trueFixed?: FixedPointValue): DerivationStrategy {
+  if (trueFixed !== undefined) {
+    const composed = composeDistanceBand(kind as KernelQuantityKind, 0, 0, trueFixed);
+    if (composed.ok && composed.band.strategy) {
+      return composed.band.strategy as DerivationStrategy;
+    }
+  }
   return (resolveKindStrategy(kind as KernelQuantityKind) ?? strategyMultiplicative) as DerivationStrategy;
 }
 
@@ -402,7 +408,7 @@ function resolveContext(
   const [magnitudeScale, magnitudeOK] = computeMagnitudeScale(trueFixed);
   const resolvedMagnitude = diagnostic?.magnitudeScale ?? (magnitudeOK ? magnitudeScale : 0);
   const trapDirection = diagnostic?.trapDirection ?? resolveTrapDirection(input.trapDirection ?? "", kind as KernelQuantityKind, normalizedUnit, trueFixed).trap;
-  const strategy = strategyForKind(kind);
+  const strategy = strategyForKind(kind, trueFixed);
 
   let bounds: ResolvedAuditContext["bounds"];
   if (diagnostic?.plausibleMin !== undefined && diagnostic.plausibleMax !== undefined) {
