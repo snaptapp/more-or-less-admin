@@ -72,6 +72,8 @@ import {
   KindCount,
   KindPercentage,
   KindPhysicalMeasure,
+  KindRating,
+  KindRatio,
   KindYear,
   magnitudeScale,
   normalizeFixed,
@@ -1246,6 +1248,16 @@ export function deriveDefaultBounds(
       break;
     case "fixed":
       pair = fixedDefaultBounds(entry);
+      if (
+        pair !== undefined &&
+        entry.mult_lo_permille !== undefined &&
+        entry.mult_hi_permille !== undefined
+      ) {
+        const [cmp, cmpOK] = compareFixed(trueValue, pair.max);
+        if (cmpOK && cmp > 0) {
+          pair = multiplicativeDefaultBounds(entry, trueValue);
+        }
+      }
       break;
     case "additive_window":
       pair = additiveWindowDefaultBounds(entry, trueValue);
@@ -1627,6 +1639,7 @@ export interface ComposedBand {
   surprise: number;
   variant: MagnitudeVariant;
   integerOnly?: boolean;
+  wideUpside?: boolean;
   // Multiplicative representation.
   minFactorPermille: number;
   maxFactorPermille: number;
@@ -1651,6 +1664,18 @@ function emptyComposedBand(): ComposedBand {
   };
 }
 
+// ratingUsesMultiplicativeStrategy reports whether a rating-kind round uses
+// multiplicative strategy and bounds because its true value exceeds the fixed
+// [0, 10] rating ceiling (e.g. passer rating, Elo, credit score).
+function ratingUsesMultiplicativeStrategy(kind: QuantityKind, trueNumber: FixedPointValue): boolean {
+  if (kind !== KindRating) {
+    return false;
+  }
+  const fixedMax = boundsDefaultsTable[KindRating]?.fixed_max ?? 10;
+  const [cmp, ok] = compareFixed(trueNumber, intToFixed(fixedMax));
+  return ok && cmp > 0;
+}
+
 // composeDistanceBand transforms the single selected canonical-surprise band row
 // into the composed distance band for the resolved kind and magnitude
 // (Requirements 1.11, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7). The caller MUST pass an
@@ -1660,10 +1685,14 @@ export function composeDistanceBand(
   kind: QuantityKind,
   canonicalSurprise: number,
   magnitudeScaleValue: number,
+  trueNumber?: FixedPointValue,
 ): { band: ComposedBand; ok: boolean } {
-  const strategy = resolveKindStrategy(kind);
+  let strategy = resolveKindStrategy(kind);
   if (strategy === undefined) {
     return { band: emptyComposedBand(), ok: false };
+  }
+  if (trueNumber !== undefined && ratingUsesMultiplicativeStrategy(kind, trueNumber)) {
+    strategy = strategyMultiplicative;
   }
   const variant = selectMagnitudeVariant(magnitudeScaleValue);
 
@@ -1672,6 +1701,7 @@ export function composeDistanceBand(
       const result = composeMultiplicativeBand(canonicalSurprise, variant);
       const boundary = hardBoundariesTable[kind];
       result.band.integerOnly = boundary?.integer_only ?? false;
+      result.band.wideUpside = kind === KindRatio;
       result.ok = result.ok && boundary !== undefined;
       return result;
     }
@@ -2206,20 +2236,43 @@ function generateMultiplicativeCandidate(
   // value, not magnitude (e.g. −40 °C: above = −40 ÷ 1.15 ≈ −34.8).
   const multiply = candidateAboveTruth(side) !== trueNumber.negative;
   if (multiply) {
-    // numerator = trueMantissa × permille × shift
-    let [num, ok] = guardedMulMag(trueNumber.mantissa, permille);
-    if (!ok) {
-      return fail;
+    if (band.wideUpside) {
+      // numerator = trueMantissa × permille × shift
+      let [num, ok] = guardedMulMag(trueNumber.mantissa, permille);
+      if (!ok) {
+        return fail;
+      }
+      [num, ok] = guardedMulMag(num, shift);
+      if (!ok) {
+        return fail;
+      }
+      const [m, mok] = divideMagnitudeHalfAway(num, unit);
+      if (!mok) {
+        return fail;
+      }
+      mantissa3 = m;
+    } else {
+      // Mirror the below-truth relative distance (1 - 1/factor) on the upside:
+      // candidate = true × (2 - 1/factor) = true × (2*permille - unit) / permille.
+      const [twoPermille, twoOK] = guardedMulMag(permille, 2);
+      if (!twoOK || twoPermille <= unit) {
+        return fail;
+      }
+      const mirrorPermille = twoPermille - unit;
+      let [num, ok] = guardedMulMag(trueNumber.mantissa, mirrorPermille);
+      if (!ok) {
+        return fail;
+      }
+      [num, ok] = guardedMulMag(num, shift);
+      if (!ok) {
+        return fail;
+      }
+      const [m, mok] = divideMagnitudeHalfAway(num, permille);
+      if (!mok) {
+        return fail;
+      }
+      mantissa3 = m;
     }
-    [num, ok] = guardedMulMag(num, shift);
-    if (!ok) {
-      return fail;
-    }
-    const [m, mok] = divideMagnitudeHalfAway(num, unit);
-    if (!mok) {
-      return fail;
-    }
-    mantissa3 = m;
   } else {
     // numerator = trueMantissa × unit × shift
     let [num, ok] = guardedMulMag(trueNumber.mantissa, unit);
@@ -4694,14 +4747,14 @@ function runRemedyStage(
   switch (stage.id) {
     case "preferred_side":
     case "opposite_side": {
-      const { band, ok } = composeDistanceBand(kind, canonicalSurprise, magnitude);
+      const { band, ok } = composeDistanceBand(kind, canonicalSurprise, magnitude, trueNumber);
       if (!ok) {
         return fail;
       }
       return enumerateBandSlots(stage.id, kind, band, side, trueNumber, bounds, slots, source);
     }
     case "alternative_calibration": {
-      const { band, ok } = composeAlternativeBand(kind, canonicalSurprise, magnitude);
+      const { band, ok } = composeAlternativeBand(kind, canonicalSurprise, magnitude, trueNumber);
       if (!ok) {
         return fail;
       }
@@ -4964,6 +5017,7 @@ function composeAlternativeBand(
   kind: QuantityKind,
   canonicalSurprise: number,
   magnitude: number,
+  trueNumber?: FixedPointValue,
 ): { band: ComposedBand; ok: boolean } {
   const fail = { band: emptyComposedBand(), ok: false };
   const current = selectMagnitudeVariant(magnitude);
@@ -4973,7 +5027,7 @@ function composeAlternativeBand(
     // simply yields no alternative band and the ladder advances.
     return fail;
   }
-  const { band, ok } = composeDistanceBand(kind, canonicalSurprise, altMagnitude);
+  const { band, ok } = composeDistanceBand(kind, canonicalSurprise, altMagnitude, trueNumber);
   if (!ok) {
     return fail;
   }
@@ -5049,14 +5103,14 @@ function enumerateStageAll(
   switch (stage.id) {
     case "preferred_side":
     case "opposite_side": {
-      const { band, ok } = composeDistanceBand(kind, canonicalSurprise, magnitude);
+      const { band, ok } = composeDistanceBand(kind, canonicalSurprise, magnitude, trueNumber);
       if (!ok) {
         return [];
       }
       return collectBandSlots(kind, band, side, trueNumber, bounds, slots);
     }
     case "alternative_calibration": {
-      const { band, ok } = composeAlternativeBand(kind, canonicalSurprise, magnitude);
+      const { band, ok } = composeAlternativeBand(kind, canonicalSurprise, magnitude, trueNumber);
       if (!ok) {
         return [];
       }

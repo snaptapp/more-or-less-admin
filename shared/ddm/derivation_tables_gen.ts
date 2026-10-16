@@ -73,7 +73,10 @@ export const DERIVATION_TABLES = {
     "rating": {
       "fixed_max": 10,
       "fixed_min": 0,
+      "hard_floor": 0,
       "mode": "fixed",
+      "mult_hi_permille": 8000,
+      "mult_lo_permille": 100,
       "scale": 1
     },
     "ratio": {
@@ -314,7 +317,7 @@ export const DERIVATION_TABLES = {
     },
     "rating": {
       "integer_only": false,
-      "max_inclusive": 10,
+      "max_inclusive": null,
       "min_inclusive": 0,
       "scale": 1
     },

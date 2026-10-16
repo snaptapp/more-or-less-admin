@@ -328,56 +328,6 @@
       "kelvin"
     ]
   },
-  "statement_inflection": {
-    "$comment": "Data for the Statement Consistency Gate's singular/plural grammar agreement (Requirements 6.3, 6.4, 9.3). Exact value 1 is singular; all other values are plural. invariant nouns never change form; irregular nouns use an explicit plural. Regular nouns not listed use the default suffix rules. Capitalization of the source token is preserved by the runtime; entries here are lowercase canonical forms.",
-    "singular_value": 1,
-    "default_pluralization_rules": [
-      { "order": 0, "id": "es_after_sibilant", "suffix_any": ["s", "x", "z", "ch", "sh"], "append": "es" },
-      { "order": 1, "id": "ies_after_consonant_y", "suffix_regex": "[bcdfghjklmnpqrstvwxz]y$", "replace_suffix": "y", "with": "ies" },
-      { "order": 2, "id": "default_s", "append": "s" }
-    ],
-    "invariant": [
-      "series",
-      "species",
-      "sheep",
-      "fish",
-      "deer",
-      "aircraft",
-      "spacecraft",
-      "offspring",
-      "percent",
-      "hertz"
-    ],
-    "irregular": {
-      "vertebra": "vertebrae",
-      "child": "children",
-      "person": "people",
-      "tooth": "teeth",
-      "foot": "feet",
-      "goose": "geese",
-      "mouse": "mice",
-      "man": "men",
-      "woman": "women",
-      "leaf": "leaves",
-      "life": "lives",
-      "knife": "knives",
-      "half": "halves",
-      "loaf": "loaves",
-      "wolf": "wolves",
-      "cactus": "cacti",
-      "nucleus": "nuclei",
-      "fungus": "fungi",
-      "focus": "foci",
-      "index": "indices",
-      "matrix": "matrices",
-      "vertex": "vertices",
-      "analysis": "analyses",
-      "crisis": "crises",
-      "phenomenon": "phenomena",
-      "criterion": "criteria",
-      "datum": "data"
-    }
-  },
   "uniqueness_constraints": {
     "$comment": "Constraints the Table_Generator MUST enforce before emitting runtime files (Requirements 15.4, 15.5). A duplicate key where uniqueness is required is a generation failure.",
     "quantity_kinds": "distinct_members",
@@ -385,8 +335,6 @@
     "inference_rule_order": "distinct_contiguous_from_zero",
     "inference_rule_id": "distinct",
     "inference_rule_kind_in_closed_set": true,
-    "statement_invariant": "distinct_members",
-    "statement_irregular": "distinct_singular_keys",
     "negative_admitting_kinds_partition": "admitting_and_non_admitting_are_disjoint_and_cover_closed_set"
   }
 }

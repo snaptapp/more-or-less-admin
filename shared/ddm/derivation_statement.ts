@@ -11,60 +11,32 @@
 //
 // This is the editable port source; the Worker (`src/derivation_statement.ts`)
 // and Functions (`functions/src/ai/derivation_statement.ts`) copies are
-// generated twins. It ports the Go reference Statement
-// Consistency Gate (plan task 7):
+// generated twins. It ports the Go reference Statement Consistency Gate:
 //
 //   1. the shared numeric-literal scanner + classifier
 //                                    (agent-go/derivation_statement_scan.go,    task 7.1)
-//   2. generated inflection + grammar correction
-//                                    (agent-go/derivation_statement_inflect.go, task 7.2)
-//   3. the policy-parameterized rewrite + revalidation, with EXPLICIT `strict`
-//      and `governed_incidental` policies
+//   2. the numberless-claim Statement Gate
 //                                    (agent-go/derivation_statement_gate.go,    task 7.3)
-//   4. the unresolved production-policy build guard
+//   3. the production-policy build guard
 //                                    (agent-go/derivation_statement_policy.go,  task 7.4)
-//
-// It is intended to be BYTE-IDENTICAL in behavior to the Go reference: the
-// scanner spans/classification, inflection tables, rewrite logic, and BOTH
-// policy behaviors (including the STATEMENT_UNRECOVERABLE abstain outcome)
-// produce identical results to Go's `stmtGateApply`. Task 11.1 replays the
-// parity fixture's `statement_cases[]` against this port and compares serialized
-// bytes; a local statement-case replay is added in the co-located tests ahead of
-// that (Requirements 6.1–6.7, 9.1).
-//
-// NORMATIVE AUTHORITY (Requirement 9.1): the inflection invariant list,
-// irregular map, default pluralization rules, and singular value are consumed
-// EXCLUSIVELY from the generated table payload UNIT_TABLES (src/unit_tables_gen.ts)
-// `statement_inflection` block — never inlined. The only inline constants are
-// structural JSON keys and the deterministic reversal of the generated default
-// pluralization rules (which are not themselves stored as reverse rules), exactly
-// mirroring the Go reference.
 //
 // PRODUCTION SELECTOR (Requirement 6.2, RESOLVED and PINNED): the isolated
 // production selector is pinned to `numberless_drop`, the numberless-claim
-// contract the generation prompt defines. Tests may inject any implemented
-// policy directly into stmtGateApply; the production cutover/check
+// contract the generation prompt defines. The production cutover/check
 // (stmtProdPolicyCheck) FAILS CLOSED on any selection other than
-// numberless_drop. The two rewrite policies are non-production reference
-// machinery, not selectable values.
+// numberless_drop.
 //
-// PURITY / CROSS-RUNTIME: rewriting reuses the shared scanner spans, the exact
-// fixed-point kernel (compareFixed, formatFixedCanonical, numericIngest), and the
-// generated inflection tables only. No floating point, regex on numeric
-// magnitudes, locale formatting, clock, randomness, or mutable global state is
-// used, so this port produces byte-identical output to Go. Symbol names mirror
-// the Go reference so the two implementations read as line-for-line ports (the
-// stmtScan*/StatementLiteral*, stmtInflect*, stmtGate*/StmtGate*, and
-// stmtProdPolicy* prefixes are preserved).
-//
-// This module remains DARK: it is not imported by production worker code until
-// the atomic cutover (task 16.x).
+// PURITY / CROSS-RUNTIME: the gate reuses the shared scanner spans and the exact
+// fixed-point kernel (compareFixed, numericIngest). No floating point, regex on
+// numeric magnitudes, locale formatting, clock, randomness, or mutable global
+// state is used, so this port produces byte-identical output to Go. Symbol names
+// mirror the Go reference so the two implementations read as line-for-line ports
+// (the stmtScan*/StatementLiteral*, stmtGate*/StmtGate*, and stmtProdPolicy*
+// prefixes are preserved).
 
-import { UNIT_TABLES } from "./unit_tables_gen";
 import {
   AbstainStatementUnrecoverable,
   compareFixed,
-  formatFixedCanonical,
   isASCIIDigit,
   numericIngest,
   type AbstainReason,
@@ -78,17 +50,14 @@ import {
 
 // StatementLiteralClass classifies a scanned numeric literal by the role it
 // plays in the claim statement. The scanner assigns exactly one class to every
-// literal so any implemented Requirement 6.2 policy can act on it later.
+// literal.
 export type StatementLiteralClass = "governed" | "incidental";
 
 // LiteralGoverned marks a literal that governs the claim's subject quantity: it
-// is the number the sentence is "about" and the one a rewrite must force to
-// presented_number. There is at most one governed literal.
+// is the number the sentence is "about". There is at most one governed literal.
 export const LiteralGoverned: StatementLiteralClass = "governed";
 // LiteralIncidental marks a literal that is part of a proper name or fixed
-// designation (e.g. the 11 in "Apollo 11", the 2 in "World War 2"). Under the
-// governed/incidental policy it may remain; under strict it must be rewritten or
-// dropped. Classification does not decide that outcome.
+// designation (e.g. the 11 in "Apollo 11", the 2 in "World War 2").
 export const LiteralIncidental: StatementLiteralClass = "incidental";
 
 // StatementLiteral is one numeric literal found in a claim statement, with the
@@ -96,17 +65,15 @@ export const LiteralIncidental: StatementLiteralClass = "incidental";
 // value (when it ingests cleanly), whether it is a truth leak, and its
 // governed/incidental classification. The span is a half-open byte range
 // [start, end) into the original statement string; text is exactly
-// statement.slice(start, end). Retaining the raw span lets a later policy rewrite
-// the statement deterministically without re-scanning.
+// statement.slice(start, end).
 //
 // NOTE ON "byte" OFFSETS: the Go reference indexes by UTF-8 byte offsets; this
 // TypeScript port indexes by UTF-16 code units (JavaScript string indices).
 // Every literal, span boundary, and separator the scanner and gate examine is a
 // pure ASCII character (digits, sign, comma, dot, exponent, spaces, ASCII
 // letters), and ASCII code points occupy exactly one code unit AND one UTF-8
-// byte, so the spans, splices, and classifications are byte-identical to Go for
-// every ASCII-relevant boundary. Non-ASCII characters are only ever copied
-// verbatim, never split, so slicing stays consistent.
+// byte, so the spans and classifications are byte-identical to Go for every
+// ASCII-relevant boundary.
 export interface StatementLiteral {
   // start and end are the half-open offsets of the literal in the original
   // statement (text === statement.slice(start, end)).
@@ -121,7 +88,7 @@ export interface StatementLiteral {
   // truth leak and is classified structurally.
   value?: FixedPointValue;
   // isTruthLeak is true when value is defined and numerically equals the round's
-  // true_number. A truth leak is forbidden under BOTH policies.
+  // true_number.
   isTruthLeak: boolean;
   // class is the governed/incidental classification (exactly one value).
   class: StatementLiteralClass;
@@ -220,9 +187,6 @@ interface StmtScanSpan {
 //
 // The scan never consults locale, Unicode categories, or a regex engine, so this
 // port reproduces identical spans (Requirement 6.1 "one cross-runtime scanner").
-// Grouping commas and exponents are captured in the span so the verbatim text is
-// preserved for later rewrite; ingest handles their numeric interpretation
-// separately.
 function stmtScanFindLiterals(statement: string): StmtScanSpan[] {
   const spans: StmtScanSpan[] = [];
   const n = statement.length;
@@ -246,10 +210,6 @@ function stmtScanFindLiterals(statement: string): StmtScanSpan[] {
     }
 
     if (isASCIIDigit(c)) {
-      // A digit only starts a literal at a left boundary; a digit glued to the
-      // right of a letter (e.g. the "3" in "mp3") is still scanned as a literal
-      // run, but classification will mark alnum-glued runs as incidental. The
-      // scanner captures the maximal digit run either way.
       const read = stmtScanReadNumber(statement, i, false);
       if (read.ok) {
         spans.push(read.span);
@@ -371,26 +331,7 @@ function stmtScanStripGrouping(text: string): string {
 
 // stmtScanClassify assigns a governed/incidental class to every literal in
 // left-to-right order using deterministic structural rules that both runtimes
-// share:
-//
-//  1. A literal whose neighboring context marks it as part of a proper name or
-//     fixed designation is INCIDENTAL. Two adjacency signals mark this:
-//     (a) the literal is glued directly to a preceding alphanumeric run with no
-//     separator (e.g. "mp3", "COVID19"), or
-//     (b) the literal is preceded by a capitalized word and a single space and
-//     is a bare integer (e.g. "Apollo 11", "World War 2", "Route 66").
-//  2. Among the remaining (non-incidental) literals, the governed literal is the
-//     one whose ingested value equals the presented number when such a literal
-//     exists; otherwise the first non-incidental literal. Exactly one literal is
-//     marked GOVERNED.
-//  3. Any literal not chosen as governed and not marked incidental in step 1 is
-//     left INCIDENTAL as well, so a strict policy can still rewrite it while the
-//     governed/incidental policy treats only the governed literal as the required
-//     presented value. Classification never removes a literal.
-//
-// The classification is a best-effort structural signal, not a policy decision.
-// It is deterministic and side-effect free, mutating only the class field of the
-// provided array.
+// share.
 function stmtScanClassify(
   statement: string,
   literals: StatementLiteral[],
@@ -431,7 +372,7 @@ function stmtScanClassify(
   }
   // Otherwise (every literal is proper-name incidental) fall back to a value
   // match against presented even among incidental literals, then to the first
-  // literal, so there is always a governed anchor for a rewrite.
+  // literal.
   if (governed === -1) {
     for (let idx = 0; idx < literals.length; idx++) {
       if (literals[idx].value === undefined) {
@@ -451,17 +392,7 @@ function stmtScanClassify(
 }
 
 // stmtScanIsIncidental reports whether a literal is part of a proper name or
-// fixed designation, using deterministic ASCII adjacency signals:
-//
-//   - glued: the byte immediately before the literal is an ASCII letter (e.g.
-//     "mp3", "H2O", "COVID19"); such a run is never the sentence's governed
-//     quantity.
-//   - designation: the literal is a bare unsigned integer preceded by exactly one
-//     space and a capitalized alphabetic word (e.g. "Apollo 11", "Route 66",
-//     "World War 2"). A lowercase preceding word ("about 11") does not designate
-//     a proper name.
-//
-// Both signals are text-structural and locale-free.
+// fixed designation, using deterministic ASCII adjacency signals.
 function stmtScanIsIncidental(statement: string, lit: StatementLiteral): boolean {
   // Glued to a preceding letter run (no separator).
   if (lit.start > 0) {
@@ -518,457 +449,15 @@ function stmtScanIsASCIIUpper(b: string): boolean {
 }
 
 // ===========================================================================
-// Statement Gate inflection and grammar correction
-// (port of agent-go/derivation_statement_inflect.go, task 7.2)
-// ===========================================================================
-
-// --- Parsed shape of the generated statement_inflection block ----------------
-
-// StmtInflectRule is one ordered default pluralization rule. Only the shapes
-// present in the generated table are interpreted:
-//
-//   { suffix_any:[...], append:"es" }               — append when the base ends in any suffix
-//   { suffix_regex:"...", replace_suffix, with }     — replace a matched suffix
-//   { append:"s" }                                   — unconditional default
-interface StmtInflectRule {
-  id: string;
-  order: number;
-  append?: string;
-  suffix_any?: readonly string[];
-  suffix_regex?: string;
-  replace_suffix?: string;
-  with?: string;
-}
-
-// stmtInflectTables is the subset of UNIT_TABLES this module consumes.
-interface StmtInflectTables {
-  default_pluralization_rules: readonly StmtInflectRule[];
-  // Invariant nouns have identical singular and plural forms.
-  invariant: readonly string[];
-  // Irregular maps a canonical (lowercase) singular to its plural.
-  irregular: Record<string, string>;
-  // singular_value is the exact governed value that is singular (1).
-  singular_value: number;
-}
-
-// stmtInflectParsed is the generated statement_inflection block, read once from
-// the constant generated payload. The generated bytes are constant, so the
-// derived lookups below are built once at module load and are pure.
-const stmtInflectParsed: StmtInflectTables = (
-  UNIT_TABLES as unknown as { statement_inflection: StmtInflectTables }
-).statement_inflection;
-
-// stmtInflectRulesSorted are the default pluralization rules sorted by their
-// `order` field so evaluation is deterministic regardless of the JSON authoring
-// order (mirrors Go's sort.SliceStable by Order).
-const stmtInflectRulesSorted: readonly StmtInflectRule[] = [
-  ...stmtInflectParsed.default_pluralization_rules,
-].sort((a, b) => a.order - b.order);
-
-// stmtInflectRuleRE holds compiled suffix regexes, keyed by rule id. The regexes
-// are authored ASCII character-class patterns from the generated table (e.g.
-// "[bcdfghjklmnpqrstvwxz]y$"); they never touch numeric magnitudes, so they are
-// permitted here exactly as the Go reference compiles regexp.Compile.
-const stmtInflectRuleRE: Map<string, RegExp> = (() => {
-  const m = new Map<string, RegExp>();
-  for (const r of stmtInflectRulesSorted) {
-    if (r.suffix_regex !== undefined && r.suffix_regex !== "") {
-      m.set(r.id, new RegExp(r.suffix_regex));
-    }
-  }
-  return m;
-})();
-
-// stmtInflectInvariantSet is a fast membership set for the invariant nouns
-// (canonical lowercase).
-const stmtInflectInvariantSet: Set<string> = new Set(stmtInflectParsed.invariant);
-
-// stmtInflectPluralToSingular is the reverse of the irregular map: canonical
-// plural -> canonical singular. First writer wins on the (rare) chance of
-// duplicate plurals; the generator's distinct_singular_keys constraint keeps
-// singular keys unique, so this is deterministic in practice.
-const stmtInflectPluralToSingular: Map<string, string> = (() => {
-  const m = new Map<string, string>();
-  for (const [singular, plural] of Object.entries(stmtInflectParsed.irregular)) {
-    if (!m.has(plural)) {
-      m.set(plural, singular);
-    }
-  }
-  return m;
-})();
-
-// stmtInflectSingularValue returns the generated singular value (defaults to 1 if
-// the table did not populate it).
-function stmtInflectSingularValue(): number {
-  if (!stmtInflectParsed || stmtInflectParsed.singular_value === 0) {
-    return 1;
-  }
-  return stmtInflectParsed.singular_value;
-}
-
-// stmtInflectValueIsSingular reports whether the governed value is singular:
-// exactly equal to the generated singular value (1). Every other finite value —
-// including 0 and negative values — is plural (Requirements 6.3, 6.4).
-export function stmtInflectValueIsSingular(v: FixedPointValue): boolean {
-  const singular: FixedPointValue = { negative: false, mantissa: stmtInflectSingularValue(), scale: 0 };
-  const [cmp, ok] = compareFixed(v, singular);
-  if (!ok) {
-    return false;
-  }
-  return cmp === 0;
-}
-
-// --- Capitalization preservation ---------------------------------------------
-
-// StmtInflectCasePattern describes the surface capitalization of a noun so the
-// corrected form can reproduce it.
-const enum StmtInflectCasePattern {
-  // Lower: no ASCII letters are uppercase (e.g. "dogs", "años").
-  Lower = 0,
-  // Title: exactly the first ASCII letter is uppercase (e.g. "Dogs").
-  Title = 1,
-  // Upper: at least two letters and every ASCII letter is uppercase (e.g. "DOGS").
-  Upper = 2,
-  // Mixed: any other pattern (e.g. "iPhones", "McMuffins"). Mixed nouns are
-  // re-inflected but their existing casing is left untouched.
-  Mixed = 3,
-}
-
-// stmtInflectDetectCase classifies the capitalization of a word using only its
-// ASCII letters. Non-ASCII letters and non-letters are ignored for the
-// title/upper decision so the pattern is byte-stable across runtimes.
-function stmtInflectDetectCase(word: string): StmtInflectCasePattern {
-  let letters = 0;
-  let upper = 0;
-  let firstUpper = false;
-  let firstSeen = false;
-  for (const r of word) {
-    if (!isRuneASCIILetter(r)) {
-      continue;
-    }
-    letters++;
-    const up = r >= "A" && r <= "Z";
-    if (!firstSeen) {
-      firstSeen = true;
-      firstUpper = up;
-    }
-    if (up) {
-      upper++;
-    }
-  }
-  if (letters === 0) {
-    return StmtInflectCasePattern.Lower;
-  }
-  if (upper === 0) {
-    return StmtInflectCasePattern.Lower;
-  }
-  if (upper === letters && letters >= 2) {
-    return StmtInflectCasePattern.Upper;
-  }
-  if (firstUpper && upper === 1) {
-    return StmtInflectCasePattern.Title;
-  }
-  return StmtInflectCasePattern.Mixed;
-}
-
-// stmtInflectApplyCase reproduces the detected case pattern on the corrected
-// word. For mixed patterns the corrected form is returned unchanged so we never
-// mangle intentional inner capitals.
-function stmtInflectApplyCase(word: string, pattern: StmtInflectCasePattern): string {
-  switch (pattern) {
-    case StmtInflectCasePattern.Upper:
-      return asciiUpper(word);
-    case StmtInflectCasePattern.Title:
-      return asciiTitle(word);
-    default:
-      return word;
-  }
-}
-
-// isRuneASCIILetter reports whether a single code point (string) is an ASCII
-// letter.
-function isRuneASCIILetter(r: string): boolean {
-  return (r >= "a" && r <= "z") || (r >= "A" && r <= "Z");
-}
-
-// asciiUpper uppercases only ASCII letters, leaving other runes untouched.
-function asciiUpper(s: string): string {
-  let out = "";
-  for (const r of s) {
-    if (r >= "a" && r <= "z") {
-      out += String.fromCharCode(r.charCodeAt(0) - 32);
-    } else {
-      out += r;
-    }
-  }
-  return out;
-}
-
-// asciiLower lowercases only ASCII letters, leaving other runes untouched.
-function asciiLower(s: string): string {
-  let out = "";
-  for (const r of s) {
-    if (r >= "A" && r <= "Z") {
-      out += String.fromCharCode(r.charCodeAt(0) + 32);
-    } else {
-      out += r;
-    }
-  }
-  return out;
-}
-
-// asciiTitle uppercases the first ASCII letter and lowercases the remaining ASCII
-// letters, leaving non-ASCII runes untouched.
-function asciiTitle(s: string): string {
-  let out = "";
-  let seen = false;
-  for (const r of s) {
-    if (r >= "A" && r <= "Z") {
-      if (seen) {
-        out += String.fromCharCode(r.charCodeAt(0) + 32);
-      } else {
-        out += r;
-      }
-      seen = true;
-    } else if (r >= "a" && r <= "z") {
-      if (!seen) {
-        out += String.fromCharCode(r.charCodeAt(0) - 32);
-      } else {
-        out += r;
-      }
-      seen = true;
-    } else {
-      out += r;
-    }
-  }
-  return out;
-}
-
-// --- Singular base reduction and pluralization -------------------------------
-
-// stmtInflectToSingular reduces a canonical (already-lowercased) noun to its
-// singular base. Invariant nouns and unknown nouns whose plural we cannot
-// confidently reverse are returned unchanged. Reduction order mirrors the
-// generated table precedence in reverse:
-//
-//  1. invariant     — return as-is
-//  2. irregular     — reverse the irregular map (plural -> singular)
-//  3. default rules — reverse the generated default pluralization suffixes
-function stmtInflectToSingular(canonical: string): string {
-  if (canonical === "") {
-    return canonical;
-  }
-  if (stmtInflectInvariantSet.has(canonical)) {
-    return canonical;
-  }
-  // Already a known singular irregular (e.g. "child") — leave it.
-  if (Object.prototype.hasOwnProperty.call(stmtInflectParsed.irregular, canonical)) {
-    return canonical;
-  }
-  // Known irregular plural (e.g. "children") — reverse it.
-  const singular = stmtInflectPluralToSingular.get(canonical);
-  if (singular !== undefined) {
-    return singular;
-  }
-  // Reduce regular plural endings to a fixed point. Reversal of the ambiguous
-  // "-s" ending can itself yield a further-reducible form (e.g. "ases" -> "as" ->
-  // "a"); iterating until the form is stable makes the singular base a true fixed
-  // point of the reducer, which is what guarantees correction idempotence
-  // (Requirement 6.6). The loop is bounded by the shrinking word length and
-  // cannot run away.
-  let prev = canonical;
-  for (let i = 0; i < canonical.length; i++) {
-    const next = stmtInflectReverseDefault(prev);
-    if (next === prev) {
-      break;
-    }
-    prev = next;
-  }
-  return prev;
-}
-
-// stmtInflectReverseDefault reverses the generated default pluralization rules to
-// recover a singular base from a regular plural. The generated forward rules are
-// (in order): "-s/-x/-z/-ch/-sh" + "es", consonant + "y" -> "ies", and a bare
-// "+s". We reverse the most specific plural endings first so, e.g., "boxes" ->
-// "box" and "cities" -> "city" while "dogs" -> "dog".
-//
-// Regular "-s"/"-es"/"-ies" endings are ambiguous: "bus" and "series" already end
-// in "s" yet are singular. To avoid mangling a singular noun (and to guarantee
-// the reduction is a fixed point, so correction is idempotent per Requirement
-// 6.6), every reversal candidate is verified by re-pluralizing it: a candidate
-// base is accepted only when stmtInflectToPlural(base) reproduces the original
-// canonical form. Otherwise the word is treated as already singular and returned
-// unchanged.
-function stmtInflectReverseDefault(canonical: string): string {
-  // Ordered candidate singular bases, most specific plural ending first.
-  const candidates: string[] = [];
-
-  // "-ies" (from consonant + y) -> "y". Require a consonant before "ies".
-  if (canonical.endsWith("ies") && canonical.length > 3) {
-    const base = canonical.slice(0, canonical.length - 3);
-    if (isConsonantByte(base[base.length - 1])) {
-      candidates.push(base + "y");
-    }
-  }
-  // "-es" after a sibilant base (s/x/z/ch/sh) -> drop "es".
-  if (canonical.endsWith("es") && canonical.length > 2) {
-    const base = canonical.slice(0, canonical.length - 2);
-    if (endsWithSibilant(base)) {
-      candidates.push(base);
-    }
-  }
-  // Regular "-s" -> drop "s" (but never reduce a bare "s").
-  if (canonical.endsWith("s") && canonical.length > 1) {
-    candidates.push(canonical.slice(0, canonical.length - 1));
-  }
-
-  // Accept the first candidate whose forward pluralization round-trips back to
-  // the original canonical form. This rejects over-eager reductions like "bus" ->
-  // "bu" (pluralizes to "buses", not "bus").
-  for (const base of candidates) {
-    if (base !== "" && stmtInflectToPlural(base) === canonical) {
-      return base;
-    }
-  }
-  // Already singular (or not confidently reducible).
-  return canonical;
-}
-
-// stmtInflectToPlural pluralizes a canonical (already-lowercased) singular base
-// using the generated tables in precedence order: invariant, irregular, then the
-// ordered default pluralization rules.
-function stmtInflectToPlural(canonical: string): string {
-  if (canonical === "") {
-    return canonical;
-  }
-  if (stmtInflectInvariantSet.has(canonical)) {
-    return canonical;
-  }
-  const plural = stmtInflectParsed.irregular[canonical];
-  if (plural !== undefined) {
-    return plural;
-  }
-  for (const r of stmtInflectRulesSorted) {
-    if (r.suffix_any !== undefined && r.suffix_any.length > 0) {
-      if (hasAnySuffix(canonical, r.suffix_any)) {
-        return canonical + (r.append ?? "");
-      }
-    } else if (r.suffix_regex !== undefined && r.suffix_regex !== "") {
-      const re = stmtInflectRuleRE.get(r.id);
-      if (re !== undefined && re.test(canonical)) {
-        const base = trimSuffix(canonical, r.replace_suffix ?? "");
-        return base + (r.with ?? "");
-      }
-    } else {
-      // Unconditional default (append "s").
-      return canonical + (r.append ?? "");
-    }
-  }
-  // No rule matched (should not happen given the unconditional default).
-  return canonical;
-}
-
-// --- Public correction entry points ------------------------------------------
-
-// stmtInflectNoun corrects a single governed noun so its grammatical number
-// agrees with `singular`. It preserves the surface capitalization of the input
-// and is idempotent: the output only depends on the target number and the noun's
-// canonical base, so re-applying with the same target is a no-op (Requirements
-// 6.3, 6.4, 6.6).
-export function stmtInflectNoun(noun: string, singular: boolean): string {
-  if (noun.trim() === "") {
-    return noun;
-  }
-  const pattern = stmtInflectDetectCase(noun);
-  const canonical = asciiLower(noun);
-
-  const base = stmtInflectToSingular(canonical);
-  let corrected: string;
-  if (singular) {
-    corrected = base;
-  } else {
-    corrected = stmtInflectToPlural(base);
-  }
-  return stmtInflectApplyCase(corrected, pattern);
-}
-
-// stmtInflectNounForValue corrects a governed noun for the grammatical number
-// implied by the presented value: singular exactly for the generated singular
-// value (1), plural otherwise (Requirements 6.3, 6.4).
-export function stmtInflectNounForValue(noun: string, presented: FixedPointValue): string {
-  return stmtInflectNoun(noun, stmtInflectValueIsSingular(presented));
-}
-
-// --- Small deterministic helpers ---------------------------------------------
-
-function isConsonantByte(b: string): boolean {
-  switch (b) {
-    case "a":
-    case "e":
-    case "i":
-    case "o":
-    case "u":
-      return false;
-  }
-  return b >= "a" && b <= "z";
-}
-
-// endsWithSibilant reports whether s ends in a base that takes "-es": s, x, z, or
-// the digraphs ch/sh. This mirrors the generated es_after_sibilant rule's suffix
-// set so reversal and pluralization stay symmetric.
-function endsWithSibilant(s: string): boolean {
-  if (s.endsWith("ch") || s.endsWith("sh")) {
-    return true;
-  }
-  if (s === "") {
-    return false;
-  }
-  switch (s[s.length - 1]) {
-    case "s":
-    case "x":
-    case "z":
-      return true;
-  }
-  return false;
-}
-
-function hasAnySuffix(s: string, suffixes: readonly string[]): boolean {
-  for (const suf of suffixes) {
-    if (s.endsWith(suf)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// trimSuffix removes a trailing suffix from s when present, mirroring Go's
-// strings.TrimSuffix (a no-op when the suffix is empty or absent).
-function trimSuffix(s: string, suffix: string): string {
-  if (suffix !== "" && s.endsWith(suffix)) {
-    return s.slice(0, s.length - suffix.length);
-  }
-  return s;
-}
-
-// ===========================================================================
-// Policy-parameterized Statement Gate rewrite and revalidation
+// Statement Gate validation
 // (port of agent-go/derivation_statement_gate.go, task 7.3)
 // ===========================================================================
 
-// StmtGatePolicy selects one of the implemented Requirement 6.2 statement
-// policies. It is an explicit closed enum; production selection is owned by the
-// isolated selector below (task 7.4), pinned to StmtGateNumberlessDrop. The
-// other two values are non-production reference policies for tests and parity.
-export type StmtGatePolicy = "strict" | "governed_incidental" | "numberless_drop";
+// StmtGatePolicy selects the Statement Gate policy. It is an explicit closed
+// enum; production selection is owned by the isolated selector below (task 7.4),
+// pinned to StmtGateNumberlessDrop.
+export type StmtGatePolicy = "numberless_drop";
 
-// StmtGateStrict forbids every numeric literal other than presented_number.
-// Non-production reference policy.
-export const StmtGateStrict: StmtGatePolicy = "strict";
-// StmtGateGovernedIncidental forbids truth leaks and governed mismatches but
-// permits classified incidental proper-name numbers to remain.
-// Non-production reference policy.
-export const StmtGateGovernedIncidental: StmtGatePolicy = "governed_incidental";
 // StmtGateNumberlessDrop enforces the numberless-claim contract: any scanned
 // literal equal to true_number or presented_number drops the round, and no
 // rewriting is attempted. This is the resolved and pinned production policy.
@@ -976,16 +465,13 @@ export const StmtGateNumberlessDrop: StmtGatePolicy = "numberless_drop";
 
 // StmtGateResult is the complete, deterministic outcome of applying a statement
 // policy to one claim. Exactly one of ok / abstain holds: when ok is true the
-// rewritten, grammar-corrected, and re-validated statement is consistent under
-// the policy; when ok is false the reason is AbstainStatementUnrecoverable and
-// statement carries the best-effort rewritten text for diagnostics only (never
-// emitted on a round).
+// statement is consistent under the policy; when ok is false the reason is
+// AbstainStatementUnrecoverable and statement carries the input text for
+// diagnostics only (never emitted on a round).
 export interface StmtGateResult {
-  // ok reports whether the claim is consistent under the selected policy after
-  // rewrite, grammar correction, and re-scan.
+  // ok reports whether the claim is consistent under the selected policy.
   ok: boolean;
-  // statement is the rewritten claim. When ok it is the consistent text to emit;
-  // when !ok it is the best-effort intermediate for diagnostics.
+  // statement is the validated claim text (or diagnostic input when !ok).
   statement: string;
   // reason is AbstainStatementUnrecoverable when !ok, and "" when ok.
   reason: AbstainReason | "";
@@ -993,16 +479,13 @@ export interface StmtGateResult {
   policy: StmtGatePolicy;
 }
 
-// stmtGateApply runs the full Statement Gate under the selected policy:
+// stmtGateApply runs the Statement Gate under the selected policy:
 //
-//  1. scan the claim (task 7.1 scanner) for numeric literals + classification;
-//  2. rewrite the numeric literals the policy requires to change so the claim
-//     contains only permitted numbers, all governed occurrences equal presented
-//     and no occurrence equals truth (Requirements 6.1, 6.2, 6.5);
-//  3. correct singular/plural grammar of the noun governed by the presented value
-//     (Requirements 6.3, 6.4, 6.6);
-//  4. re-scan the rewritten statement and re-validate under the policy;
-//  5. return the consistent statement or STATEMENT_UNRECOVERABLE (Req 6.7).
+//  1. validate that policy is StmtGateNumberlessDrop and truth != presented;
+//  2. scan the claim (task 7.1 scanner) for numeric literals + classification;
+//  3. drop (STATEMENT_UNRECOVERABLE) if any scanned literal equals truth or
+//     presented;
+//  4. return the consistent statement (Req 6.7).
 //
 // truth and presented are the round's canonical values already produced by
 // Numeric_Ingest. The function is pure and total: identical inputs always yield
@@ -1013,62 +496,31 @@ export function stmtGateApply(
   presented: FixedPointValue,
   policy: StmtGatePolicy,
 ): StmtGateResult {
-  // A truth value that also equals the presented value is a contradiction the
-  // derivation core forbids (strict direction math guarantees presented != true).
-  // If they are equal we cannot both require governed==presented and forbid
-  // governed==truth, so the statement is unrecoverable regardless of policy.
+  if (!stmtGateValidPolicy(policy)) {
+    return stmtGateUnrecoverable(statement, policy);
+  }
   {
     const [cmp, ok] = compareFixed(truth, presented);
-    if (ok && cmp === 0) {
+    if (!ok || cmp === 0) {
       return stmtGateUnrecoverable(statement, policy);
     }
   }
 
   const scan = stmtScanStatement(statement, truth, presented);
 
-  if (policy === StmtGateNumberlessDrop) {
-    // The numberless-claim contract: the claim is the QUESTION text and must
-    // carry neither the answer (truth leak) nor the anchor (a literal equal to
-    // the derived presented number). Unrelated numerals are allowed and
-    // nothing is rewritten — a violating round is unrecoverable so the caller
-    // drops it. Word-form spellings and the model's original presented value
-    // are statement-layer signals the caller (stmtGateStampStatement) checks
-    // before invoking the gate.
-    for (const lit of scan.literals) {
-      if (lit.value === undefined) {
-        continue;
-      }
-      if (lit.isTruthLeak) {
-        return stmtGateUnrecoverable(statement, policy);
-      }
-      const [cmp, ok] = compareFixed(lit.value, presented);
-      if (ok && cmp === 0) {
-        return stmtGateUnrecoverable(statement, policy);
-      }
+  for (const lit of scan.literals) {
+    if (lit.value === undefined) {
+      continue;
     }
-    return { ok: true, statement, reason: "", policy };
+    if (lit.isTruthLeak) {
+      return stmtGateUnrecoverable(statement, policy);
+    }
+    const [cmp, ok] = compareFixed(lit.value, presented);
+    if (ok && cmp === 0) {
+      return stmtGateUnrecoverable(statement, policy);
+    }
   }
-
-  const [rewritten, ok] = stmtGateRewrite(scan, presented, policy);
-  if (!ok) {
-    return stmtGateUnrecoverable(rewritten, policy);
-  }
-
-  // Grammar correction: make the noun governed by the presented value agree in
-  // number. This runs after numeric rewrite so the governed literal already
-  // equals presented and inflection targets the correct grammatical number.
-  const corrected = stmtGateCorrectGrammar(rewritten, presented);
-
-  // Re-scan the corrected statement and re-validate under the policy. Grammar
-  // correction only changes noun spelling, never numeric literals, so the literal
-  // set is stable; re-scanning still guarantees the emitted text is what a
-  // runtime would observe (Requirement 6.7).
-  const reScan = stmtScanStatement(corrected, truth, presented);
-  if (!stmtGateValidate(reScan, presented, policy)) {
-    return stmtGateUnrecoverable(corrected, policy);
-  }
-
-  return { ok: true, statement: corrected, reason: "", policy };
+  return { ok: true, statement, reason: "", policy };
 }
 
 // stmtGateUnrecoverable builds the deterministic abstain result.
@@ -1079,193 +531,6 @@ function stmtGateUnrecoverable(statement: string, policy: StmtGatePolicy): StmtG
     reason: AbstainStatementUnrecoverable,
     policy,
   };
-}
-
-// stmtGateShouldRewrite reports whether a scanned literal must be rewritten to
-// the presented value under the selected policy.
-//
-//   - A truth leak is ALWAYS rewritten (forbidden under both policies, Req 6.1).
-//   - A governed literal is rewritten whenever its value differs from presented
-//     (governed mismatch repair, both policies, Req 6.2/6.5).
-//   - Under strict, EVERY other numeric literal is rewritten to presented so no
-//     foreign number remains (Req 6.2 strict branch).
-//   - Under governed/incidental, a non-governed, non-truth-leak literal is left
-//     as-is (incidental numbers such as "Apollo 11" may remain).
-//
-// A literal with an undefined value (did not ingest) is never a truth leak; under
-// strict it is still treated as a foreign literal and rewritten, under
-// governed/incidental it is left alone unless it is the governed literal.
-function stmtGateShouldRewrite(
-  lit: StatementLiteral,
-  presented: FixedPointValue,
-  policy: StmtGatePolicy,
-): boolean {
-  if (lit.isTruthLeak) {
-    return true;
-  }
-  if (lit.class === LiteralGoverned) {
-    // Repair only a genuine mismatch; an already-correct governed literal is left
-    // untouched so rewrite is idempotent.
-    if (lit.value === undefined) {
-      return true;
-    }
-    const [cmp, ok] = compareFixed(lit.value, presented);
-    if (ok && cmp === 0) {
-      return false;
-    }
-    return true;
-  }
-  // Non-governed, non-leak literal.
-  if (policy === StmtGateStrict) {
-    // Strict: an incidental/foreign literal already equal to presented is
-    // harmless and may remain (keeps rewrite minimal and idempotent); anything
-    // else is rewritten.
-    if (lit.value !== undefined) {
-      const [cmp, ok] = compareFixed(lit.value, presented);
-      if (ok && cmp === 0) {
-        return false;
-      }
-    }
-    return true;
-  }
-  // governed/incidental: leave incidental literals in place.
-  return false;
-}
-
-// stmtGateRewrite produces a rewritten statement in which every literal the
-// policy requires to change is replaced by the canonical presented spelling.
-// Replacement walks the scanned spans right-to-left so earlier byte offsets stay
-// valid as later spans are spliced. It returns ok=false only when a literal that
-// MUST be rewritten cannot be (which cannot currently occur, since presented is
-// always representable, but the guard keeps the contract explicit and the port
-// symmetric with Go).
-function stmtGateRewrite(
-  scan: StatementScan,
-  presented: FixedPointValue,
-  policy: StmtGatePolicy,
-): [string, boolean] {
-  const presentedText = formatFixedCanonical(presented);
-  let out = scan.statement;
-  // Iterate spans from last to first so splicing does not shift the offsets of
-  // spans not yet processed.
-  for (let i = scan.literals.length - 1; i >= 0; i--) {
-    const lit = scan.literals[i];
-    if (!stmtGateShouldRewrite(lit, presented, policy)) {
-      continue;
-    }
-    if (lit.start < 0 || lit.end > out.length || lit.start > lit.end) {
-      return [out, false];
-    }
-    out = out.slice(0, lit.start) + presentedText + out.slice(lit.end);
-  }
-  return [out, true];
-}
-
-// stmtGateValidate re-checks the (already-rewritten) statement against the
-// policy. It reads the re-scanned literals directly: no literal may equal truth
-// (both policies), every governed literal must equal presented (both policies),
-// and under strict no numeric literal other than presented may remain.
-function stmtGateValidate(
-  scan: StatementScan,
-  presented: FixedPointValue,
-  policy: StmtGatePolicy,
-): boolean {
-  for (let i = 0; i < scan.literals.length; i++) {
-    const lit = scan.literals[i];
-    // No literal may be a truth leak under either policy (Req 6.1).
-    if (lit.isTruthLeak) {
-      return false;
-    }
-    let equalsPresented = false;
-    if (lit.value !== undefined) {
-      const [cmp, ok] = compareFixed(lit.value, presented);
-      if (ok && cmp === 0) {
-        equalsPresented = true;
-      }
-    }
-    if (lit.class === LiteralGoverned) {
-      // The governed literal must equal presented (Req 6.2, 6.5).
-      if (!equalsPresented) {
-        return false;
-      }
-    } else if (policy === StmtGateStrict) {
-      // Strict: every remaining literal must equal presented (Req 6.2).
-      if (!equalsPresented) {
-        return false;
-      }
-    }
-    // governed/incidental: an incidental literal may remain with any (non-truth)
-    // value; nothing more to check.
-  }
-  return true;
-}
-
-// stmtGateCorrectGrammar corrects the singular/plural grammar of the noun
-// governed by the presented value. It locates the governed numeric literal in the
-// statement (the one whose value equals presented, preferring a standalone
-// occurrence), then inflects the immediately-following word to agree with the
-// presented value using the generated inflection tables (Requirements 6.3, 6.4,
-// 6.6). When no governed noun can be located the statement is returned unchanged;
-// grammar correction is best-effort and never fabricates text.
-//
-// Correction is idempotent because stmtInflectNounForValue is idempotent: the
-// governed noun is reduced to its canonical base and re-inflected toward the
-// grammatical number implied by presented, so re-running produces the same word.
-function stmtGateCorrectGrammar(statement: string, presented: FixedPointValue): string {
-  const scan = stmtScanStatement(statement, presented, presented);
-  if (scan.governedIndex < 0 || scan.governedIndex >= scan.literals.length) {
-    return statement;
-  }
-  const lit = scan.literals[scan.governedIndex];
-
-  // Find the noun that follows the governed number: skip a single run of
-  // separator bytes (spaces/tabs) after the literal, then read the following word
-  // (a maximal run of ASCII letters).
-  const nounStart = stmtGateSkipSeparators(statement, lit.end);
-  if (nounStart >= statement.length) {
-    return statement;
-  }
-  const nounEnd = stmtGateReadWord(statement, nounStart);
-  if (nounEnd === nounStart) {
-    return statement;
-  }
-  const noun = statement.slice(nounStart, nounEnd);
-  const corrected = stmtInflectNounForValue(noun, presented);
-  if (corrected === noun) {
-    return statement;
-  }
-  return statement.slice(0, nounStart) + corrected + statement.slice(nounEnd);
-}
-
-// stmtGateSkipSeparators returns the index of the first non-separator byte at or
-// after i. Separators are the ASCII space and tab; a single separator run between
-// the number and its noun is expected ("3 dogs"). Punctuation ends the scan so we
-// never inflect across a comma or period.
-function stmtGateSkipSeparators(statement: string, i: number): number {
-  while (i < statement.length) {
-    const c = statement[i];
-    if (c === " " || c === "\t") {
-      i++;
-      continue;
-    }
-    break;
-  }
-  return i;
-}
-
-// stmtGateReadWord returns the end index of a maximal run of ASCII letters
-// starting at i (or i itself when the byte at i is not a letter).
-function stmtGateReadWord(statement: string, i: number): number {
-  while (i < statement.length && stmtGateIsASCIILetter(statement[i])) {
-    i++;
-  }
-  return i;
-}
-
-// stmtGateIsASCIILetter reports whether the single-character string b is an ASCII
-// letter.
-function stmtGateIsASCIILetter(b: string): boolean {
-  return (b >= "a" && b <= "z") || (b >= "A" && b <= "Z");
 }
 
 // stmtGateContainsValue is a small deterministic helper used by tests and future
@@ -1286,12 +551,12 @@ export function stmtGateContainsValue(statement: string, v: FixedPointValue): bo
   return false;
 }
 
-// stmtGateValidPolicy reports whether p is one of the three implemented
-// policies. It is used by callers/tests to reject an unset or unknown selector;
-// it does NOT pick a default (production selection is owned by
+// stmtGateValidPolicy reports whether p is the implemented production policy
+// (StmtGateNumberlessDrop). It is used by callers/tests to reject an unset or
+// unknown selector; it does NOT pick a default (production selection is owned by
 // stmtProdPolicySelector).
 export function stmtGateValidPolicy(p: StmtGatePolicy | string): boolean {
-  return p === StmtGateStrict || p === StmtGateGovernedIncidental || p === StmtGateNumberlessDrop;
+  return p === StmtGateNumberlessDrop;
 }
 
 // ===========================================================================

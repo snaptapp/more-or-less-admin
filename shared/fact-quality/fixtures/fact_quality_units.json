@@ -1,7 +1,7 @@
 {
   "$comment": "Authoritative declarative fact-quality unit registry. Unit conversion factors are exact decimal rationals (factor_num/factor_den applied after offset_num/offset_den: base = (value - offset) * factor). Domains declare sign/integrality/bounds on the BASE-unit value so a scaled count like 3.5 million people is checked against an integral base count while a fractional headcount is not silently admitted. Reviewed by hand; consumed through generated artifacts only. Registry additions require the same review as a rule change.",
   "schema_version": 1,
-  "registry_revision": "fact-quality-units-1",
+  "registry_revision": "fact-quality-units-2",
   "relations": [
     "first_occurrence",
     "return",
@@ -46,6 +46,11 @@
       "kinds": ["money"]
     },
     "length": {
+      "integral": false,
+      "min_token": "0",
+      "kinds": ["physical_measure"]
+    },
+    "mass": {
       "integral": false,
       "min_token": "0",
       "kinds": ["physical_measure"]
@@ -121,6 +126,7 @@
       "factor_num": "1",
       "factor_den": "1",
       "quantum_token": "0.5",
+      "kinds": ["count", "physical_measure"],
       "aliases": ["sacks", "sack", "credited sacks"]
     },
     "seat": {
@@ -152,6 +158,18 @@
       "factor_num": "1000000000",
       "factor_den": "1",
       "aliases": ["billion dollars", "billions of dollars", "usd billion", "$b"]
+    },
+    "gram": {
+      "base": "mass",
+      "factor_num": "1",
+      "factor_den": "1",
+      "aliases": ["gram", "grams", "g"]
+    },
+    "kilogram": {
+      "base": "mass",
+      "factor_num": "1000",
+      "factor_den": "1",
+      "aliases": ["kilogram", "kilograms", "kg"]
     },
     "meter": {
       "base": "length",
@@ -316,6 +334,6 @@
     "elapsed_time": { "bases": ["duration"], "aggregations": ["total", "single_event", "mean", "rate"] },
     "score": { "bases": ["rating"], "aggregations": ["single_event", "mean", "maximum"] },
     "capacity": { "bases": ["capacity", "count"], "aggregations": ["total", "single_event", "maximum"] },
-    "generic": { "bases": ["count", "capacity", "money", "length", "temperature", "percent_proportion", "percent_delta", "percent_point", "rank", "calendar_year", "rate", "duration", "ratio", "rating"], "aggregations": ["single_event", "total", "unique_count", "maximum", "minimum", "mean", "median", "rate", "credited_statistic", "ratio"] }
+    "generic": { "bases": ["count", "capacity", "money", "length", "mass", "temperature", "percent_proportion", "percent_delta", "percent_point", "rank", "calendar_year", "rate", "duration", "ratio", "rating"], "aggregations": ["single_event", "total", "unique_count", "maximum", "minimum", "mean", "median", "rate", "credited_statistic", "ratio"] }
   }
 }

@@ -22,6 +22,7 @@ export interface FactQualityUnit {
   quantum_token?: string;
   integral_base?: boolean;
   aliases: string[];
+  kinds?: string[];
 }
 
 export interface FactQualityMeasure {
@@ -42,7 +43,7 @@ export interface FactQualityRegistry {
   measures: Record<string, FactQualityMeasure>;
 }
 
-export const FACT_QUALITY_REGISTRY_REVISION = "fact-quality-units-1";
+export const FACT_QUALITY_REGISTRY_REVISION = "fact-quality-units-2";
 
 export const FACT_QUALITY_REGISTRY: FactQualityRegistry = {
   "$comment": "Authoritative declarative fact-quality unit registry. Unit conversion factors are exact decimal rationals (factor_num/factor_den applied after offset_num/offset_den: base = (value - offset) * factor). Domains declare sign/integrality/bounds on the BASE-unit value so a scaled count like 3.5 million people is checked against an integral base count while a fractional headcount is not silently admitted. Reviewed by hand; consumed through generated artifacts only. Registry additions require the same review as a rule change.",
@@ -90,6 +91,13 @@ export const FACT_QUALITY_REGISTRY: FactQualityRegistry = {
       "min_token": "0"
     },
     "length": {
+      "integral": false,
+      "kinds": [
+        "physical_measure"
+      ],
+      "min_token": "0"
+    },
+    "mass": {
       "integral": false,
       "kinds": [
         "physical_measure"
@@ -228,6 +236,7 @@ export const FACT_QUALITY_REGISTRY: FactQualityRegistry = {
         "capacity",
         "money",
         "length",
+        "mass",
         "temperature",
         "percent_proportion",
         "percent_delta",
@@ -343,7 +352,7 @@ export const FACT_QUALITY_REGISTRY: FactQualityRegistry = {
       ]
     }
   },
-  "registry_revision": "fact-quality-units-1",
+  "registry_revision": "fact-quality-units-2",
   "relations": [
     "first_occurrence",
     "return",
@@ -429,6 +438,16 @@ export const FACT_QUALITY_REGISTRY: FactQualityRegistry = {
       "factor_den": "1",
       "factor_num": "0.3048"
     },
+    "gram": {
+      "aliases": [
+        "gram",
+        "grams",
+        "g"
+      ],
+      "base": "mass",
+      "factor_den": "1",
+      "factor_num": "1"
+    },
     "hour": {
       "aliases": [
         "hours",
@@ -448,6 +467,16 @@ export const FACT_QUALITY_REGISTRY: FactQualityRegistry = {
       "base": "length",
       "factor_den": "1",
       "factor_num": "0.0254"
+    },
+    "kilogram": {
+      "aliases": [
+        "kilogram",
+        "kilograms",
+        "kg"
+      ],
+      "base": "mass",
+      "factor_den": "1",
+      "factor_num": "1000"
     },
     "kilometer": {
       "aliases": [
@@ -630,6 +659,10 @@ export const FACT_QUALITY_REGISTRY: FactQualityRegistry = {
       "base": "count",
       "factor_den": "1",
       "factor_num": "1",
+      "kinds": [
+        "count",
+        "physical_measure"
+      ],
       "quantum_token": "0.5"
     },
     "seat": {
