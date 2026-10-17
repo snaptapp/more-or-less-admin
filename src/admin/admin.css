@@ -111,6 +111,13 @@
 .admin-shell .ds-button--lg,
 .admin-signin .ds-button--lg { font-size: var(--ds-arena-text-md); }
 
+.admin-config .admin-config-add-button {
+  flex: 0 0 auto;
+  min-width: 56px;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
 .admin-shell .admin-menu-toggle { padding: 0; }
 
 .admin-page-head {

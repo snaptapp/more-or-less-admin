@@ -149,7 +149,10 @@ export async function getRemoteConfigTemplate(): Promise<RemoteConfigTemplate> {
     throw new Error(`Failed to fetch Remote Config (${response.status}): ${errorText}`);
   }
 
-  const etag = response.headers.get("ETag") || response.headers.get("etag") || "*";
+  const etag = response.headers.get("ETag") || response.headers.get("etag");
+  if (!etag) {
+    throw new Error("Firebase Remote Config did not return an ETag; refusing to use an unverified template.");
+  }
   const template = (await response.json()) as RemoteConfigTemplate;
   template.etag = etag;
   return template;
@@ -375,7 +378,7 @@ export async function publishTopicSuggestionsConfig(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json; UTF-8",
-      "If-Match": etag || "*",
+      "If-Match": etag,
     },
     body: JSON.stringify({
       parameters: template.parameters,
@@ -393,7 +396,15 @@ export async function publishTopicSuggestionsConfig(
   }
 
   const updatedTemplate = (await response.json()) as RemoteConfigTemplate;
-  const newEtag = response.headers.get("ETag") || response.headers.get("etag") || "*";
+  const newEtag = response.headers.get("ETag") || response.headers.get("etag");
+  if (!newEtag) {
+    throw new Error("Firebase accepted the Remote Config publish but returned no ETag, so the publish could not be verified.");
+  }
+
+  const verifiedTemplate = await getRemoteConfigTemplate();
+  if (verifiedTemplate.etag !== newEtag) {
+    throw new Error("Firebase accepted the Remote Config publish, but read-back returned a different version. Reload the config before retrying.");
+  }
 
   // Re-read current custom parameters
   const currentCustomParams: Record<string, CustomParamEntry> = {};

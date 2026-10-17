@@ -349,12 +349,10 @@ function ConfigPage() {
         },
       });
       setEtag(result.etag);
-      setSaveSuccess(true);
       // The published values are now the baseline, even if the refetch below
       // is slow or served stale.
-      queryClient.setQueryData(["remote-config-topics"], (old: typeof data) =>
-        old ? { ...old, ...currentForm, etag: result.etag } : old,
-      );
+      queryClient.setQueryData(["remote-config-topics"], result);
+      setSaveSuccess(true);
       await queryClient.invalidateQueries({ queryKey: ["remote-config-topics"] });
       setTimeout(() => setSaveSuccess(false), 4000);
     } catch (err: unknown) {
@@ -682,7 +680,7 @@ function ConfigPage() {
                   }
                 }}
               />
-              <Button onClick={handleAddEmail}>Add</Button>
+              <Button className="admin-config-add-button" onClick={handleAddEmail}>Add</Button>
             </div>
           </Card>
 
@@ -805,7 +803,7 @@ function ConfigPage() {
                   }
                 }}
               />
-              <Button onClick={handleAddDefaultTopic}>Add</Button>
+              <Button className="admin-config-add-button" onClick={handleAddDefaultTopic}>Add</Button>
             </div>
           </Card>
 
@@ -1134,7 +1132,7 @@ function ConfigPage() {
                               }
                             }}
                           />
-                          <Button onClick={() => handleAddVariantTopic(vIdx)}>Add</Button>
+                          <Button className="admin-config-add-button" onClick={() => handleAddVariantTopic(vIdx)}>Add</Button>
                         </div>
                       </div>
                     </div>
@@ -1259,7 +1257,7 @@ function ConfigPage() {
                   onChange={(e) => setNewParamDesc(e.target.value)}
                   style={{ height: "38px", minHeight: "38px" }}
                 />
-                <Button onClick={handleAddCustomParam} disabled={!newParamKey.trim()}>
+                <Button className="admin-config-add-button" onClick={handleAddCustomParam} disabled={!newParamKey.trim()}>
                   Add
                 </Button>
               </div>

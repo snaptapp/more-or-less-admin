@@ -62,7 +62,9 @@ export function configFormFromServer(
     enableBannerAds: data?.enableBannerAds ?? false,
     allowedEmails: [...(data?.allowedEmails ?? [])],
     modeVisibility: { ...parseModeVisibility(undefined), ...(data?.modeVisibility ?? {}) },
-    customParameters: { ...(data?.customParameters ?? {}) },
+    customParameters: Object.fromEntries(
+      Object.entries(data?.customParameters ?? {}).map(([key, value]) => [key, { ...value }]),
+    ),
   };
 }
 

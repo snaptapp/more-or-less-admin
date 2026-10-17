@@ -52,4 +52,48 @@ describe("config form dirty check", () => {
     expect(SERVER.defaultTopics).toEqual(["Space", "Food"]);
     expect(SERVER.variants[0].topics).toEqual(["A"]);
   });
+
+  it("ignores reordered custom parameter entry keys", () => {
+    const server = {
+      ...SERVER,
+      customParameters: {
+        first: { value: "one", valueType: "STRING" as const },
+        second: { value: "two", valueType: "NUMBER" as const },
+      },
+    };
+    const baseline = configFormFromServer(server, FALLBACK);
+    const reordered = {
+      ...server,
+      customParameters: Object.fromEntries(Object.entries(server.customParameters).reverse()),
+    };
+    expect(changedConfigSections(configFormFromServer(reordered, FALLBACK), baseline)).toEqual([]);
+  });
+
+  it("detects an in-place allowedEmails edit", () => {
+    const baseline = configFormFromServer(SERVER, FALLBACK);
+    const edited = configFormFromServer(SERVER, FALLBACK);
+    edited.allowedEmails.push("new@example.com");
+    expect(changedConfigSections(edited, baseline)).toEqual(["allowedEmails"]);
+    expect(baseline.allowedEmails).toEqual(["@example.com"]);
+  });
+
+  it("does not share nested custom parameter objects with the server data", () => {
+    const form = configFormFromServer(SERVER, FALLBACK);
+    form.customParameters.min_app_version.value = "9.9.9";
+    expect(SERVER.customParameters.min_app_version.value).toBe("1.2.0");
+  });
+
+  it("treats default topic reordering as a change", () => {
+    const baseline = configFormFromServer(SERVER, FALLBACK);
+    const edited = configFormFromServer(SERVER, FALLBACK);
+    edited.defaultTopics = [...edited.defaultTopics].reverse();
+    expect(changedConfigSections(edited, baseline)).toEqual(["defaultTopics"]);
+  });
+
+  it("names modeVisibility alone for a mode-only edit", () => {
+    const baseline = configFormFromServer(SERVER, FALLBACK);
+    const edited = configFormFromServer(SERVER, FALLBACK);
+    edited.modeVisibility = { ...edited.modeVisibility, octagon: true };
+    expect(changedConfigSections(edited, baseline)).toEqual(["modeVisibility"]);
+  });
 });
