@@ -346,6 +346,7 @@ function ConfigPage() {
           modeVisibility,
           customParameters,
           etag,
+          baseVersionNumber: data?.versionNumber,
         },
       });
       setEtag(result.etag);
@@ -353,7 +354,6 @@ function ConfigPage() {
       // is slow or served stale.
       queryClient.setQueryData(["remote-config-topics"], result);
       setSaveSuccess(true);
-      await queryClient.invalidateQueries({ queryKey: ["remote-config-topics"] });
       setTimeout(() => setSaveSuccess(false), 4000);
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : "Failed to publish Remote Config");
@@ -406,6 +406,12 @@ function ConfigPage() {
       {error && (
         <div className="admin-error">
           Failed to load Remote Config: {error instanceof Error ? error.message : String(error)}
+        </div>
+      )}
+
+      {data && !data.etag && (
+        <div role="note" style={{ padding: "10px 14px", borderRadius: "8px", background: "rgba(250, 204, 21, 0.1)", border: "1px solid rgba(250, 204, 21, 0.3)", color: "#fde047" }}>
+          Firebase omitted the ETag. Publish uses a version-checked forced update and confirms saved values by reading them back.
         </div>
       )}
 

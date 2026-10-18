@@ -9,7 +9,7 @@ vi.mock("@/lib/firebase/credentials.server", () => ({
   })),
 }));
 
-import { publishTopicSuggestionsConfig, type RemoteConfigTemplate } from "@/lib/firebase/remote_config.server";
+import { getRemoteConfigTemplate, publishTopicSuggestionsConfig, type RemoteConfigTemplate } from "@/lib/firebase/remote_config.server";
 
 function remoteResponse(template: RemoteConfigTemplate, etag?: string): Response {
   return new Response(JSON.stringify(template), {
@@ -37,6 +37,16 @@ const TEMPLATE: RemoteConfigTemplate = {
 };
 
 describe("Remote Config publishing", () => {
+  it("loads the template when Firebase omits the ETag header", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(remoteResponse(TEMPLATE));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getRemoteConfigTemplate();
+
+    expect(result.parameters).toEqual({});
+    expect(result.etag).toBe("");
+  });
+
   it("returns success only after Firebase read-back confirms the published ETag", async () => {
     const publishedTemplate: RemoteConfigTemplate = {
       ...TEMPLATE,
@@ -51,7 +61,7 @@ describe("Remote Config publishing", () => {
       .mockResolvedValueOnce(remoteResponse(publishedTemplate, "etag-2"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await publishTopicSuggestionsConfig(INPUT, "etag-1", "admin@example.com");
+    const result = await publishTopicSuggestionsConfig(INPUT, "etag-1", "admin@example.com", "2");
 
     expect(result.defaultTopics).toEqual(INPUT.defaultTopics);
     expect(result.etag).toBe("etag-2");
@@ -75,17 +85,89 @@ describe("Remote Config publishing", () => {
       .mockResolvedValueOnce(remoteResponse(TEMPLATE, "etag-3"));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(publishTopicSuggestionsConfig(INPUT, "etag-1")).rejects.toThrow(
+    await expect(publishTopicSuggestionsConfig(INPUT, "etag-1", undefined, "2")).rejects.toThrow(
       "read-back returned a different version",
     );
   });
 
-  it("refuses to force-publish when the fetched template has no ETag", async () => {
+  it("preserves the page ETag so Firebase rejects stale client state", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(remoteResponse(TEMPLATE, "etag-current"))
+      .mockResolvedValueOnce(new Response("ETag mismatch", { status: 409 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(publishTopicSuggestionsConfig(INPUT, "etag-stale", "admin@example.com", "2")).rejects.toThrow(
+      "Failed to publish Remote Config (409)",
+    );
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      headers: expect.objectContaining({ "If-Match": "etag-stale" }),
+    });
+  });
+
+  it("publishes without ETags only after matching the loaded version and verifying read-back", async () => {
+    const publishedTemplate: RemoteConfigTemplate = {
+      ...TEMPLATE,
+      parameters: {
+        custom_topic_suggestions: { defaultValue: { value: JSON.stringify(INPUT.defaultTopics) } },
+      },
+      version: { versionNumber: "3" },
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(remoteResponse(TEMPLATE))
+      .mockResolvedValueOnce(remoteResponse(publishedTemplate))
+      .mockResolvedValueOnce(remoteResponse(publishedTemplate));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await publishTopicSuggestionsConfig(INPUT, "", "admin@example.com", "2");
+
+    expect(result.defaultTopics).toEqual(INPUT.defaultTopics);
+    expect(result.etag).toBe("");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      method: "PUT",
+      headers: expect.objectContaining({ "If-Match": "*" }),
+    });
+  });
+
+  it("rejects an ETag-free publish when read-back does not contain submitted values", async () => {
+    const publishedTemplate: RemoteConfigTemplate = {
+      ...TEMPLATE,
+      parameters: {
+        custom_topic_suggestions: { defaultValue: { value: JSON.stringify(INPUT.defaultTopics) } },
+      },
+      version: { versionNumber: "3" },
+    };
+    const staleReadback: RemoteConfigTemplate = {
+      ...TEMPLATE,
+      version: { versionNumber: "3" },
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(remoteResponse(TEMPLATE))
+      .mockResolvedValueOnce(remoteResponse(publishedTemplate))
+      .mockResolvedValueOnce(remoteResponse(staleReadback));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(publishTopicSuggestionsConfig(INPUT, "", "admin@example.com", "2")).rejects.toThrow(
+      "read-back did not match",
+    );
+  });
+
+  it("rejects an ETag-free publish if the loaded template version is stale", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(remoteResponse(TEMPLATE));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(publishTopicSuggestionsConfig(INPUT, "etag-1")).rejects.toThrow(
-      "did not return an ETag",
+    await expect(publishTopicSuggestionsConfig(INPUT, "", "admin@example.com", "1")).rejects.toThrow(
+      "changed since you loaded it",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses an ETag-free publish without a loaded template version", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(remoteResponse({ ...TEMPLATE, version: undefined }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(publishTopicSuggestionsConfig(INPUT, "", "admin@example.com")).rejects.toThrow(
+      "no ETag or usable template version",
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

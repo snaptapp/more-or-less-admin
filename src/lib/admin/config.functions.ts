@@ -34,7 +34,8 @@ const SaveConfigInputSchema = z.object({
   allowedEmails: z.array(z.string()).optional(),
   modeVisibility: z.object(Object.fromEntries(GAME_MODE_IDS.map((id) => [id, z.boolean()])) as Record<(typeof GAME_MODE_IDS)[number], z.ZodBoolean>).partial().strict().optional(),
   customParameters: z.record(CustomParamSchema).optional(),
-  etag: z.string().min(1),
+  etag: z.string(),
+  baseVersionNumber: z.string().optional(),
 });
 
 export const fetchRemoteConfigTopics = createServerFn({ method: "GET" })
@@ -66,6 +67,7 @@ export const saveRemoteConfigTopics = createServerFn({ method: "POST" })
       },
       data.etag,
       caller.email ?? caller.uid,
+      data.baseVersionNumber,
     );
 
     await logAdminAction(caller, {

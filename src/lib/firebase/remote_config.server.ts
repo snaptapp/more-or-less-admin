@@ -129,6 +129,33 @@ function normalizeTagColor(tagColor?: string): string {
   return VALID_TAG_COLORS.has(upper) ? upper : "BLUE";
 }
 
+function stableJson(value: unknown): string {
+  const sortKeys = (item: unknown): unknown => {
+    if (Array.isArray(item)) return item.map(sortKeys);
+    if (item && typeof item === "object") {
+      return Object.fromEntries(
+        Object.entries(item as Record<string, unknown>)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, child]) => [key, sortKeys(child)]),
+      );
+    }
+    return item;
+  };
+  return JSON.stringify(sortKeys(value));
+}
+
+function sameTemplatePayload(left: RemoteConfigTemplate, right: RemoteConfigTemplate): boolean {
+  return stableJson({
+    parameters: left.parameters ?? {},
+    conditions: left.conditions ?? [],
+    parameterGroups: left.parameterGroups ?? {},
+  }) === stableJson({
+    parameters: right.parameters ?? {},
+    conditions: right.conditions ?? [],
+    parameterGroups: right.parameterGroups ?? {},
+  });
+}
+
 /**
  * Fetch the raw Remote Config template and ETag from Firebase.
  */
@@ -149,12 +176,8 @@ export async function getRemoteConfigTemplate(): Promise<RemoteConfigTemplate> {
     throw new Error(`Failed to fetch Remote Config (${response.status}): ${errorText}`);
   }
 
-  const etag = response.headers.get("ETag") || response.headers.get("etag");
-  if (!etag) {
-    throw new Error("Firebase Remote Config did not return an ETag; refusing to use an unverified template.");
-  }
   const template = (await response.json()) as RemoteConfigTemplate;
-  template.etag = etag;
+  template.etag = response.headers.get("etag") || template.etag || "";
   return template;
 }
 
@@ -261,8 +284,17 @@ export async function publishTopicSuggestionsConfig(
   newConfig: RemoteConfigPublishInput,
   etag: string,
   userEmail?: string,
+  baseVersionNumber?: string,
 ): Promise<TopicSuggestionConfig> {
   const template = await getRemoteConfigTemplate();
+  const currentVersionNumber = template.version?.versionNumber;
+  if (baseVersionNumber && currentVersionNumber && baseVersionNumber !== currentVersionNumber) {
+    throw new Error("Remote Config changed since you loaded it. Reload the config before publishing again.");
+  }
+  const publishEtag = etag || template.etag;
+  if (!publishEtag && (!baseVersionNumber || !currentVersionNumber)) {
+    throw new Error("Firebase returned no ETag or usable template version. Reloading is required before publishing.");
+  }
   const account = getServiceAccount();
   const token = await getAccessToken([REMOTE_CONFIG_SCOPE]);
   const priorTopicConditionNames = new Set(
@@ -378,7 +410,9 @@ export async function publishTopicSuggestionsConfig(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json; UTF-8",
-      "If-Match": etag,
+      // Firebase documents `*` as a forced update. Use it only when its GET omitted
+      // ETag and the submitted template version still matches the current version.
+      "If-Match": publishEtag || "*",
     },
     body: JSON.stringify({
       parameters: template.parameters,
@@ -396,14 +430,21 @@ export async function publishTopicSuggestionsConfig(
   }
 
   const updatedTemplate = (await response.json()) as RemoteConfigTemplate;
-  const newEtag = response.headers.get("ETag") || response.headers.get("etag");
-  if (!newEtag) {
-    throw new Error("Firebase accepted the Remote Config publish but returned no ETag, so the publish could not be verified.");
-  }
+  const newEtag = response.headers.get("etag") || updatedTemplate.etag || "";
 
   const verifiedTemplate = await getRemoteConfigTemplate();
-  if (verifiedTemplate.etag !== newEtag) {
+  if (newEtag && verifiedTemplate.etag && verifiedTemplate.etag !== newEtag) {
     throw new Error("Firebase accepted the Remote Config publish, but read-back returned a different version. Reload the config before retrying.");
+  }
+  if (
+    updatedTemplate.version?.versionNumber &&
+    verifiedTemplate.version?.versionNumber &&
+    updatedTemplate.version.versionNumber !== verifiedTemplate.version.versionNumber
+  ) {
+    throw new Error("Firebase accepted the Remote Config publish, but read-back returned a different version. Reload the config before retrying.");
+  }
+  if (!sameTemplatePayload(updatedTemplate, verifiedTemplate)) {
+    throw new Error("Firebase accepted the publish request, but read-back did not match the saved template. Reload the config before retrying.");
   }
 
   // Re-read current custom parameters
@@ -444,9 +485,9 @@ export async function publishTopicSuggestionsConfig(
     modeVisibility: parseModeVisibility(updatedTemplate.parameters),
     modesWithOverrides: modesWithConditionalValues(updatedTemplate.parameters),
     customParameters: currentCustomParams,
-    etag: newEtag,
-    versionNumber: updatedTemplate.version?.versionNumber,
-    updatedAt: updatedTemplate.version?.updateTime,
-    updatedBy: updatedTemplate.version?.updateUser?.email ?? userEmail,
+    etag: verifiedTemplate.etag || newEtag,
+    versionNumber: verifiedTemplate.version?.versionNumber,
+    updatedAt: verifiedTemplate.version?.updateTime,
+    updatedBy: verifiedTemplate.version?.updateUser?.email ?? userEmail,
   };
 }
