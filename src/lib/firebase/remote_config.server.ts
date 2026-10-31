@@ -7,6 +7,7 @@ import { getAccessToken, getServiceAccount } from "./credentials.server";
 import {
   MODE_VISIBILITY_KEYS,
   applyModeVisibility,
+  modeVisibilityKey,
   modesWithConditionalValues,
   parseModeVisibility,
   type GameModeId,
@@ -129,31 +130,78 @@ function normalizeTagColor(tagColor?: string): string {
   return VALID_TAG_COLORS.has(upper) ? upper : "BLUE";
 }
 
-function stableJson(value: unknown): string {
-  const sortKeys = (item: unknown): unknown => {
-    if (Array.isArray(item)) return item.map(sortKeys);
-    if (item && typeof item === "object") {
-      return Object.fromEntries(
-        Object.entries(item as Record<string, unknown>)
-          .sort(([left], [right]) => left.localeCompare(right))
-          .map(([key, child]) => [key, sortKeys(child)]),
-      );
-    }
-    return item;
-  };
-  return JSON.stringify(sortKeys(value));
+const READ_BACK_ATTEMPTS = 3;
+const READ_BACK_DELAY_MS = 150;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function sameTemplatePayload(left: RemoteConfigTemplate, right: RemoteConfigTemplate): boolean {
-  return stableJson({
-    parameters: left.parameters ?? {},
-    conditions: left.conditions ?? [],
-    parameterGroups: left.parameterGroups ?? {},
-  }) === stableJson({
-    parameters: right.parameters ?? {},
-    conditions: right.conditions ?? [],
-    parameterGroups: right.parameterGroups ?? {},
+function normalizeConditionExpression(expression: string | undefined): string {
+  return (expression ?? "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Lists the written parameter keys whose saved default or conditional values are
+ * absent from `saved`.
+ */
+function unsavedParameterKeys(
+  submitted: Record<string, RemoteConfigParameter>,
+  keys: readonly string[],
+  saved: RemoteConfigTemplate,
+): string[] {
+  return keys.filter((key) => {
+    const expected = submitted[key];
+    const actual = saved.parameters?.[key];
+    if (!expected) return Boolean(actual);
+    if (!actual) return true;
+    if ((expected.defaultValue?.value ?? "") !== (actual.defaultValue?.value ?? "")) return true;
+    const expectedConditional = expected.conditionalValues ?? {};
+    const actualConditional = actual.conditionalValues ?? {};
+    const names = new Set([...Object.keys(expectedConditional), ...Object.keys(actualConditional)]);
+    for (const name of names) {
+      if ((expectedConditional[name]?.value ?? "") !== (actualConditional[name]?.value ?? "")) return true;
+    }
+    return false;
   });
+}
+
+/** Lists submitted conditions that are missing or whose expression changed on read-back. */
+function unsavedConditionNames(
+  submitted: RemoteConfigCondition[],
+  names: readonly string[],
+  saved: RemoteConfigTemplate,
+): string[] {
+  const savedByName = new Map((saved.conditions ?? []).map((condition) => [condition.name, condition]));
+  return names.filter((name) => {
+    const expected = submitted.find((condition) => condition.name === name);
+    const actual = savedByName.get(name);
+    if (!actual) return true;
+    return (
+      normalizeConditionExpression(expected?.expression) !==
+      normalizeConditionExpression(actual.expression)
+    );
+  });
+}
+
+/**
+ * Names the submitted values a saved template is missing.
+ *
+ * Publish success is decided by whether Firebase stored the values that were
+ * submitted, never by an ETag or version-number match: Remote Config can return a
+ * template whose version moved on (a later edit, or a read that lags the write)
+ * while the write itself landed.
+ */
+function unconfirmedValues(
+  submitted: { parameters: Record<string, RemoteConfigParameter>; conditions: RemoteConfigCondition[] },
+  parameterKeys: readonly string[],
+  conditionNames: readonly string[],
+  saved: RemoteConfigTemplate,
+): string {
+  return [
+    ...unsavedParameterKeys(submitted.parameters, parameterKeys, saved),
+    ...unsavedConditionNames(submitted.conditions, conditionNames, saved),
+  ].join(", ");
 }
 
 /**
@@ -303,6 +351,8 @@ export async function publishTopicSuggestionsConfig(
 
   // Ensure parameters object exists
   if (!template.parameters) template.parameters = {};
+  // Only the keys this publish writes are verified on read-back.
+  const touchedParameterKeys = new Set<string>();
 
   // Build conditionalValues map for topics
   const conditionalValues: Record<string, { value: string }> = {};
@@ -316,6 +366,7 @@ export async function publishTopicSuggestionsConfig(
   }
 
   // Update or set custom_topic_suggestions parameter
+  touchedParameterKeys.add(PARAM_KEY);
   template.parameters[PARAM_KEY] = {
     ...template.parameters[PARAM_KEY],
     defaultValue: {
@@ -328,6 +379,7 @@ export async function publishTopicSuggestionsConfig(
 
   // Update monetization and access parameters if provided
   if (newConfig.enableInterstitialAds !== undefined) {
+    touchedParameterKeys.add("enable_interstitial_ads");
     template.parameters["enable_interstitial_ads"] = {
       ...template.parameters["enable_interstitial_ads"],
       defaultValue: { value: String(newConfig.enableInterstitialAds) },
@@ -337,6 +389,7 @@ export async function publishTopicSuggestionsConfig(
   }
 
   if (newConfig.interstitialAdFrequency !== undefined) {
+    touchedParameterKeys.add("interstitial_ad_frequency_rounds");
     template.parameters["interstitial_ad_frequency_rounds"] = {
       ...template.parameters["interstitial_ad_frequency_rounds"],
       defaultValue: { value: String(newConfig.interstitialAdFrequency) },
@@ -346,6 +399,7 @@ export async function publishTopicSuggestionsConfig(
   }
 
   if (newConfig.enableRewardedAds !== undefined) {
+    touchedParameterKeys.add("enable_rewarded_ads");
     template.parameters["enable_rewarded_ads"] = {
       ...template.parameters["enable_rewarded_ads"],
       defaultValue: { value: String(newConfig.enableRewardedAds) },
@@ -355,6 +409,7 @@ export async function publishTopicSuggestionsConfig(
   }
 
   if (newConfig.enableBannerAds !== undefined) {
+    touchedParameterKeys.add("enable_banner_ads");
     template.parameters["enable_banner_ads"] = {
       ...template.parameters["enable_banner_ads"],
       defaultValue: { value: String(newConfig.enableBannerAds) },
@@ -364,6 +419,7 @@ export async function publishTopicSuggestionsConfig(
   }
 
   if (newConfig.allowedEmails !== undefined) {
+    touchedParameterKeys.add("allowed_emails");
     template.parameters["allowed_emails"] = {
       ...template.parameters["allowed_emails"],
       defaultValue: { value: newConfig.allowedEmails.join(",") },
@@ -373,7 +429,9 @@ export async function publishTopicSuggestionsConfig(
   }
 
   if (newConfig.modeVisibility) {
-    applyModeVisibility(template.parameters, newConfig.modeVisibility);
+    for (const id of applyModeVisibility(template.parameters, newConfig.modeVisibility)) {
+      touchedParameterKeys.add(modeVisibilityKey(id));
+    }
   }
 
   // Merge custom dynamic parameters if provided
@@ -382,6 +440,7 @@ export async function publishTopicSuggestionsConfig(
       if (customParam.value === "" && !template.parameters[key]) {
         continue;
       }
+      touchedParameterKeys.add(key);
       template.parameters[key] = {
         ...template.parameters[key],
         defaultValue: { value: customParam.value },
@@ -404,6 +463,8 @@ export async function publishTopicSuggestionsConfig(
   template.conditions = [...nonTopicConditions, ...topicConditions];
 
   // Publish to Remote Config
+  const submittedParameters = template.parameters;
+  const submittedConditions = template.conditions ?? [];
   const url = `https://firebaseremoteconfig.googleapis.com/v1/projects/${account.project_id}/remoteConfig`;
   const response = await fetch(url, {
     method: "PUT",
@@ -432,19 +493,38 @@ export async function publishTopicSuggestionsConfig(
   const updatedTemplate = (await response.json()) as RemoteConfigTemplate;
   const newEtag = response.headers.get("etag") || updatedTemplate.etag || "";
 
-  const verifiedTemplate = await getRemoteConfigTemplate();
-  if (newEtag && verifiedTemplate.etag && verifiedTemplate.etag !== newEtag) {
-    throw new Error("Firebase accepted the Remote Config publish, but read-back returned a different version. Reload the config before retrying.");
+  const submitted = {
+    parameters: submittedParameters,
+    conditions: submittedConditions,
+  };
+  const writtenParameterKeys = [...touchedParameterKeys];
+  const writtenConditionNames = [...newConditionNames];
+
+  // Confirm what Firebase stored, not which version it reported. A read-back can
+  // legitimately carry a different ETag or version number (a concurrent console
+  // edit, or a read that lags the publish) while the submitted values did land, so
+  // only values that never appear are treated as a failed publish.
+  let verifiedTemplate = await getRemoteConfigTemplate();
+  let unconfirmed = unconfirmedValues(
+    submitted,
+    writtenParameterKeys,
+    writtenConditionNames,
+    verifiedTemplate,
+  );
+  for (let attempt = 1; attempt <= READ_BACK_ATTEMPTS && unconfirmed; attempt += 1) {
+    await sleep(READ_BACK_DELAY_MS * attempt);
+    verifiedTemplate = await getRemoteConfigTemplate();
+    unconfirmed = unconfirmedValues(
+      submitted,
+      writtenParameterKeys,
+      writtenConditionNames,
+      verifiedTemplate,
+    );
   }
-  if (
-    updatedTemplate.version?.versionNumber &&
-    verifiedTemplate.version?.versionNumber &&
-    updatedTemplate.version.versionNumber !== verifiedTemplate.version.versionNumber
-  ) {
-    throw new Error("Firebase accepted the Remote Config publish, but read-back returned a different version. Reload the config before retrying.");
-  }
-  if (!sameTemplatePayload(updatedTemplate, verifiedTemplate)) {
-    throw new Error("Firebase accepted the publish request, but read-back did not match the saved template. Reload the config before retrying.");
+  if (unconfirmed) {
+    throw new Error(
+      `Firebase accepted the Remote Config publish, but the saved template never returned the submitted values (${unconfirmed}). Reload the config before retrying.`,
+    );
   }
 
   // Re-read current custom parameters
