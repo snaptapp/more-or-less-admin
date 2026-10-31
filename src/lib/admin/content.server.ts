@@ -62,6 +62,15 @@ import {
   type QualityReviewRecord,
 } from "./quality-review";
 
+import { areFactsDuplicateCandidates } from "./duplicate-candidates.server";
+
+export {
+  areFactsDuplicateCandidates,
+  ENGLISH_STOP_WORDS,
+  extractEntityTokens,
+  normalizeQuestion,
+} from "./duplicate-candidates.server";
+
 // Derived from the shared contract (Requirement 9.1): the canonical status set
 // is owned by Main_Repository and consumed here, so no hand-written literal list
 // declares fact statuses in Admin_Repository source.
@@ -1993,127 +2002,6 @@ export async function findFactForReport(report: ReportRecord): Promise<FactRecor
   }
 
   return null;
-}
-
-const INTERROGATIVE_PREFIXES = [
-  ["how", "many"],
-  ["how", "much"],
-  ["how", "long"],
-  ["how", "tall"],
-  ["how", "far"],
-  ["how", "old"],
-  ["how", "fast"],
-  ["how", "often"],
-  ["how", "does"],
-  ["how", "did"],
-  ["how", "do"],
-  ["what", "is"],
-  ["what", "s"],
-  ["what", "was"],
-  ["what", "were"],
-  ["what", "did"],
-  ["what", "does"],
-  ["what", "are"],
-  ["what", CONTRACT_QUANTITY_KINDS[0]],
-  ["what"],
-  ["which"],
-  ["who"],
-  ["when"],
-  ["where"],
-  ["why"],
-  ["how"],
-];
-
-export function normalizeQuestion(text: string): string {
-  const s = text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  if (!s) return "";
-  const toks = s.split(" ").filter(Boolean);
-  for (const pre of INTERROGATIVE_PREFIXES) {
-    if (toks.length <= pre.length) continue;
-    let match = true;
-    for (let i = 0; i < pre.length; i++) {
-      if (toks[i] !== pre[i]) {
-        match = false;
-        break;
-      }
-    }
-    if (match) return toks.slice(pre.length).join(" ");
-  }
-  return toks.join(" ");
-}
-
-export function tokenJaccard(a: string, b: string): number {
-  const setA = new Set(a.split(" ").filter(Boolean));
-  const setB = new Set(b.split(" ").filter(Boolean));
-  if (setA.size === 0 || setB.size === 0) return 0;
-  let intersection = 0;
-  for (const item of setA) {
-    if (setB.has(item)) intersection++;
-  }
-  const union = setA.size + setB.size - intersection;
-  return union > 0 ? intersection / union : 0;
-}
-
-export const ENGLISH_STOP_WORDS = new Set([
-  "a", "about", "above", "after", "again", "all", "also", "am", "an", "and", "any", "are", "as", "at",
-  "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "can", "did",
-  "do", "does", "doing", "down", "during", "each", "few", "for", "from", "further", "had", "has",
-  "have", "having", "he", "her", "here", "hers", "herself", "him", "himself", "his", "how", "i",
-  "if", "in", "into", "is", "it", "its", "itself", "just", "me", "more", "most", "my", "myself",
-  "no", "nor", "not", "now", "of", "off", "on", "once", "only", "or", "other", "our", "ours",
-  "ourselves", "out", "over", "own", "same", "she", "should", "so", "some", "such", "than", "that",
-  "the", "their", "theirs", "them", "themselves", "then", "there", "these", "they", "this", "those",
-  "through", "throughout", "to", "too", "under", "until", "up", "very", "was", "we", "were", "what",
-  "when", "where", "which", "while", "who", "whom", "why", "with", "won", "would", "you", "your",
-  "yours", "yourself", "yourselves",
-]);
-
-export function extractEntityTokens(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && !ENGLISH_STOP_WORDS.has(w));
-}
-
-export function areFactsDuplicateCandidates(
-  primary: { id?: string; question?: string; claim_template?: string; subject?: string; subject_key?: string },
-  candidate: { id?: string; question?: string; claim_template?: string; subject?: string; subject_key?: string },
-): boolean {
-  if (primary.id && candidate.id && primary.id === candidate.id) {
-    return false;
-  }
-
-  const normA = normalizeQuestion(primary.question || primary.claim_template || "");
-  const normB = normalizeQuestion(candidate.question || candidate.claim_template || "");
-  if (normA && normB && normA === normB) {
-    return true;
-  }
-
-  const subjA = (primary.subject_key || normalizeKey(primary.subject || "")).trim().toLowerCase();
-  const subjB = (candidate.subject_key || normalizeKey(candidate.subject || "")).trim().toLowerCase();
-
-  const toksA = extractEntityTokens(normA);
-  const toksB = extractEntityTokens(normB);
-  const setA = new Set(toksA);
-  const setB = new Set(toksB);
-
-  if (setA.size === 0 || setB.size === 0) return false;
-
-  let intersection = 0;
-  for (const item of setA) {
-    if (setB.has(item)) intersection++;
-  }
-  const union = setA.size + setB.size - intersection;
-  const jaccard = union > 0 ? intersection / union : 0;
-
-  // When subjects match: require moderate entity Jaccard (>= 0.40) or at least 2 shared entity tokens with jaccard >= 0.30
-  if (subjA && subjB && subjA === subjB) {
-    return jaccard >= 0.40 || (intersection >= 2 && jaccard >= 0.30);
-  }
-
-  // Cross-subject: require strong entity overlap (>= 0.60 Jaccard AND >= 2 shared entity tokens)
-  return jaccard >= 0.60 && intersection >= 2;
 }
 
 /** Best-effort lookup for other facts that duplicate or collide with this report. */
