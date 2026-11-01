@@ -62,6 +62,15 @@ import {
   type QualityReviewRecord,
 } from "./quality-review";
 
+import { areFactsDuplicateCandidates } from "./duplicate-candidates.server";
+
+export {
+  areFactsDuplicateCandidates,
+  ENGLISH_STOP_WORDS,
+  extractEntityTokens,
+  normalizeQuestion,
+} from "./duplicate-candidates.server";
+
 // Derived from the shared contract (Requirement 9.1): the canonical status set
 // is owned by Main_Repository and consumed here, so no hand-written literal list
 // declares fact statuses in Admin_Repository source.
@@ -1995,125 +2004,166 @@ export async function findFactForReport(report: ReportRecord): Promise<FactRecor
   return null;
 }
 
-const INTERROGATIVE_PREFIXES = [
-  ["how", "many"],
-  ["how", "much"],
-  ["how", "long"],
-  ["how", "tall"],
-  ["how", "far"],
-  ["how", "old"],
-  ["how", "fast"],
-  ["how", "often"],
-  ["how", "does"],
-  ["how", "did"],
-  ["how", "do"],
-  ["what", "is"],
-  ["what", "s"],
-  ["what", "was"],
-  ["what", "were"],
-  ["what", "did"],
-  ["what", "does"],
-  ["what", "are"],
-  ["what", CONTRACT_QUANTITY_KINDS[0]],
-  ["what"],
-  ["which"],
-  ["who"],
-  ["when"],
-  ["where"],
-  ["why"],
-  ["how"],
-];
+type DuplicateRefFact = Parameters<typeof areFactsDuplicateCandidates>[0];
 
-export function normalizeQuestion(text: string): string {
-  const s = text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  if (!s) return "";
-  const toks = s.split(" ").filter(Boolean);
-  for (const pre of INTERROGATIVE_PREFIXES) {
-    if (toks.length <= pre.length) continue;
-    let match = true;
-    for (let i = 0; i < pre.length; i++) {
-      if (toks[i] !== pre[i]) {
-        match = false;
-        break;
-      }
+function isDuplicateReportRecord(record: ReportRecord): boolean {
+  const reason = record.reason?.toLowerCase() ?? "";
+  return (
+    Boolean(record.qualityFlags?.some(isDuplicateFlag)) ||
+    reason.includes("duplicate_question") ||
+    reason.includes("conflicting_answer")
+  );
+}
+
+function reportRefFact(factId: string | undefined, record: ReportRecord): DuplicateRefFact {
+  return {
+    id: factId,
+    question: record.claimStatement,
+    claim_template: record.claimStatement,
+    subject: record.topic,
+    subject_key: normalizeKey(record.topic || ""),
+  };
+}
+
+async function backfillDuplicateIds(report: ReportRecord, duplicates: Map<string, FactRecord>): Promise<void> {
+  const mergedIds = Array.from(new Set([...(report.duplicateFactIds || []), ...duplicates.keys()]));
+  await patchDoc(`trivia_reports/${report.id}`, { duplicateFactIds: mergedIds }).catch(() => {});
+}
+
+/** Adds the normalized first two words of `text`, when it has at least two. */
+function addLeadingPairKey(keys: Set<string>, text: string): void {
+  const words = text.trim().split(/\s+/);
+  if (words.length >= 2) keys.add(normalizeKey(`${words[0]} ${words[1]}`));
+}
+
+function candidateSubjectKeys(primaryFact: FactRecord): Set<string> {
+  const keys = new Set<string>();
+  const subjectKey = primaryFact.subject_key || normalizeKey(primaryFact.subject);
+  if (subjectKey) keys.add(subjectKey);
+
+  // Also extract candidate keys from angle or question (e.g. Stevie Wonder in Grammy Awards)
+  if (primaryFact.angle) {
+    keys.add(normalizeKey(primaryFact.angle));
+    addLeadingPairKey(keys, primaryFact.angle);
+  }
+  if (primaryFact.question) {
+    addLeadingPairKey(keys, primaryFact.question);
+  }
+  return keys;
+}
+
+/** State shared by the duplicate lookup steps: the report under review and the duplicates found so far. */
+type DuplicateLookup = {
+  report: ReportRecord;
+  primaryId: string | undefined;
+  duplicates: Map<string, FactRecord>;
+};
+
+/** A fact ID still worth checking: non-empty, not the primary fact, and not already found. */
+function isNewDuplicateId(lookup: DuplicateLookup, factId: string): boolean {
+  return Boolean(factId) && factId !== lookup.primaryId && !lookup.duplicates.has(factId);
+}
+
+/** The fact ID a batch sibling points at, when that sibling is an unaccounted-for duplicate report. */
+function batchSiblingFactId(lookup: DuplicateLookup, other: ReportRecord): string | null {
+  if (other.id === lookup.report.id) return null;
+  const factId = other.factId?.trim();
+  if (!factId) return null;
+  if (!isNewDuplicateId(lookup, factId)) return null;
+  return isDuplicateReportRecord(other) ? factId : null;
+}
+
+/** Loads a fact by ID, returning it only when it is a duplicate candidate of `refFact`. */
+async function loadMatchingFact(factId: string, refFact: DuplicateRefFact): Promise<FactRecord | null> {
+  const doc = await getDoc(`fact_bank/${factId}`);
+  if (!doc) return null;
+  const fact = toFact(doc);
+  return areFactsDuplicateCandidates(refFact, fact) ? fact : null;
+}
+
+async function linkSiblingToPrimary(sibling: ReportRecord, primaryId: string): Promise<void> {
+  const mergedIds = Array.from(new Set([...(sibling.duplicateFactIds || []), primaryId]));
+  await patchDoc(`trivia_reports/${sibling.id}`, { duplicateFactIds: mergedIds }).catch(() => {});
+}
+
+/** Step 1: duplicate IDs already recorded on the report, kept only when they validate. */
+async function collectRecordedDuplicates(lookup: DuplicateLookup, primaryFact: FactRecord | null): Promise<void> {
+  const validDupIds: string[] = [];
+  let hadInvalid = false;
+  for (const dupId of lookup.report.duplicateFactIds ?? []) {
+    if (!isNewDuplicateId(lookup, dupId)) continue;
+    const doc = await getDoc(`fact_bank/${dupId}`);
+    if (!doc) continue;
+
+    const fact = toFact(doc);
+    if (primaryFact && !areFactsDuplicateCandidates(primaryFact, fact)) {
+      hadInvalid = true;
+      continue;
     }
-    if (match) return toks.slice(pre.length).join(" ");
+    lookup.duplicates.set(dupId, fact);
+    validDupIds.push(dupId);
   }
-  return toks.join(" ");
+  // Clean up corrupted duplicateFactIds in Firestore if invalid IDs were stored
+  if (hadInvalid) {
+    await patchDoc(`trivia_reports/${lookup.report.id}`, { duplicateFactIds: validDupIds }).catch(() => {});
+  }
 }
 
-export function tokenJaccard(a: string, b: string): number {
-  const setA = new Set(a.split(" ").filter(Boolean));
-  const setB = new Set(b.split(" ").filter(Boolean));
-  if (setA.size === 0 || setB.size === 0) return 0;
-  let intersection = 0;
-  for (const item of setA) {
-    if (setB.has(item)) intersection++;
+/** Step 2: other pending duplicate reports in the same batch that point at a matching fact. */
+async function collectBatchDuplicates(
+  lookup: DuplicateLookup,
+  refFact: DuplicateRefFact,
+  allReports: ReportRecord[],
+): Promise<void> {
+  let newDuplicatesFound = false;
+  for (const other of allReports) {
+    const otherFactId = batchSiblingFactId(lookup, other);
+    if (!otherFactId) continue;
+    if (!areFactsDuplicateCandidates(refFact, reportRefFact(otherFactId, other))) continue;
+
+    const fact = await loadMatchingFact(otherFactId, refFact);
+    if (!fact) continue;
+    lookup.duplicates.set(otherFactId, fact);
+    newDuplicatesFound = true;
+    if (lookup.primaryId) await linkSiblingToPrimary(other, lookup.primaryId);
   }
-  const union = setA.size + setB.size - intersection;
-  return union > 0 ? intersection / union : 0;
+
+  if (newDuplicatesFound) {
+    await backfillDuplicateIds(lookup.report, lookup.duplicates);
+  }
 }
 
-export const ENGLISH_STOP_WORDS = new Set([
-  "a", "about", "above", "after", "again", "all", "also", "am", "an", "and", "any", "are", "as", "at",
-  "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "can", "did",
-  "do", "does", "doing", "down", "during", "each", "few", "for", "from", "further", "had", "has",
-  "have", "having", "he", "her", "here", "hers", "herself", "him", "himself", "his", "how", "i",
-  "if", "in", "into", "is", "it", "its", "itself", "just", "me", "more", "most", "my", "myself",
-  "no", "nor", "not", "now", "of", "off", "on", "once", "only", "or", "other", "our", "ours",
-  "ourselves", "out", "over", "own", "same", "she", "should", "so", "some", "such", "than", "that",
-  "the", "their", "theirs", "them", "themselves", "then", "there", "these", "they", "this", "those",
-  "through", "throughout", "to", "too", "under", "until", "up", "very", "was", "we", "were", "what",
-  "when", "where", "which", "while", "who", "whom", "why", "with", "won", "would", "you", "your",
-  "yours", "yourself", "yourselves",
-]);
-
-export function extractEntityTokens(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && !ENGLISH_STOP_WORDS.has(w));
+/** Adds the fact_bank documents under one subject key that duplicate `primaryFact`. */
+async function collectQueriedKey(
+  key: string,
+  primaryFact: FactRecord,
+  duplicates: Map<string, FactRecord>,
+): Promise<void> {
+  const docs = await runQuery({
+    collection: "fact_bank",
+    filters: [{ field: "subject_key", op: "EQUAL", value: key }],
+    limit: 100,
+  });
+  for (const d of docs) {
+    if (d.id === primaryFact.id || duplicates.has(d.id)) continue;
+    const candidate = toFact(d);
+    if (areFactsDuplicateCandidates(primaryFact, candidate)) {
+      duplicates.set(d.id, candidate);
+    }
+  }
 }
 
-export function areFactsDuplicateCandidates(
-  primary: { id?: string; question?: string; claim_template?: string; subject?: string; subject_key?: string },
-  candidate: { id?: string; question?: string; claim_template?: string; subject?: string; subject_key?: string },
-): boolean {
-  if (primary.id && candidate.id && primary.id === candidate.id) {
-    return false;
+/** Step 3: query fact_bank by candidate subject key, stopping at the first key with a match. */
+async function collectQueriedDuplicates(lookup: DuplicateLookup, primaryFact: FactRecord): Promise<void> {
+  for (const key of candidateSubjectKeys(primaryFact)) {
+    if (!key) continue;
+    await collectQueriedKey(key, primaryFact, lookup.duplicates);
+    if (lookup.duplicates.size > 0) {
+      // Backfill on the report doc so future loads hit step 1 immediately
+      await backfillDuplicateIds(lookup.report, lookup.duplicates);
+      return;
+    }
   }
-
-  const normA = normalizeQuestion(primary.question || primary.claim_template || "");
-  const normB = normalizeQuestion(candidate.question || candidate.claim_template || "");
-  if (normA && normB && normA === normB) {
-    return true;
-  }
-
-  const subjA = (primary.subject_key || normalizeKey(primary.subject || "")).trim().toLowerCase();
-  const subjB = (candidate.subject_key || normalizeKey(candidate.subject || "")).trim().toLowerCase();
-
-  const toksA = extractEntityTokens(normA);
-  const toksB = extractEntityTokens(normB);
-  const setA = new Set(toksA);
-  const setB = new Set(toksB);
-
-  if (setA.size === 0 || setB.size === 0) return false;
-
-  let intersection = 0;
-  for (const item of setA) {
-    if (setB.has(item)) intersection++;
-  }
-  const union = setA.size + setB.size - intersection;
-  const jaccard = union > 0 ? intersection / union : 0;
-
-  // When subjects match: require moderate entity Jaccard (>= 0.40) or at least 2 shared entity tokens with jaccard >= 0.30
-  if (subjA && subjB && subjA === subjB) {
-    return jaccard >= 0.40 || (intersection >= 2 && jaccard >= 0.30);
-  }
-
-  // Cross-subject: require strong entity overlap (>= 0.60 Jaccard AND >= 2 shared entity tokens)
-  return jaccard >= 0.60 && intersection >= 2;
 }
 
 /** Best-effort lookup for other facts that duplicate or collide with this report. */
@@ -2122,135 +2172,28 @@ export async function findDuplicateFactsForReport(
   primaryFact: FactRecord | null,
   allReports?: ReportRecord[],
 ): Promise<FactRecord[]> {
-  const duplicates = new Map<string, FactRecord>();
-  const primaryId = primaryFact?.id ?? report.factId?.trim();
+  const lookup: DuplicateLookup = {
+    report,
+    primaryId: primaryFact?.id ?? report.factId?.trim(),
+    duplicates: new Map<string, FactRecord>(),
+  };
 
-  // 1. Direct IDs recorded on report (with strict candidate validation)
-  if (report.duplicateFactIds && report.duplicateFactIds.length > 0) {
-    const validDupIds: string[] = [];
-    let hadInvalid = false;
-    for (const dupId of report.duplicateFactIds) {
-      if (dupId && dupId !== primaryId && !duplicates.has(dupId)) {
-        const doc = await getDoc(`fact_bank/${dupId}`);
-        if (doc) {
-          const fact = toFact(doc);
-          if (!primaryFact || areFactsDuplicateCandidates(primaryFact, fact)) {
-            duplicates.set(dupId, fact);
-            validDupIds.push(dupId);
-          } else {
-            hadInvalid = true;
-          }
-        }
-      }
-    }
-    // Clean up corrupted duplicateFactIds in Firestore if invalid IDs were stored
-    if (hadInvalid) {
-      await patchDoc(`trivia_reports/${report.id}`, { duplicateFactIds: validDupIds }).catch(() => {});
-    }
+  await collectRecordedDuplicates(lookup, primaryFact);
+
+  // Later steps only run for duplicate-flagged reports that have found nothing yet.
+  if (!isDuplicateReportRecord(report) || lookup.duplicates.size > 0) {
+    return Array.from(lookup.duplicates.values());
   }
 
-  const isDuplicateReport =
-    report.qualityFlags?.some(isDuplicateFlag) ||
-    report.reason?.toLowerCase().includes("duplicate_question") ||
-    report.reason?.toLowerCase().includes("conflicting_answer");
-
-  // 2. Cross-reference other pending reports in the current batch
-  if (isDuplicateReport && duplicates.size === 0 && allReports?.length) {
-    const refFact = primaryFact || {
-      id: primaryId,
-      question: report.claimStatement,
-      claim_template: report.claimStatement,
-      subject: report.topic,
-      subject_key: normalizeKey(report.topic || ""),
-    };
-
-    let newDuplicatesFound = false;
-    for (const other of allReports) {
-      if (other.id === report.id) continue;
-      const otherFactId = other.factId?.trim();
-      if (!otherFactId || otherFactId === primaryId || duplicates.has(otherFactId)) continue;
-
-      const otherIsDup =
-        other.qualityFlags?.some(isDuplicateFlag) ||
-        other.reason?.toLowerCase().includes("duplicate_question") ||
-        other.reason?.toLowerCase().includes("conflicting_answer");
-
-      if (otherIsDup) {
-        const otherRefFact = {
-          id: otherFactId,
-          question: other.claimStatement,
-          claim_template: other.claimStatement,
-          subject: other.topic,
-          subject_key: normalizeKey(other.topic || ""),
-        };
-
-        if (areFactsDuplicateCandidates(refFact, otherRefFact)) {
-          const doc = await getDoc(`fact_bank/${otherFactId}`);
-          if (doc) {
-            const fact = toFact(doc);
-            if (areFactsDuplicateCandidates(refFact, fact)) {
-              duplicates.set(otherFactId, fact);
-              newDuplicatesFound = true;
-              if (primaryId) {
-                const otherMergedIds = Array.from(new Set([...(other.duplicateFactIds || []), primaryId]));
-                await patchDoc(`trivia_reports/${other.id}`, { duplicateFactIds: otherMergedIds }).catch(() => {});
-              }
-            }
-          }
-        }
-      }
-    }
-
-    if (newDuplicatesFound) {
-      const mergedIds = Array.from(new Set([...(report.duplicateFactIds || []), ...duplicates.keys()]));
-      await patchDoc(`trivia_reports/${report.id}`, { duplicateFactIds: mergedIds }).catch(() => {});
-    }
+  if (allReports?.length) {
+    await collectBatchDuplicates(lookup, primaryFact ?? reportRefFact(lookup.primaryId, report), allReports);
   }
 
-  // 3. Query fallback across fact_bank
-  if (isDuplicateReport && duplicates.size === 0 && primaryFact) {
-    const subjectKey = primaryFact.subject_key || normalizeKey(primaryFact.subject);
-    const candidateSubjectKeys = new Set<string>();
-    if (subjectKey) candidateSubjectKeys.add(subjectKey);
-
-    // Also extract candidate keys from angle or question (e.g. Stevie Wonder in Grammy Awards)
-    if (primaryFact.angle) {
-      candidateSubjectKeys.add(normalizeKey(primaryFact.angle));
-      const angleWords = primaryFact.angle.trim().split(/\s+/);
-      if (angleWords.length >= 2) {
-        candidateSubjectKeys.add(normalizeKey(`${angleWords[0]} ${angleWords[1]}`));
-      }
-    }
-    if (primaryFact.question) {
-      const qWords = primaryFact.question.trim().split(/\s+/);
-      if (qWords.length >= 2) {
-        candidateSubjectKeys.add(normalizeKey(`${qWords[0]} ${qWords[1]}`));
-      }
-    }
-
-    for (const key of candidateSubjectKeys) {
-      if (duplicates.size > 0 || !key) continue;
-      const docs = await runQuery({
-        collection: "fact_bank",
-        filters: [{ field: "subject_key", op: "EQUAL", value: key }],
-        limit: 100,
-      });
-      for (const d of docs) {
-        if (d.id === primaryFact.id || duplicates.has(d.id)) continue;
-        const candidate = toFact(d);
-        if (areFactsDuplicateCandidates(primaryFact, candidate)) {
-          duplicates.set(d.id, candidate);
-        }
-      }
-      if (duplicates.size > 0) {
-        // Backfill on the report doc so future loads hit step 1 immediately
-        const mergedIds = Array.from(new Set([...(report.duplicateFactIds || []), ...duplicates.keys()]));
-        await patchDoc(`trivia_reports/${report.id}`, { duplicateFactIds: mergedIds }).catch(() => {});
-      }
-    }
+  if (lookup.duplicates.size === 0 && primaryFact) {
+    await collectQueriedDuplicates(lookup, primaryFact);
   }
 
-  return Array.from(duplicates.values());
+  return Array.from(lookup.duplicates.values());
 }
 
 /**
